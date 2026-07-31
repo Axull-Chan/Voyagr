@@ -6,8 +6,8 @@ committed before the next begins — don't skip ahead without the user's go-ahea
 
 ## Phase status
 
-- [x] **Phase 1 — Project foundation** (this commit)
-- [ ] Phase 2 — Landing page & dashboard
+- [x] **Phase 1 — Project foundation**
+- [x] **Phase 2 — Landing page & dashboard** (this commit)
 - [ ] Phase 3 — Create trip wizard
 - [ ] Phase 4 — AI itinerary generation (OpenAI)
 - [ ] Phase 5 — Maps & location (Google Maps)
@@ -63,6 +63,43 @@ committed before the next begins — don't skip ahead without the user's go-ahea
 - Env var for the Supabase anon/publishable key is
   `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (the modern `sb_publishable_...`
   format), not the legacy `NEXT_PUBLIC_SUPABASE_ANON_KEY` name.
+
+## Non-obvious things learned in Phase 2
+
+- **The `sidebar` shadcn component exists in this registry** (`@shadcn/sidebar`,
+  plus a `use-mobile` hook) and is close to the classic Radix-based API
+  (`SidebarProvider`, `SidebarMenuButton` with `isActive`/`tooltip` props),
+  just rebuilt on Base UI's `useRender`. Polymorphic nav links use the same
+  `render={<Link .../>}` pattern as Button — but `SidebarMenuButton` does
+  *not* need `nativeButton`, since it's built on the generic `useRender`
+  hook, not Base UI's `Button` primitive.
+- **The mobile sidebar `Sheet` doesn't auto-close on navigation** — that's
+  on the consuming app, not the primitive. `AppSidebar` calls
+  `setOpenMobile(false)` in each nav item's `onClick` (harmless no-op on
+  desktop, where that state isn't used).
+- **Browser-tool screenshots can render blank at non-zero scroll positions**
+  on this page (reproduces even via plain `window.scrollTo`, so it's the
+  screenshot capture, not a real rendering bug) — confirmed via
+  `get_page_text` and computed-style/geometry checks (opacity, bounding
+  rects, `elementFromPoint`) that the actual DOM is correct. When a
+  screenshot goes blank after scrolling, verify with JS before assuming
+  the page is broken.
+- **`computer` tool coordinates are real CSS-pixel/viewport coordinates,
+  not screenshot-image-pixel coordinates** — the screenshot PNG can be
+  returned at a different resolution than the viewport (e.g. an 800×500
+  image for a 1280×800 viewport). Eyeballing a coordinate off a screenshot
+  and passing it straight to `computer` will be wrong unless you scale by
+  `viewport_size / screenshot_size`. Prefer `ref`-based targeting (from
+  `read_page`/`find`) over hand-computed coordinates.
+- **Base UI `Tooltip` doesn't open from a single synthetic `pointerenter`
+  event** (needed for hover-testing a disabled "New trip" button) — a real
+  `computer` hover at the *correct* coordinate works fine; the earlier
+  failures here were the coordinate-space issue above, not a Tooltip bug.
+- The viewport can end up at `0×0` after a `resize_window` + scroll
+  sequence (seen mid-session; `read_page` reported `Viewport: 0x0` and
+  `window.innerWidth/innerHeight` were both `0`). If screenshots or
+  `read_page` suddenly report an empty/zero-size page, call
+  `resize_window` with explicit dimensions before debugging further.
 
 ## Auth flow
 

@@ -12,6 +12,17 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { signOutAction } from "@/features/auth/actions/auth.actions"
 
+function getInitials(fullName: string | null, email: string) {
+  const trimmed = fullName?.trim()
+  if (trimmed) {
+    const parts = trimmed.split(/\s+/)
+    const first = parts[0]?.[0] ?? ""
+    const last = parts.length > 1 ? (parts[parts.length - 1]?.[0] ?? "") : ""
+    return (first + last || trimmed.slice(0, 2)).toUpperCase()
+  }
+  return email.slice(0, 2).toUpperCase()
+}
+
 export function UserMenu({
   email,
   fullName,
@@ -21,7 +32,7 @@ export function UserMenu({
   fullName: string | null
   avatarUrl: string | null
 }) {
-  const initials = (fullName ?? email).slice(0, 2).toUpperCase()
+  const initials = getInitials(fullName, email)
 
   return (
     <DropdownMenu>
