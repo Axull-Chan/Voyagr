@@ -31,7 +31,7 @@ export function AppSidebar() {
       <SidebarHeader>
         <Link
           href="/dashboard"
-          className="flex items-center gap-2 px-2 py-1.5 text-sm font-semibold text-foreground"
+          className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-sm font-semibold text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-primary text-sm text-primary-foreground">
             V
@@ -53,7 +53,7 @@ export function AppSidebar() {
                     onClick={() => setOpenMobile(false)}
                     render={<Link href={item.href} />}
                   >
-                    <item.icon />
+                    <item.icon aria-hidden="true" />
                     <span>{item.label}</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>

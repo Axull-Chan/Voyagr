@@ -1,13 +1,11 @@
-"use client"
-
 import Link from "next/link"
-import { motion } from "framer-motion"
 import { Check } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Reveal, RevealItem } from "@/components/shared/reveal"
+import { SectionHeading } from "@/components/shared/section-heading"
 import { cn } from "@/lib/utils"
-import { slideUp, staggerContainer } from "@/lib/motion"
 
 const tiers = [
   {
@@ -54,32 +52,24 @@ export function PricingSection() {
   return (
     <section id="pricing" className="scroll-mt-16 px-6 py-24">
       <div className="mx-auto max-w-6xl">
-        <div className="mx-auto max-w-xl text-center">
-          <h2 className="text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
-            Simple pricing, no surprises
-          </h2>
-          <p className="mt-3 text-base text-muted-foreground">
-            Start free. Upgrade whenever you&apos;re planning more than a
-            couple of trips a year.
-          </p>
-        </div>
+        <SectionHeading
+          title="Simple pricing, no surprises"
+          description="Start free. Upgrade whenever you're planning more than a couple of trips a year."
+        />
 
-        <motion.div
-          initial="hidden"
-          whileInView="visible"
-          viewport={{ once: true, margin: "-80px" }}
-          variants={staggerContainer}
-          className="mt-14 grid gap-6 lg:grid-cols-3"
-        >
+        <Reveal className="mt-14 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {tiers.map((tier) => (
-            <motion.div
+            <RevealItem
               key={tier.name}
-              variants={slideUp}
               className={cn(
                 "relative flex flex-col rounded-2xl border p-6",
                 tier.highlighted
                   ? "border-primary bg-card shadow-lg"
-                  : "border-border bg-card"
+                  : "border-border bg-card",
+                // the middle tier is the visual focal point of a 3-up grid;
+                // span both columns at the 2-col tablet breakpoint so it
+                // doesn't awkwardly pair with just one of the other two.
+                tier.highlighted && "sm:col-span-2 lg:col-span-1"
               )}
             >
               {tier.highlighted && (
@@ -107,7 +97,10 @@ export function PricingSection() {
                     key={feature}
                     className="flex items-start gap-2 text-sm text-foreground"
                   >
-                    <Check className="mt-0.5 size-4 shrink-0 text-primary" />
+                    <Check
+                      aria-hidden="true"
+                      className="mt-0.5 size-4 shrink-0 text-primary"
+                    />
                     {feature}
                   </li>
                 ))}
@@ -120,9 +113,9 @@ export function PricingSection() {
               >
                 Get started
               </Button>
-            </motion.div>
+            </RevealItem>
           ))}
-        </motion.div>
+        </Reveal>
       </div>
     </section>
   )

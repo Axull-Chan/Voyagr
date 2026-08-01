@@ -13,7 +13,7 @@ export function MarketingFooter() {
         <div className="max-w-xs">
           <Link
             href="/"
-            className="flex items-center gap-2 text-sm font-semibold text-foreground"
+            className="flex items-center gap-2 rounded-sm text-sm font-semibold text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <span className="flex size-7 items-center justify-center rounded-lg bg-primary text-sm text-primary-foreground">
               V
@@ -33,7 +33,7 @@ export function MarketingFooter() {
               <li key={link.href}>
                 <Link
                   href={link.href}
-                  className="text-sm text-muted-foreground hover:text-foreground"
+                  className="rounded-sm text-sm text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   {link.label}
                 </Link>

@@ -1,10 +1,8 @@
-"use client"
-
-import { motion } from "framer-motion"
 import { Quote } from "lucide-react"
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { slideUp, staggerContainer } from "@/lib/motion"
+import { Reveal, RevealItem } from "@/components/shared/reveal"
+import { SectionHeading } from "@/components/shared/section-heading"
 
 const testimonials = [
   {
@@ -39,26 +37,15 @@ export function TestimonialsSection() {
   return (
     <section className="px-6 py-24">
       <div className="mx-auto max-w-6xl">
-        <div className="mx-auto max-w-xl text-center">
-          <h2 className="text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
-            Loved by people who hate planning
-          </h2>
-        </div>
+        <SectionHeading title="Loved by people who hate planning" />
 
-        <motion.div
-          initial="hidden"
-          whileInView="visible"
-          viewport={{ once: true, margin: "-80px" }}
-          variants={staggerContainer}
-          className="mt-14 grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
-        >
+        <Reveal className="mt-14 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {testimonials.map((testimonial) => (
-            <motion.div
+            <RevealItem
               key={testimonial.name}
-              variants={slideUp}
               className="flex flex-col rounded-xl border border-border bg-card p-6"
             >
-              <Quote className="size-5 text-primary/40" />
+              <Quote aria-hidden="true" className="size-5 text-primary/40" />
               <p className="mt-4 flex-1 text-sm text-foreground">
                 {testimonial.quote}
               </p>
@@ -77,9 +64,9 @@ export function TestimonialsSection() {
                   </p>
                 </div>
               </div>
-            </motion.div>
+            </RevealItem>
           ))}
-        </motion.div>
+        </Reveal>
       </div>
     </section>
   )

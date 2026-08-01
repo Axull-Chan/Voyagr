@@ -26,7 +26,7 @@ export function ErrorState({
       )}
     >
       <div className="flex size-12 items-center justify-center rounded-full bg-destructive/10">
-        <AlertTriangle className="size-6 text-destructive" />
+        <AlertTriangle aria-hidden="true" className="size-6 text-destructive" />
       </div>
       <div className="space-y-1">
         <h3 className="text-sm font-medium text-foreground">{title}</h3>

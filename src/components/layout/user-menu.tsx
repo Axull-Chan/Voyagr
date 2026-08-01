@@ -36,7 +36,10 @@ export function UserMenu({
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger className="rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring">
+      <DropdownMenuTrigger
+        aria-label="Account menu"
+        className="rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
         <Avatar>
           {avatarUrl && (
             <AvatarImage src={avatarUrl} alt={fullName ?? email} />
@@ -60,7 +63,7 @@ export function UserMenu({
             void signOutAction()
           }}
         >
-          <LogOut /> Log out
+          <LogOut aria-hidden="true" /> Log out
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

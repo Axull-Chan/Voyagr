@@ -7,7 +7,8 @@ committed before the next begins — don't skip ahead without the user's go-ahea
 ## Phase status
 
 - [x] **Phase 1 — Project foundation**
-- [x] **Phase 2 — Landing page & dashboard** (this commit)
+- [x] **Phase 2 — Landing page & dashboard**, plus a post-review polish pass
+  (this commit) — see "Phase 2 polish" below
 - [ ] Phase 3 — Create trip wizard
 - [ ] Phase 4 — AI itinerary generation (OpenAI)
 - [ ] Phase 5 — Maps & location (Google Maps)
@@ -100,6 +101,67 @@ committed before the next begins — don't skip ahead without the user's go-ahea
   `window.innerWidth/innerHeight` were both `0`). If screenshots or
   `read_page` suddenly report an empty/zero-size page, call
   `resize_window` with explicit dimensions before debugging further.
+
+## Phase 2 polish (post-review fixes)
+
+A full review of Phase 2 found real bugs and gaps against the spec. Fixes:
+
+- **Root cause of the "pricing section stuck invisible" bug**: sections use
+  Framer Motion's `whileInView` to fade in on scroll. When the browser jumps
+  to a hash target *instantly* (anchor click, no `scroll-behavior: smooth`),
+  the `IntersectionObserver`-based trigger can miss the transition entirely
+  and the section is left at its `initial="hidden"` (invisible) state
+  forever — confirmed by watching computed `opacity` stay at `0`/`0.4`
+  indefinitely after an instant jump, in both dev and a production build
+  (so it's not a React Strict Mode artifact). Gradual/real scrolling always
+  triggered it correctly. Fix: added `scroll-behavior: smooth` globally
+  (disabled again under `prefers-reduced-motion: reduce`), and switched the
+  viewport trigger from a pixel `margin` to a ratio-based `amount` (more
+  robust per Framer Motion's own guidance) — both live in the new shared
+  `src/components/shared/reveal.tsx`.
+- **`Reveal` / `RevealItem` / `RevealGroup`** (`src/components/shared/reveal.tsx`)
+  replace one-off `motion.div` blocks across the app. `Reveal` takes
+  `mode="scroll"` (default, `whileInView` — for below-the-fold marketing
+  sections) or `mode="mount"` (`animate` — for above-the-fold app pages like
+  the dashboard, where waiting on a scroll observer would mean the content
+  never animates). `RevealGroup` has **no trigger of its own** — Framer
+  Motion propagates variants through the tree, so nesting a `RevealGroup`
+  inside a `Reveal` gets a second, independent stagger (e.g. the dashboard's
+  overall page fade-in, with each stat card *within* the stat row also
+  staggering) without fighting the outer trigger.
+- Converted all marketing sections from `"use client"` back to Server
+  Components that just import `Reveal`/`RevealItem` (which carry their own
+  `"use client"`) — cut the landing page's own route bundle from ~49 kB to
+  ~5 kB. Also extracted the repeated "centered heading + subtext" markup
+  into `src/components/shared/section-heading.tsx`.
+- `TripCard` now links to a real (if minimal) `src/app/(app)/trips/[id]/page.tsx`
+  instead of 404ing — it shows the trip's actual title/destination/dates/
+  status plus an honest "full itinerary arrives in Phase 3" notice. Replace
+  its content wholesale once itinerary display exists.
+- Accessibility pass: `focus-visible` rings added to every hand-rolled
+  `<Link>` that wasn't already a shadcn primitive (TripCard, dashboard quick
+  actions, navbar/footer/sidebar-brand links); `aria-label` added to
+  `UserMenu`'s icon-only trigger; `aria-hidden="true"` added to all
+  decorative icons app-wide.
+
+### Browser-automation caveat learned during this pass
+
+Deep into a long browser-testing session, `document.visibilityState`
+reported `"hidden"` / `document.hasFocus()` `false` for the active tab —
+**despite** `tabs_context` reporting it active and screenshots still
+rendering real content correctly. Chrome throttles/pauses
+`requestAnimationFrame` and smooth-scroll interpolation for documents that
+consider themselves backgrounded, which froze Framer Motion animations
+(stuck mid-fade, not just the whileInView case above) and made even plain
+`window.scrollTo`/`scrollIntoView()` no-ops — on **every** open tab,
+including freshly-created ones, until the whole preview session was
+stopped and restarted. This is a tooling artifact, not something a real
+user's browser does (a real tab is only hidden when the user has actually
+switched away, and animations correctly resume when they switch back). If
+animations or scrolling stop responding mid-session despite the page
+rendering fine in screenshots, check `document.visibilityState` before
+assuming the app broke — restart the preview session rather than
+debugging the app further.
 
 ## Auth flow
 

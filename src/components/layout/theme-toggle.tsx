@@ -21,18 +21,24 @@ export function ThemeToggle() {
           <Button variant="ghost" size="icon" aria-label="Toggle theme" />
         }
       >
-        <Sun className="scale-100 rotate-0 transition-all dark:scale-0 dark:-rotate-90" />
-        <Moon className="absolute scale-0 rotate-90 transition-all dark:scale-100 dark:rotate-0" />
+        <Sun
+          aria-hidden="true"
+          className="scale-100 rotate-0 transition-all dark:scale-0 dark:-rotate-90"
+        />
+        <Moon
+          aria-hidden="true"
+          className="absolute scale-0 rotate-90 transition-all dark:scale-100 dark:rotate-0"
+        />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         <DropdownMenuItem onClick={() => setTheme("light")}>
-          <Sun /> Light
+          <Sun aria-hidden="true" /> Light
         </DropdownMenuItem>
         <DropdownMenuItem onClick={() => setTheme("dark")}>
-          <Moon /> Dark
+          <Moon aria-hidden="true" /> Dark
         </DropdownMenuItem>
         <DropdownMenuItem onClick={() => setTheme("system")}>
-          <Monitor /> System
+          <Monitor aria-hidden="true" /> System
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

@@ -15,7 +15,7 @@ export function MarketingNavbar() {
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
         <Link
           href="/"
-          className="flex items-center gap-2 text-sm font-semibold text-foreground"
+          className="flex items-center gap-2 rounded-sm text-sm font-semibold text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           <span className="flex size-7 items-center justify-center rounded-lg bg-primary text-sm text-primary-foreground">
             V
@@ -28,7 +28,7 @@ export function MarketingNavbar() {
             <Link
               key={link.href}
               href={link.href}
-              className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+              className="rounded-sm text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               {link.label}
             </Link>

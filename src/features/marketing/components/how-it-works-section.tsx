@@ -1,8 +1,5 @@
-"use client"
-
-import { motion } from "framer-motion"
-
-import { slideUp, staggerContainer } from "@/lib/motion"
+import { Reveal, RevealItem } from "@/components/shared/reveal"
+import { SectionHeading } from "@/components/shared/section-heading"
 
 const steps = [
   {
@@ -38,25 +35,14 @@ export function HowItWorksSection() {
       className="scroll-mt-16 border-y border-border bg-muted/30 px-6 py-24"
     >
       <div className="mx-auto max-w-6xl">
-        <div className="mx-auto max-w-xl text-center">
-          <h2 className="text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
-            From idea to itinerary in minutes
-          </h2>
-          <p className="mt-3 text-base text-muted-foreground">
-            No blank pages. No spreadsheets. Just a plan you can actually
-            follow.
-          </p>
-        </div>
+        <SectionHeading
+          title="From idea to itinerary in minutes"
+          description="No blank pages. No spreadsheets. Just a plan you can actually follow."
+        />
 
-        <motion.div
-          initial="hidden"
-          whileInView="visible"
-          viewport={{ once: true, margin: "-80px" }}
-          variants={staggerContainer}
-          className="mt-14 grid gap-8 sm:grid-cols-2 lg:grid-cols-4"
-        >
+        <Reveal className="mt-14 grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
           {steps.map((step) => (
-            <motion.div key={step.number} variants={slideUp}>
+            <RevealItem key={step.number}>
               <span className="text-sm font-semibold text-primary">
                 {step.number}
               </span>
@@ -66,9 +52,9 @@ export function HowItWorksSection() {
               <p className="mt-1.5 text-sm text-muted-foreground">
                 {step.description}
               </p>
-            </motion.div>
+            </RevealItem>
           ))}
-        </motion.div>
+        </Reveal>
       </div>
     </section>
   )
