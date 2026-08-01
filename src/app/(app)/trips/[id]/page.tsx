@@ -97,8 +97,8 @@ export default async function TripDetailPage({ params }: TripDetailPageProps) {
       <RevealItem>
         <EmptyState
           icon={Sparkles}
-          title="Full itinerary coming in Phase 3"
-          description="Day-by-day planning, budget breakdowns, and AI-generated activities will show up here once trip creation ships."
+          title="Full itinerary coming soon"
+          description="Day-by-day planning, budget breakdowns, and AI-generated activities will appear here soon."
         />
       </RevealItem>
     </Reveal>

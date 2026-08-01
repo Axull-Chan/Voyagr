@@ -1,6 +1,13 @@
 import Link from "next/link"
+import { Menu } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { ThemeToggle } from "@/components/layout/theme-toggle"
 
 const navLinks = [
@@ -36,6 +43,27 @@ export function MarketingNavbar() {
         </nav>
 
         <div className="flex items-center gap-2">
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="md:hidden"
+                  aria-label="Open navigation menu"
+                />
+              }
+            >
+              <Menu aria-hidden="true" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              {navLinks.map((link) => (
+                <DropdownMenuItem key={link.href} render={<Link href={link.href} />}>
+                  {link.label}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
           <ThemeToggle />
           <Button
             variant="ghost"

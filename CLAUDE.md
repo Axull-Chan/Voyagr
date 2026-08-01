@@ -8,7 +8,8 @@ committed before the next begins — don't skip ahead without the user's go-ahea
 
 - [x] **Phase 1 — Project foundation**
 - [x] **Phase 2 — Landing page & dashboard**, plus a post-review polish pass
-  (this commit) — see "Phase 2 polish" below
+  and a final professional design-refinement pass (this commit) — see
+  "Phase 2 polish" and "Phase 2 final polish pass" below
 - [ ] Phase 3 — Create trip wizard
 - [ ] Phase 4 — AI itinerary generation (OpenAI)
 - [ ] Phase 5 — Maps & location (Google Maps)
@@ -136,7 +137,7 @@ A full review of Phase 2 found real bugs and gaps against the spec. Fixes:
   into `src/components/shared/section-heading.tsx`.
 - `TripCard` now links to a real (if minimal) `src/app/(app)/trips/[id]/page.tsx`
   instead of 404ing — it shows the trip's actual title/destination/dates/
-  status plus an honest "full itinerary arrives in Phase 3" notice. Replace
+  status plus an honest "full itinerary coming soon" notice. Replace
   its content wholesale once itinerary display exists.
 - Accessibility pass: `focus-visible` rings added to every hand-rolled
   `<Link>` that wasn't already a shadcn primitive (TripCard, dashboard quick
@@ -162,6 +163,85 @@ animations or scrolling stop responding mid-session despite the page
 rendering fine in screenshots, check `document.visibilityState` before
 assuming the app broke — restart the preview session rather than
 debugging the app further.
+
+## Phase 2 final polish pass (design refinement)
+
+A third pass, framed as a senior-designer/design-lead review looking for
+premium/cohesion issues rather than functional bugs. Two real layout bugs
+turned up despite the earlier passes:
+
+- **`TripCard` title/destination now truncate to one line** (`truncate` +
+  `min-w-0 flex-1` on the title, plain `truncate` on the destination, plus
+  a `title=` attribute for the full string on hover). Previously a long
+  title wrapped to two lines and pushed that one card's destination/date
+  row down, breaking row alignment across every grid that renders trip
+  cards (dashboard Upcoming/Recent, `/trips`) whenever titles had different
+  lengths — only visible once real data with varied title lengths was
+  seeded, not with the placeholder empty states.
+- **Pricing grid's 3-tier card set dropped the `sm:grid-cols-2` step
+  entirely** (`grid gap-4 lg:grid-cols-3`, cards capped at `max-w-md` and
+  centered via `mx-auto` below `lg`). The previous fix (highlighted tier
+  `sm:col-span-2` to span both columns at tablet width) avoided pairing it
+  awkwardly with just one sibling, but as a side effect left the other two
+  tiers at half-width, each alone on its own row with a full half-width gap
+  of empty space beside it — worse than the problem it solved. Stacking to
+  a single, width-capped column between `sm` and `lg` avoids both problems.
+  Verified via `getBoundingClientRect` on each tier's card (not just a
+  screenshot — see tooling caveat below), since the empty half-row wasn't
+  obvious at a glance in a downscaled screenshot.
+- **Marketing navbar now has a mobile nav menu.** Below `md`, `Features` /
+  `How it works` / `Pricing` had no way to be reached at all (they were
+  simply hidden with the desktop `<nav>`). Added a hamburger trigger using
+  the existing `DropdownMenu` primitives (no new dependency) with
+  `aria-label="Open navigation menu"`, visible only `md:hidden`.
+- **Removed internal phase numbers from user-facing copy.** The dashboard's
+  disabled "New trip" tooltip said "Coming in Phase 3" and the trip detail
+  placeholder said "Full itinerary coming in Phase 3" — both read as
+  portfolio/build scaffolding rather than product copy to anyone actually
+  using the app (a reviewer skimming the live UI, not the source). Changed
+  to "Coming soon" / "Full itinerary coming soon". Internal phase language
+  stays fine in this file and in commit messages — it's specifically
+  *rendered UI strings* that shouldn't leak it.
+- Confirmed clean at all seven checklist breakpoints (375/390/768/1024/
+  1280/1440; 414 skipped as redundant with 375/390) for both the marketing
+  page and the dashboard/trips/app shell, with real seeded data (not just
+  empty states) so title-length and count-driven layout issues had a
+  chance to show up.
+
+### Additional tooling caveats learned during this pass
+
+- **Repeated `resize_window` calls on one tab eventually break that tab's
+  layout engine**, independent of the `document.visibilityState` issue
+  above. Symptom: `getBoundingClientRect()`/`offsetWidth`/`offsetHeight`
+  return `0` for every non-root element (even `<header>`, at the very top
+  of the page) while `document.documentElement`/`document.body`'s own
+  rect stays correct — and screenshots *keep rendering real, current
+  content* throughout, so the page is not actually broken. Confirmed by
+  opening a brand-new tab at the same URL: geometry queries work
+  immediately there. Since a fresh tab reliably fixes it and a
+  same-tab `tabs_select` refocus does not, treat this as "this specific
+  tab's DevTools viewport-override state has degraded," not a page bug —
+  don't debug the app for it. Practical rule adopted for the rest of the
+  session: open a new tab per breakpoint when doing a resize-heavy
+  responsive sweep, rather than repeatedly resizing one long-lived tab.
+- **`document.body.innerText` can read back empty (`""`) while
+  `visibilityState` is `"hidden"`, even though the DOM is fully populated**
+  — `innerText` depends on an up-to-date layout/style pass, which appears
+  to be skipped for backgrounded documents in this environment.
+  `document.body.textContent` doesn't have this problem (it walks the DOM
+  tree directly, no layout dependency), so prefer `textContent` over
+  `innerText` for sanity-checking that a navigation actually landed content
+  when the tab is in this state.
+- **Don't run `npm run build` while the `next dev` preview server is
+  running against the same directory.** Production build overwrites
+  `.next/`, which the live dev server has open and expects to look a
+  specific (dev-mode) shape — the next request after that dev server 500s
+  with `ENOENT` on `.next/server/app/.../app-build-manifest.json` and
+  similar. Fix is `rm -rf .next` + restart the dev server (`preview_stop`
+  then `preview_start` again); the app itself was never broken. For a
+  regression gate, `npx tsc --noEmit` and `npm run lint` are safe to run
+  anytime, but run `npm run build` only when the dev preview is stopped,
+  or accept that the preview server needs restarting afterward.
 
 ## Auth flow
 

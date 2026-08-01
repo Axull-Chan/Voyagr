@@ -123,7 +123,7 @@ export default async function DashboardPage() {
               <Plus aria-hidden="true" />
               New trip
             </TooltipTrigger>
-            <TooltipContent>Coming in Phase 3</TooltipContent>
+            <TooltipContent>Coming soon</TooltipContent>
           </Tooltip>
         </RevealItem>
         <RevealItem
@@ -131,7 +131,7 @@ export default async function DashboardPage() {
         >
           <Link
             href="/trips"
-            className="flex items-center justify-between gap-3 rounded-xl border border-border bg-card p-4 transition-colors hover:border-primary/40 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+            className="group flex items-center justify-between gap-3 rounded-xl border border-border bg-card p-4 transition-all hover:border-primary/40 hover:shadow-md focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
           >
             <div>
               <p className="font-medium text-foreground">View all trips</p>
@@ -141,7 +141,7 @@ export default async function DashboardPage() {
             </div>
             <ArrowRight
               aria-hidden="true"
-              className="size-4 shrink-0 text-muted-foreground"
+              className="size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5"
             />
           </Link>
         </RevealItem>

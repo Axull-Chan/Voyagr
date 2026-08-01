@@ -56,7 +56,10 @@ export function HeroSection() {
         <RevealItem className="flex flex-col items-center gap-3 sm:flex-row">
           <Button size="lg" nativeButton={false} render={<Link href="/sign-up" />}>
             Start planning free
-            <ArrowRight aria-hidden="true" />
+            <ArrowRight
+              aria-hidden="true"
+              className="transition-transform group-hover/button:translate-x-0.5"
+            />
           </Button>
           <Button
             size="lg"
@@ -69,7 +72,7 @@ export function HeroSection() {
         </RevealItem>
 
         <RevealItem className="mt-10 w-full max-w-sm">
-          <div className="rounded-2xl border border-border bg-card p-5 shadow-lg">
+          <div className="rounded-2xl border border-border bg-card p-6 shadow-lg">
             <div className="mb-4 flex items-center justify-between">
               <span className="text-sm font-medium text-foreground">
                 Day 2 · Kyoto

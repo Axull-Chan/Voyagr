@@ -57,19 +57,15 @@ export function PricingSection() {
           description="Start free. Upgrade whenever you're planning more than a couple of trips a year."
         />
 
-        <Reveal className="mt-14 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        <Reveal className="mt-14 grid gap-4 lg:grid-cols-3">
           {tiers.map((tier) => (
             <RevealItem
               key={tier.name}
               className={cn(
-                "relative flex flex-col rounded-2xl border p-6",
+                "relative mx-auto flex w-full max-w-md flex-col rounded-2xl border p-6 lg:max-w-none",
                 tier.highlighted
                   ? "border-primary bg-card shadow-lg"
-                  : "border-border bg-card",
-                // the middle tier is the visual focal point of a 3-up grid;
-                // span both columns at the 2-col tablet breakpoint so it
-                // doesn't awkwardly pair with just one of the other two.
-                tier.highlighted && "sm:col-span-2 lg:col-span-1"
+                  : "border-border bg-card"
               )}
             >
               {tier.highlighted && (

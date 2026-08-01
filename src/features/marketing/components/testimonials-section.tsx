@@ -43,7 +43,7 @@ export function TestimonialsSection() {
           {testimonials.map((testimonial) => (
             <RevealItem
               key={testimonial.name}
-              className="flex flex-col rounded-xl border border-border bg-card p-6"
+              className="flex flex-col rounded-xl border border-border bg-card p-6 transition-colors hover:border-primary/40"
             >
               <Quote aria-hidden="true" className="size-5 text-primary/40" />
               <p className="mt-4 flex-1 text-sm text-foreground">
