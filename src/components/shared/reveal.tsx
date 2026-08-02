@@ -1,8 +1,8 @@
 "use client"
 
-import { motion } from "framer-motion"
+import { motion, useReducedMotion } from "framer-motion"
 
-import { slideUp, staggerContainer } from "@/lib/motion"
+import { fadeIn, slideUp, staggerContainer } from "@/lib/motion"
 
 interface RevealProps {
   children: React.ReactNode
@@ -45,8 +45,13 @@ export function RevealItem({
   children: React.ReactNode
   className?: string
 }) {
+  const prefersReducedMotion = useReducedMotion()
+
   return (
-    <motion.div variants={slideUp} className={className}>
+    <motion.div
+      variants={prefersReducedMotion ? fadeIn : slideUp}
+      className={className}
+    >
       {children}
     </motion.div>
   )

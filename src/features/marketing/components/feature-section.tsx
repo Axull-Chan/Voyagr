@@ -8,8 +8,9 @@ import {
   Wallet,
 } from "lucide-react"
 
-import { Reveal, RevealItem } from "@/components/shared/reveal"
 import { SectionHeading } from "@/components/shared/section-heading"
+import { FeatureBlock } from "@/features/marketing/components/feature-block"
+import { FeatureFloatingElements } from "@/features/marketing/components/feature-floating-elements"
 
 interface Feature {
   icon: LucideIcon
@@ -65,24 +66,23 @@ export function FeatureSection() {
           description="One place for the itinerary, the budget, the maps, and the back-and-forth it takes to get a trip right."
         />
 
-        <Reveal className="mt-14 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {features.map((feature) => (
-            <RevealItem
+        <div className="relative mt-24 flex flex-col gap-28 sm:gap-32">
+          <FeatureFloatingElements />
+          {features.map((feature, index) => (
+            <FeatureBlock
               key={feature.title}
-              className="rounded-xl border border-border bg-card p-6 transition-colors hover:border-primary/40"
-            >
-              <div className="flex size-10 items-center justify-center rounded-lg bg-primary/10">
-                <feature.icon aria-hidden="true" className="size-5 text-primary" />
-              </div>
-              <h3 className="mt-4 text-sm font-medium text-foreground">
-                {feature.title}
-              </h3>
-              <p className="mt-1.5 text-sm text-muted-foreground">
-                {feature.description}
-              </p>
-            </RevealItem>
+              icon={
+                <feature.icon
+                  aria-hidden="true"
+                  className="size-6 text-primary"
+                />
+              }
+              title={feature.title}
+              description={feature.description}
+              align={index % 2 === 0 ? "left" : "right"}
+            />
           ))}
-        </Reveal>
+        </div>
       </div>
     </section>
   )

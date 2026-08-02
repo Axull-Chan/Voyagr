@@ -8,9 +8,10 @@ committed before the next begins — don't skip ahead without the user's go-ahea
 
 - [x] **Phase 1 — Project foundation**
 - [x] **Phase 2 — Landing page & dashboard**, plus a post-review polish pass,
-  a final professional design-refinement pass, and two out-of-sequence hero
-  redesign passes ("Phase 2.5" and "Phase 2.5 round 2", this commit) — see
-  "Phase 2 polish", "Phase 2 final polish pass", and "Phase 2.5" below
+  a final professional design-refinement pass, two out-of-sequence hero
+  redesign passes, and a feature-section redesign (this commit) — see
+  "Phase 2 polish", "Phase 2 final polish pass", "Phase 2.5", and "Feature
+  section redesign" below
 - [ ] Phase 3 — Create trip wizard
 - [ ] Phase 4 — AI itinerary generation (OpenAI)
 - [ ] Phase 5 — Maps & location (Google Maps)
@@ -422,6 +423,99 @@ than a keyboard launcher does.
   movement path." Added an optional `xRange` to `FloatingIcon`/
   `FloatingFlag` and gave about half the instances a diagonal drift instead
   of leaving all of them moving on the same vertical axis.
+
+## Feature section redesign — sequential scroll reveal + floating flags
+
+The static 3-column feature grid was replaced with a vertical stack of six
+larger "moments," each its own independently-triggered scroll reveal, plus
+a floating-flags background spanning the section (Mobbin's homepage stats
+block was the reference — "1,428 apps" fades in, scroll further and
+"621,500+ screens" fades in too, both stay visible — read from a screenshot
+since Mobbin still 403s automated browsers; the giveaway that it's an
+*accumulating* reveal and not a pinned-swap carousel is that the screenshot
+shows all three stats on screen at once, which a swap-carousel could never
+produce in a single frame).
+
+- **A real React Server Components bug, not a stale-tab artifact this
+  time**: `feature-section.tsx` and `feature-floating-elements.tsx` are
+  Server Components; passing a Lucide icon *component reference*
+  (`icon={Sparkles}`, `icon={Compass}`) as a prop into a Client Component
+  throws `Only plain objects can be passed to Client Components from
+  Server Components` — a component reference isn't serializable across
+  that boundary, only plain data or already-rendered elements are. Fix:
+  render the icon in the Server Component and pass the resulting element
+  down (`icon={<feature.icon className="..." />}`, prop typed
+  `React.ReactNode`, not `LucideIcon`) instead of passing the component
+  itself. `FloatingIcon` (`src/components/shared/floating-badge.tsx`) took
+  the same fix — it now takes `children`, not an `icon` prop — which also
+  quietly improved its API (no more juggling a separate `className` prop
+  alongside the icon type). The *symptom* looked identical to this
+  session's recurring stale-compiled-chunk issue (same error, kept
+  reappearing after edits) — the tell that it was a real bug this time,
+  not the environment, was that it reproduced immediately on a **brand
+  new** tab that had never loaded the broken code before; the stale-chunk
+  variant only ever reproduces on a tab that already had the old code
+  loaded.
+- **Only `Reveal` carries a scroll trigger; `RevealItem`/`RevealGroup` don't.**
+  To get six independently-triggered "moments" instead of one shared burst,
+  each feature is its own `<Reveal mode="scroll">` (`feature-block.tsx`),
+  not six `RevealItem`s inside one shared `Reveal`. Confirmed by reading
+  `reveal.tsx` before touching it — `RevealItem`/`RevealGroup` only receive
+  "visible" via Framer's variant propagation from an ancestor, they have no
+  trigger of their own. Not extending `RevealItem` with a self-trigger mode
+  instead, since 4 other sections depend on its current "no trigger of its
+  own" contract for their existing burst behavior.
+- **Alternating left/right entrance needed a variant Reveal/RevealItem
+  don't have — solved without touching either.** `slideInFromLeft`/
+  `slideInFromRight` were added to `src/lib/motion.ts` (entrance variants
+  belong there), and `feature-block.tsx` applies one directly to a bare
+  `motion.div` that sits as a direct child of `Reveal` — it inherits
+  "visible" through the same propagation mechanism `RevealItem` uses, just
+  with a different variant, so `RevealItem`'s own contract (and its 4 other
+  consumers) stays completely untouched.
+- **Alternating alignment needs to collapse on mobile, not just shrink.**
+  The zigzag only reads as intentional when the block is actually offset to
+  one side (`ml-auto`/`mr-auto` against a `max-w-md` cap) — below `sm`,
+  `max-w-md` (448px) exceeds the available width anyway, so the block fills
+  100% width regardless of margin, leaving only *right-aligned paragraph
+  text* with no offset to justify it — worse for scanability, not a design
+  choice. Fixed by making `text-left` (and no offset) the unconditional
+  mobile default, with `sm:ml-auto sm:text-right` etc. only applying once
+  there's actual room for the offset to register. Left the transient
+  slide-in *direction* alternating even on mobile (a brief animation, not a
+  standing readability concern) — only the static resting layout needed
+  the breakpoint guard.
+- **A pre-existing reduced-motion gap, fixed once at the shared-primitive
+  level while already touching this code**: neither `Reveal`/`RevealItem`
+  nor the hero's ambient float/breathing loops checked
+  `useReducedMotion()` at all before this pass. Fixed in `RevealItem`
+  (swaps to the already-existing `fadeIn` variant instead of `slideUp` when
+  reduced motion is preferred — no new variant needed) and in
+  `floating-badge.tsx`/`hero-mockup-card.tsx` (loops pass `animate={undefined}`
+  instead of the keyframe object). Fixing it in the shared files means all
+  five `Reveal`-consuming sections and both floating-badge consumers (hero
+  + features) got the fix at once, not just the new section — see
+  `hero-mockup-card.tsx`'s ambient loops and `floating-badge.tsx` for the
+  same pattern.
+- **A transient false alarm while checking for horizontal overflow at
+  768px**: `document.documentElement.scrollWidth` briefly read 4px over
+  `clientWidth`. Root cause: the QA visibility override only forces
+  `opacity`, never `transform` — and the new alternating blocks animate in
+  via `x: ±28 → 0`. With this session's standing `document.visibilityState:
+  "hidden"` issue freezing animations mid-flight, a block's entrance can
+  get caught a few pixels short of settling, which reads as a real overflow
+  if you only check `scrollWidth` without also neutralizing transforms.
+  Confirmed by re-checking with `*[style*="transform"] { transform: none
+  !important }` added to the override — `scrollWidth` dropped to exactly
+  `clientWidth`. Lesson: when checking for overflow specifically (as
+  opposed to just checking that content is visible), force `transform:
+  none` in the same override, not just `opacity: 1` — a mid-flight
+  translateX is exactly the kind of thing that produces a narrow,
+  plausible-looking, entirely fake overflow reading.
+- Reused the temporary-`npm install circle-flags` → copy → uninstall
+  technique from the hero pass to extract 4 more flags (`it`, `de`, `nl`,
+  `se`, 10 total) rather than either repeating the hero's 6 visibly down a
+  much longer scroll or diluting the flag motif with more generic icons.
 
 ## Auth flow
 

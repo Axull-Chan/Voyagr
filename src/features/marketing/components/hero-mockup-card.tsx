@@ -59,7 +59,11 @@ export function HeroMockupCard() {
     <div className="w-full max-w-sm [perspective:800px]">
       <motion.div
         className="relative w-full"
-        animate={{ y: [0, -8, 0], rotate: [-0.6, 0.6, -0.6] }}
+        animate={
+          prefersReducedMotion
+            ? undefined
+            : { y: [0, -8, 0], rotate: [-0.6, 0.6, -0.6] }
+        }
         transition={{
           duration: 7,
           repeat: Infinity,
@@ -80,7 +84,11 @@ export function HeroMockupCard() {
           <motion.div
             aria-hidden="true"
             className="absolute inset-4 -z-10 rounded-full bg-primary/20 blur-2xl"
-            animate={{ opacity: [0.35, 0.6, 0.35], scale: [1, 1.08, 1] }}
+            animate={
+              prefersReducedMotion
+                ? undefined
+                : { opacity: [0.35, 0.6, 0.35], scale: [1, 1.08, 1] }
+            }
             transition={{
               duration: 6,
               repeat: Infinity,

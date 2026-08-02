@@ -4,114 +4,11 @@ import { useEffect, useRef, useState } from "react"
 import { motion } from "framer-motion"
 import { Compass, Plane } from "lucide-react"
 
-function CloudIcon({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="currentColor" className={className}>
-      <path d="M11.5 5c2.336 0 4.304 1.825 4.48 4.154l.142 1.86 1.867-.012h.092C19.698 11.043 21 12.37 21 14c0 .748-.28 1.452-.783 2H3.28c-.156-.256-.28-.59-.28-1 0-1.074.85-1.953 1.915-1.998.06.007.118.012.178.015l2.66.124-.622-2.587C7.044 10.186 7 9.843 7 9.5 7 7.02 9.02 5 11.5 5m0-2C7.91 3 5 5.91 5 9.5c0 .524.07 1.03.186 1.52C5.123 11.015 5.064 11 5 11c-2.21 0-4 1.79-4 4 0 1.202.54 2.267 1.38 3h18.593C22.196 17.09 23 15.643 23 14c0-2.76-2.24-5-5-5l-.025.002C17.72 5.646 14.922 3 11.5 3z" />
-    </svg>
-  )
-}
-
-interface FloatingIconProps {
-  icon: React.ComponentType<{ className?: string }>
-  className?: string
-  style: React.CSSProperties
-  duration: number
-  delay: number
-  range?: number
-  xRange?: number
-  rotateRange?: number
-}
-
-function FloatingIcon({
-  icon: Icon,
-  className,
-  style,
-  duration,
-  delay,
-  range = 14,
-  xRange = 0,
-  rotateRange = 6,
-}: FloatingIconProps) {
-  return (
-    <motion.div
-      className="absolute"
-      style={style}
-      animate={{
-        y: [0, -range, 0],
-        x: xRange ? [0, xRange, 0] : undefined,
-        rotate: [-rotateRange, rotateRange, -rotateRange],
-      }}
-      transition={{
-        duration,
-        delay,
-        repeat: Infinity,
-        repeatType: "mirror",
-        ease: "easeInOut",
-      }}
-    >
-      <Icon className={className} />
-    </motion.div>
-  )
-}
-
-interface FloatingFlagProps {
-  code: string
-  size: string
-  style: React.CSSProperties
-  duration: number
-  delay: number
-  range?: number
-  xRange?: number
-  rotateRange?: number
-}
-
-/**
- * Small circular flag chips — the hero's primary ambient decoration.
- * `circle-flags` SVGs are pre-masked to a circle already; the ring+shadow
- * here is purely to read as a small floating "badge" (à la Mobbin's
- * floating-logo hero treatment), not to crop anything. Each instance gets
- * its own home position plus a distinct drift path (some purely vertical,
- * some diagonal via `xRange`) so the set doesn't read as one shape repeated
- * six times at different speeds.
- */
-function FloatingFlag({
-  code,
-  size,
-  style,
-  duration,
-  delay,
-  range = 12,
-  xRange = 0,
-  rotateRange = 5,
-}: FloatingFlagProps) {
-  return (
-    <motion.div
-      className="absolute"
-      style={style}
-      animate={{
-        y: [0, -range, 0],
-        x: xRange ? [0, xRange, 0] : undefined,
-        rotate: [-rotateRange, rotateRange, -rotateRange],
-      }}
-      transition={{
-        duration,
-        delay,
-        repeat: Infinity,
-        repeatType: "mirror",
-        ease: "easeInOut",
-      }}
-    >
-      {/* eslint-disable-next-line @next/next/no-img-element -- tiny decorative
-          SVG in an aria-hidden layer; next/image adds no value here */}
-      <img
-        src={`/flags/${code}.svg`}
-        alt=""
-        className={`${size} rounded-full opacity-70 shadow-md ring-1 ring-black/5 dark:opacity-60 dark:ring-white/10`}
-      />
-    </motion.div>
-  )
-}
+import {
+  CloudIcon,
+  FloatingFlag,
+  FloatingIcon,
+} from "@/components/shared/floating-badge"
 
 /** Lucide's Plane glyph rests at roughly this heading; subtract it so the
  * computed path-tangent rotation lines the icon up with the direction of travel. */
@@ -256,24 +153,24 @@ export function HeroFloatingElements() {
       {/* A couple of quiet secondary travel motifs — kept subtle so the
           flags stay the dominant decoration. */}
       <FloatingIcon
-        icon={CloudIcon}
-        className="size-9 text-foreground/15"
         style={{ top: "22%", left: "9%" }}
         duration={13}
         delay={1.2}
         range={10}
         xRange={9}
         rotateRange={3}
-      />
+      >
+        <CloudIcon className="size-9 text-foreground/15" />
+      </FloatingIcon>
       <FloatingIcon
-        icon={Compass}
-        className="size-6 text-primary/20"
         style={{ top: "50%", right: "9%" }}
         duration={9}
         delay={2}
         range={12}
         rotateRange={10}
-      />
+      >
+        <Compass className="size-6 text-primary/20" />
+      </FloatingIcon>
     </div>
   )
 }
