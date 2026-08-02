@@ -8,9 +8,9 @@ committed before the next begins — don't skip ahead without the user's go-ahea
 
 - [x] **Phase 1 — Project foundation**
 - [x] **Phase 2 — Landing page & dashboard**, plus a post-review polish pass,
-  a final professional design-refinement pass, and an out-of-sequence
-  **"Phase 2.5" hero premium redesign** (this commit) — see "Phase 2 polish",
-  "Phase 2 final polish pass", and "Phase 2.5" below
+  a final professional design-refinement pass, and two out-of-sequence hero
+  redesign passes ("Phase 2.5" and "Phase 2.5 round 2", this commit) — see
+  "Phase 2 polish", "Phase 2 final polish pass", and "Phase 2.5" below
 - [ ] Phase 3 — Create trip wizard
 - [ ] Phase 4 — AI itinerary generation (OpenAI)
 - [ ] Phase 5 — Maps & location (Google Maps)
@@ -339,6 +339,89 @@ order changes, no new product features. Goal: close the gap between
   `pointer-events-none` on the whole layer — structural, not just
   "positioned to avoid the CTA," since hand-picked positions drift
   relative to reflowed text at different breakpoints.
+
+### Phase 2.5 round 2 — flags, staggered text, parallax
+
+A follow-up pass on the same hero, adding floating country flags as the
+primary decoration, per-line headline stagger, and mouse-parallax on the
+mockup card. Also did real design research this time (previous pass's
+"Mobbin blocks bots" note stood, but Land-book, Linear, and Raycast all
+loaded fine) — Raycast's actual hero is close to *zero* decoration, just
+huge type on empty space; worth keeping as a calibration point against
+over-decorating, even though a travel product justifies more atmosphere
+than a keyboard launcher does.
+
+- **Sourced flag SVGs via a temporary npm install, not by scraping the
+  website the user named.** `circle-flags` (the exact npm package for
+  HatScripts/circle-flags, MIT, zero deps) was installed with `--no-save`,
+  the ~10 needed `{iso-code}.svg` files were copied straight out of
+  `node_modules` into `public/flags/`, then the package was uninstalled —
+  final `package.json` has zero new dependencies, but the assets are
+  real, properly-licensed, pre-optimized (Japan's flag is 273 bytes) SVGs
+  rather than hand-traced or fetched-by-scraping. This is the general
+  pattern worth reusing whenever a "find an icon/asset" task has a
+  well-known npm package behind it: install `--no-save`, extract, uninstall.
+- **Both "boarding pass" SVGs in the original asset zip looked the same by
+  filename but weren't.** `boarding-pass-svgrepo-com.svg` turned out to be
+  full-color clip art (pastel blue panels, a red heart stamp) with
+  hardcoded per-path fills — would've ignored `currentColor` theming
+  entirely and clashed with the app's indigo/neutral palette.
+  `boarding-pass-flight-journey-svgrepo-com.svg` was genuinely monochrome
+  (`fill="#000000"` on the root, no per-path overrides) and is the one
+  actually used. Lesson: open and check the *actual* fill structure of
+  each candidate SVG before picking one — filename similarity says nothing
+  about whether an icon will take color theming.
+- **Headline lines stagger independently by keeping the `<h1>` itself
+  plain** (no `motion`/`RevealItem` wrapper) **and putting two
+  `motion.span variants={slideUp}` directly inside it**
+  (`hero-headline.tsx`). Framer's variant propagation passes through plain
+  DOM elements and component-function boundaries alike — it only stops at
+  another motion component with its own competing `variants`/`animate` — so
+  the two spans slot into the ancestor `Reveal`'s `staggerChildren`
+  sequence as two ordinary sequential steps, no nested stagger container
+  needed. (A `RevealItem` here would have put a `<div>` inside the `<h1>`,
+  which is invalid HTML — that's *why* this needed a dedicated component
+  instead of reusing `RevealItem`.)
+- **A real Framer Motion bug found via debugging, not assumption: mixing an
+  `animate` prop with a separately-driven `style={{ rotateX, rotateY }}`
+  motion value on the *same* `motion.div` silently drops the style-driven
+  transform.** `mouseX`/`mouseY`/`rotateX`/`rotateY` all updated correctly
+  (confirmed via `.get()`), but the element's rendered `transform` never
+  included any `rotateX`/`rotateY` term — only the `animate`-driven `y`/
+  `rotate`. Fix: split into two nested `motion.div`s — outer owns `animate`
+  (the ambient float loop) *and* the mouse event handlers, inner owns only
+  `style={{ rotateX, rotateY }}` with no `animate` prop of its own. Once
+  separated, the exact same motion values applied correctly
+  (`rotateX(4.5deg) rotateY(-4.5deg)`, confirmed in devtools). If a
+  motion value passed via `style` seems to have no effect despite the
+  value itself updating, suspect a competing `animate` prop on that same
+  component before suspecting the motion value or the event wiring.
+- **New variant of the known tab-staleness issue: React event handlers can
+  silently stop firing on a long-lived tab, even though the DOM node is
+  live and a plain `addEventListener` on that exact node still works.**
+  Spent real time debugging what looked like a broken `onMouseMove` handler
+  — `useMotionValue`/`useSpring` math was correct, a native listener added
+  in the same breath received the dispatched event fine, but React's
+  synthetic handler never ran. Moving to a brand-new tab fixed it
+  immediately with the identical test. Combined with the earlier-documented
+  "stale JS chunk survives a full dev-server restart + `.next` wipe"
+  variant (a `ReferenceError` for a function already deleted from source
+  kept throwing from the identical chunk hash after a server restart, and
+  only cleared on a new tab), the practical rule is now broader than just
+  "resize-heavy sessions": *any* tab that's been through many navigations/
+  edits/HMR cycles in one session is suspect the moment behavior doesn't
+  match the current source — reach for a fresh tab before doubting the code.
+  `computer`'s `hover` action, in this same environment, also did not
+  reliably trigger a React `onMouseMove` handler at all (on any tab) —
+  a manually constructed `new MouseEvent('mousemove', { bubbles: true,
+  cancelable: true, view: window, clientX, clientY })` dispatched directly
+  on the target element did.
+- **Movement path, not just timing, needs to vary.** First pass gave every
+  floating flag/icon the same pure vertical bob (only duration/delay/range
+  differed) — technically satisfies "never synchronize" but not "different
+  movement path." Added an optional `xRange` to `FloatingIcon`/
+  `FloatingFlag` and gave about half the instances a diagonal drift instead
+  of leaving all of them moving on the same vertical axis.
 
 ## Auth flow
 

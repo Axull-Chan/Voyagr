@@ -6,6 +6,7 @@ import { Reveal, RevealItem } from "@/components/shared/reveal"
 import { HeroBackground } from "@/features/marketing/components/hero-background"
 import { HeroDestinations } from "@/features/marketing/components/hero-destinations"
 import { HeroFloatingElements } from "@/features/marketing/components/hero-floating-elements"
+import { HeroHeadline } from "@/features/marketing/components/hero-headline"
 import { HeroMockupCard } from "@/features/marketing/components/hero-mockup-card"
 
 export function HeroSection() {
@@ -22,13 +23,7 @@ export function HeroSection() {
           <Sparkles aria-hidden="true" className="size-3.5" />
           AI-powered trip planning
         </RevealItem>
-        <RevealItem>
-          <h1 className="text-4xl font-semibold tracking-tight text-foreground sm:text-6xl">
-            Plan smarter trips,
-            <br />
-            not longer ones.
-          </h1>
-        </RevealItem>
+        <HeroHeadline />
         <RevealItem className="max-w-md text-base text-muted-foreground sm:text-lg">
           Voyagr turns a destination and a few preferences into a full
           day-by-day itinerary — budget, weather, and all.
