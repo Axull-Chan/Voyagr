@@ -66,9 +66,9 @@ export function FeatureSection() {
           description="One place for the itinerary, the budget, the maps, and the back-and-forth it takes to get a trip right."
         />
 
-        <div className="relative mt-24 flex flex-col gap-28 sm:gap-32">
+        <div className="relative mt-16 flex flex-col gap-12 sm:gap-16">
           <FeatureFloatingElements />
-          {features.map((feature, index) => (
+          {features.map((feature) => (
             <FeatureBlock
               key={feature.title}
               icon={
@@ -79,7 +79,6 @@ export function FeatureSection() {
               }
               title={feature.title}
               description={feature.description}
-              align={index % 2 === 0 ? "left" : "right"}
             />
           ))}
         </div>

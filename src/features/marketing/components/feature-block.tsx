@@ -1,16 +1,9 @@
-"use client"
-
-import { motion, useReducedMotion } from "framer-motion"
-
 import { Reveal, RevealItem } from "@/components/shared/reveal"
-import { fadeIn, slideInFromLeft, slideInFromRight } from "@/lib/motion"
-import { cn } from "@/lib/utils"
 
 interface FeatureBlockProps {
   icon: React.ReactNode
   title: string
   description: string
-  align: "left" | "right"
 }
 
 /**
@@ -21,49 +14,22 @@ interface FeatureBlockProps {
  * element, not a component reference: the caller (a Server Component)
  * can't pass a lucide component itself across the Client Component
  * boundary — only serializable props or already-rendered elements cross
- * that boundary. The icon slides in from the block's own side
- * (left-aligned blocks from the left, right-aligned from the right) via a
- * raw `motion.div` sharing this `Reveal`'s propagated "visible" state, same
- * mechanism `RevealItem` uses, just a different variant; title/description
- * stay on the standard `RevealItem` (`slideUp`), staggered after the icon
- * by `Reveal`'s own `staggerContainer`.
+ * that boundary. Centered, large title, tight icon->title->description
+ * stagger — matches the reference (a short, centered stat line that fades
+ * in, not a big alternating-sides "scene").
  */
-export function FeatureBlock({
-  icon,
-  title,
-  description,
-  align,
-}: FeatureBlockProps) {
-  const prefersReducedMotion = useReducedMotion()
-  const isRight = align === "right"
-
+export function FeatureBlock({ icon, title, description }: FeatureBlockProps) {
   return (
-    <Reveal
-      className={cn(
-        "max-w-md text-left",
-        isRight ? "sm:ml-auto sm:text-right" : "sm:mr-auto"
-      )}
-    >
-      <motion.div
-        variants={
-          prefersReducedMotion
-            ? fadeIn
-            : isRight
-              ? slideInFromRight
-              : slideInFromLeft
-        }
-      >
-        <div
-          className={cn(
-            "flex size-14 items-center justify-center rounded-xl bg-primary/10",
-            isRight && "sm:ml-auto"
-          )}
-        >
+    <Reveal className="mx-auto max-w-lg text-center">
+      <RevealItem>
+        <div className="mx-auto flex size-12 items-center justify-center rounded-xl bg-primary/10">
           {icon}
         </div>
-      </motion.div>
-      <RevealItem className="mt-4">
-        <h3 className="text-2xl font-semibold text-foreground">{title}</h3>
+      </RevealItem>
+      <RevealItem className="mt-3">
+        <h3 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
+          {title}
+        </h3>
       </RevealItem>
       <RevealItem className="mt-2">
         <p className="text-base text-muted-foreground">{description}</p>

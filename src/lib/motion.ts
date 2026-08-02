@@ -14,24 +14,6 @@ export const slideUp: Variants = {
   },
 }
 
-export const slideInFromLeft: Variants = {
-  hidden: { opacity: 0, x: -28 },
-  visible: {
-    opacity: 1,
-    x: 0,
-    transition: { duration: 0.5, ease: "easeOut" },
-  },
-}
-
-export const slideInFromRight: Variants = {
-  hidden: { opacity: 0, x: 28 },
-  visible: {
-    opacity: 1,
-    x: 0,
-    transition: { duration: 0.5, ease: "easeOut" },
-  },
-}
-
 export const scaleIn: Variants = {
   hidden: { opacity: 0, scale: 0.96 },
   visible: {

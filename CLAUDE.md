@@ -436,6 +436,39 @@ since Mobbin still 403s automated browsers; the giveaway that it's an
 shows all three stats on screen at once, which a swap-carousel could never
 produce in a single frame).
 
+### Correction after the user sent a screen recording
+
+The first implementation (alternating left/right blocks, generous gaps
+between each) still wasn't what the user meant, and this time I could
+actually check — they sent a screen recording of the real Mobbin page.
+Mobbin itself 403s automated browsers, and so does the Wayback Machine's
+cached copy in this environment (per-action approval required, which isn't
+practical for a browsing session) — the recording was the only way to
+actually see the target. `ffmpeg` (installed fresh via `brew install
+ffmpeg`, not present before) extracted frames at 2fps via `ffmpeg -i in.mp4
+-vf "fps=2,scale=900:-1" frame-%03d.png`; the frames could then be read
+directly as images. Two things the video showed that the single static
+screenshot couldn't:
+
+- The three stats are **centered**, not split across alternating sides —
+  there's no zigzag at all, just one centered column.
+- They sit **close together** (small, consistent line-spacing, more like
+  adjacent lines of a paragraph than separate spread-out sections) and
+  render in **much larger/bolder type** than a typical section — closer to
+  a big stat callout than a feature-card title.
+
+Rebuilt `feature-block.tsx` accordingly: dropped the `align` prop and the
+`slideInFromLeft`/`slideInFromRight` variants entirely (removed from
+`src/lib/motion.ts` too, now unused), centered every block
+(`mx-auto max-w-lg text-center`), bumped the title to
+`text-3xl sm:text-4xl font-bold`, and tightened `feature-section.tsx`'s
+inter-block gap from `gap-28 sm:gap-32` to `gap-12 sm:gap-16`. Lesson
+worth keeping in mind generally: a single static screenshot of a reference
+site can tell you *that* something reveals progressively, but not *how*
+(layout shape, spacing density, scale) — when a text description of a
+screenshot-derived interpretation gets "that's not it" feedback, ask for
+motion (a recording) before guessing again from statics.
+
 - **A real React Server Components bug, not a stale-tab artifact this
   time**: `feature-section.tsx` and `feature-floating-elements.tsx` are
   Server Components; passing a Lucide icon *component reference*
