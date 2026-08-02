@@ -469,6 +469,46 @@ site can tell you *that* something reveals progressively, but not *how*
 screenshot-derived interpretation gets "that's not it" feedback, ask for
 motion (a recording) before guessing again from statics.
 
+### Nav-fade-mask, found from the same recording
+
+A second round of "look again" feedback on the same recording pointed at
+something I'd missed entirely the first time: scrolled content doesn't get
+hard-clipped by the sticky nav, it fades out via a gradient as it passes
+underneath. Confirmed frame-by-frame at a higher extraction rate
+(`ffmpeg -ss <t> -t 3 -vf "fps=10,scale=1000:-1"` on the same recording,
+rather than the original 2fps pass — the effect happens over a small
+enough scroll distance that 2fps skipped past it) — text visibly dims to
+near-transparent right at the nav's lower edge, then fully opaque a
+consistent distance below it, for *any* content scrolling through that
+zone, not just once at page load.
+
+The mechanism has to be pinned to the viewport, not to the scrolling
+content: a `mask-image`/gradient authored on the tall scrolling section
+itself would only fade its own literal top/bottom edge once, not every
+element passing under the nav as the user scrolls. The actual fix is a
+`pointer-events-none` gradient div *inside* `marketing-navbar.tsx`'s
+`<header>`, positioned `absolute inset-x-0 top-full h-20` (hanging below
+the header's own box, in the containing block the header's own `sticky`
+already establishes) with `bg-gradient-to-b from-background to-transparent`
+— opaque page-background color right at the nav's edge, fading to fully
+transparent ~80px down. Since it moves with the sticky header as one unit,
+anything scrolling up underneath is progressively erased by the opaque end
+and revealed by the transparent end, for every scroll position, automatically.
+Living inside the shared navbar (not scoped to one section) means it
+applies site-wide on the marketing page for free — checked that this
+doesn't clip/dim anything at the top of the hero at rest (scroll position
+0): the hero's own top padding already clears the ~80px zone, so there's
+no visible effect until something actually scrolls into it.
+
+Also notable purely as a session-environment observation: real
+`window.scrollTo()` worked on a couple of fresh tabs during this specific
+check, after being reliably broken (per every earlier note in this file)
+for the entire rest of the session — inconsistent even tab-to-tab in the
+same few minutes, not tied to any code change here. Didn't chase why;
+the recording-frame approach and the sticky/gradient CSS reasoning didn't
+depend on scroll actually working in this environment to get right, and
+when it did work here it just confirmed what the CSS should already do.
+
 - **A real React Server Components bug, not a stale-tab artifact this
   time**: `feature-section.tsx` and `feature-floating-elements.tsx` are
   Server Components; passing a Lucide icon *component reference*

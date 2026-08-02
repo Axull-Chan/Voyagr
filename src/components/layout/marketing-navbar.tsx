@@ -19,6 +19,13 @@ const navLinks = [
 export function MarketingNavbar() {
   return (
     <header className="sticky top-0 z-40 border-b border-border/60 bg-background/80 backdrop-blur-md">
+      {/* Scrolling content fades out as it passes under the nav instead of
+          being hard-clipped — a gradient "tail" hanging below the header's
+          own box, moving with it since it stickies as one unit. */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-x-0 top-full h-20 bg-gradient-to-b from-background to-transparent"
+      />
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
         <Link
           href="/"
