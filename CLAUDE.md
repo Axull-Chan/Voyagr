@@ -7,9 +7,10 @@ committed before the next begins — don't skip ahead without the user's go-ahea
 ## Phase status
 
 - [x] **Phase 1 — Project foundation**
-- [x] **Phase 2 — Landing page & dashboard**, plus a post-review polish pass
-  and a final professional design-refinement pass (this commit) — see
-  "Phase 2 polish" and "Phase 2 final polish pass" below
+- [x] **Phase 2 — Landing page & dashboard**, plus a post-review polish pass,
+  a final professional design-refinement pass, and an out-of-sequence
+  **"Phase 2.5" hero premium redesign** (this commit) — see "Phase 2 polish",
+  "Phase 2 final polish pass", and "Phase 2.5" below
 - [ ] Phase 3 — Create trip wizard
 - [ ] Phase 4 — AI itinerary generation (OpenAI)
 - [ ] Phase 5 — Maps & location (Google Maps)
@@ -242,6 +243,102 @@ turned up despite the earlier passes:
   regression gate, `npx tsc --noEmit` and `npm run lint` are safe to run
   anytime, but run `npm run build` only when the dev preview is stopped,
   or accept that the preview server needs restarting afterward.
+
+## Phase 2.5 — hero premium redesign
+
+An out-of-sequence, user-requested pass scoped to *only* the marketing
+hero (`src/features/marketing/components/hero-section.tsx` and four new
+sibling components: `hero-background.tsx`, `hero-floating-elements.tsx`,
+`hero-mockup-card.tsx`, `hero-destinations.tsx`) — no nav/branding/section-
+order changes, no new product features. Goal: close the gap between
+"solid portfolio SaaS page" and "looks like a funded startup."
+
+- **The user's asset zip didn't match its own description** — always
+  extract and inspect provided assets directly rather than trusting the
+  request text's asset list. Most "hero icon" SVGs turned out to be the
+  literal Lucide icon set (confirmed via `class="lucide lucide-plane-icon..."`
+  in the raw file) — imported from the already-installed `lucide-react`
+  package instead of adding asset files. A "postage stamp" asset was
+  actually a Freepik stock bundle whose license demands visible attribution
+  for free-tier use and ships only a JPG preview + EPS (not a web format) —
+  **not used**, and "passport stamp" was dropped from the floating-element
+  set entirely rather than substituted. Two requested files (`noise.png`,
+  `gradient-blob.svg`) didn't exist in the zip at all — synthesized instead
+  (inline SVG `feTurbulence` filter for grain; the existing radial-gradient
+  technique extended with more `color-mix(in oklch, var(--primary), ...)`
+  blobs) rather than fetching external stock assets.
+- **The 6 destination JPGs had zero city metadata** (generic Unsplash
+  filenames) — identified all 6 by eye (landmark recognition: Tokyo Tower,
+  Eiffel Tower, N Seoul Tower, Empire State/Chrysler, Ulun Danu Beratan
+  temple in Bali; the 6th was an unidentifiable cherry-blossom macro shot,
+  dropped). Downscaled the 5 identified photos with macOS's built-in `sips`
+  (`-Z 2000`, no new tooling) before committing — originals were 1.6–7.3 MB.
+- **A "world map" SVG can be far too bold for a "3–7% opacity" background
+  even at 3–7% opacity.** The provided map is solid filled continent
+  silhouettes, not a fine dot-matrix — at nominal 5% opacity it still read
+  as a clearly legible map competing with the headline, not atmosphere.
+  Fix was blur, not just lower opacity: `blur-md` on the map layer (plus
+  keeping opacity in-range at 6%) dissolves the hard continent edges into a
+  soft wash. Lesson: for "barely visible background texture" treatments,
+  *check the source asset's actual density/boldness before assuming a low
+  opacity number alone will read as subtle* — a bold source needs blur
+  (or a genuinely sparse source asset), a low opacity number on its own
+  isn't sufficient. Same logic applied to the flight-path's dashed line and
+  the ambient floating icons, all tuned down from their first-pass values
+  after a real screenshot showed them competing with the headline.
+- **Ambient/looping motion is architecturally separate from the existing
+  `Reveal`/entrance-animation system** (`src/lib/motion.ts` /
+  `src/components/shared/reveal.tsx`) — deliberately not touched or
+  extended. Every new loop (floating icons, flight path, breathing mockup
+  card) is its own literal `animate={{...}}` object nested inside the
+  existing `<RevealItem>` wrapping the mockup card; Framer's variant
+  propagation only affects children with no *own* `animate` prop, so this
+  nests with zero special-casing.
+- **Flight path**: a static dashed `<path>` plus the Lucide `Plane` icon as
+  a `motion.g` *inside the same `<svg>`* (never a separately-positioned
+  overlay). The plane's x/y/rotate keyframes are sampled once on mount from
+  the path's own real geometry via `getTotalLength`/`getPointAtLength`
+  (~24 samples) — guarantees the icon tracks the visible line exactly, zero
+  per-frame cost, zero library. `ease: "linear"` is required (the samples
+  are already evenly arc-spaced; Framer's default per-segment easing would
+  otherwise add a subtle speed pulse at every sample). Lucide's `Plane`
+  glyph doesn't rest at a 0°/rightward heading — subtracted an empirically-
+  tuned `PLANE_ICON_HEADING` constant from the computed tangent angle so the
+  icon visually points along its direction of travel.
+- **"Breathing shadow" is a separate blurred glow element, never an
+  animated `box-shadow`.** `box-shadow` is a paint-thread property — an
+  infinite-loop animation on it forces a main-thread repaint every frame
+  for as long as the tab is open. `hero-mockup-card.tsx` instead nests a
+  `bg-primary/20 blur-2xl` glow `motion.div` *inside* the card's own
+  floating `motion.div`, animating only `opacity`+`scale` (both compositor-
+  only) — it inherits the card's float for free via ordinary CSS transform
+  composition down the DOM tree, so it can't visually drift from the card.
+- **z-index correctness**: every decorative layer uses *negative* z-index
+  specifically. `z-0`/positioned-without-z does **not** reliably mean
+  "behind" — unpositioned in-flow content (like the hero's own headline)
+  already paints in front of any `z-0` positioned sibling per normal CSS
+  stacking rules, negative z-index is the only value that's unambiguously
+  behind static content regardless of the content's own positioning.
+- **Destination cards are real `<Link href="/sign-up">`s**, not decorative
+  dead ends — reinforces the page's one conversion goal and avoids
+  repeating this project's own earlier TripCard-404 mistake. Wrapped in a
+  real `<ul>`/`<li>` with an `sr-only` "Popular destinations" heading
+  (removed a *visible* duplicate heading during implementation once the
+  sr-only one already covered the accessibility need — didn't need both).
+  Images use `next/image` with `fill` + a fixed `aspect-4/3` wrapper (CLS-
+  safe by construction) rather than hand-tracked per-photo dimensions,
+  since `public/`-referenced images aren't dimension-inferred by Next the
+  way statically-imported ones are.
+- Kept the destination showcase as an always-horizontal snap-scroll rail
+  (not a grid at any breakpoint) specifically to sidestep the "orphan grid
+  row" bug class fixed in the previous polish pass (5 is not evenly
+  divisible by 2, 3, or 4) — a fixed-count set like this should either fit
+  its grid exactly or not be a grid at all.
+- Floating icons + flight path: `hidden md:block` (absent below `md`
+  entirely, not just repositioned) plus `aria-hidden="true"` +
+  `pointer-events-none` on the whole layer — structural, not just
+  "positioned to avoid the CTA," since hand-picked positions drift
+  relative to reflowed text at different breakpoints.
 
 ## Auth flow
 

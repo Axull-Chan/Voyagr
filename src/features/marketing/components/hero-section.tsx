@@ -1,34 +1,12 @@
 import Link from "next/link"
-import {
-  ArrowRight,
-  Landmark,
-  Sparkles,
-  Sunrise,
-  TreePine,
-  UtensilsCrossed,
-} from "lucide-react"
+import { ArrowRight, Sparkles } from "lucide-react"
 
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Reveal, RevealItem } from "@/components/shared/reveal"
-
-const itineraryRows = [
-  {
-    time: "Morning",
-    title: "Fushimi Inari Shrine",
-    icon: Sunrise,
-  },
-  {
-    time: "Afternoon",
-    title: "Arashiyama Bamboo Grove",
-    icon: TreePine,
-  },
-  {
-    time: "Evening",
-    title: "Pontocho food crawl",
-    icon: UtensilsCrossed,
-  },
-]
+import { HeroBackground } from "@/features/marketing/components/hero-background"
+import { HeroDestinations } from "@/features/marketing/components/hero-destinations"
+import { HeroFloatingElements } from "@/features/marketing/components/hero-floating-elements"
+import { HeroMockupCard } from "@/features/marketing/components/hero-mockup-card"
 
 export function HeroSection() {
   return (
@@ -37,6 +15,8 @@ export function HeroSection() {
         aria-hidden="true"
         className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_50%_0%,color-mix(in_oklch,var(--primary),transparent_88%),transparent_60%)]"
       />
+      <HeroBackground />
+      <HeroFloatingElements />
       <Reveal mode="mount" className="mx-auto flex max-w-3xl flex-col items-center gap-6 text-center">
         <RevealItem className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted/50 px-3 py-1 text-xs font-medium text-muted-foreground">
           <Sparkles aria-hidden="true" className="size-3.5" />
@@ -72,32 +52,11 @@ export function HeroSection() {
         </RevealItem>
 
         <RevealItem className="mt-10 w-full max-w-sm">
-          <div className="rounded-2xl border border-border bg-card p-6 shadow-lg">
-            <div className="mb-4 flex items-center justify-between">
-              <span className="text-sm font-medium text-foreground">
-                Day 2 · Kyoto
-              </span>
-              <Badge variant="secondary">
-                <Landmark aria-hidden="true" />
-                ¥18,400 today
-              </Badge>
-            </div>
-            <div className="space-y-4">
-              {itineraryRows.map((row) => (
-                <div key={row.title} className="flex items-center gap-3">
-                  <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/10">
-                    <row.icon aria-hidden="true" className="size-4 text-primary" />
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">{row.time}</p>
-                    <p className="text-sm font-medium text-foreground">
-                      {row.title}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+          <HeroMockupCard />
+        </RevealItem>
+
+        <RevealItem className="mt-14 flex w-full justify-center">
+          <HeroDestinations />
         </RevealItem>
       </Reveal>
     </section>

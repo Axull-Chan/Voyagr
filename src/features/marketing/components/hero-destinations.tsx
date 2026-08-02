@@ -1,0 +1,89 @@
+import Image from "next/image"
+import Link from "next/link"
+import { CloudSun } from "lucide-react"
+
+import { Badge } from "@/components/ui/badge"
+
+const destinations = [
+  {
+    city: "Tokyo",
+    src: "/destinations/tokyo.jpg",
+    temp: "18°C",
+    category: "City & culture",
+  },
+  {
+    city: "Seoul",
+    src: "/destinations/seoul.jpg",
+    temp: "15°C",
+    category: "City & nightlife",
+  },
+  {
+    city: "Paris",
+    src: "/destinations/paris.jpg",
+    temp: "16°C",
+    category: "Romance & art",
+  },
+  {
+    city: "Bali",
+    src: "/destinations/bali.jpg",
+    temp: "29°C",
+    category: "Beach & nature",
+  },
+  {
+    city: "New York",
+    src: "/destinations/new-york.jpg",
+    temp: "12°C",
+    category: "Urban icon",
+  },
+]
+
+export function HeroDestinations() {
+  return (
+    <div className="w-full max-w-2xl">
+      <h2 className="sr-only">Popular destinations</h2>
+      <ul
+        className="flex snap-x snap-mandatory gap-4 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        style={{ WebkitOverflowScrolling: "touch" }}
+      >
+        {destinations.map((destination) => (
+          <li
+            key={destination.city}
+            className="w-36 shrink-0 snap-start sm:w-44"
+          >
+            <Link
+              href="/sign-up"
+              aria-label={`Start planning a trip to ${destination.city}`}
+              className="group block rounded-xl focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+            >
+              <div className="relative aspect-4/3 overflow-hidden rounded-xl shadow-sm transition-all duration-300 group-hover:-translate-y-1 group-hover:shadow-lg">
+                <Image
+                  src={destination.src}
+                  alt=""
+                  fill
+                  sizes="(min-width: 640px) 176px, 144px"
+                  className="object-cover transition-transform duration-300 group-hover:scale-105"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/5 to-transparent" />
+                <Badge
+                  variant="secondary"
+                  className="absolute top-2 right-2 bg-background/80 backdrop-blur-sm"
+                >
+                  <CloudSun aria-hidden="true" />
+                  {destination.temp}
+                </Badge>
+                <div className="absolute inset-x-0 bottom-0 p-3">
+                  <p className="text-sm font-medium text-white">
+                    {destination.city}
+                  </p>
+                  <p className="text-xs text-white/80">
+                    {destination.category}
+                  </p>
+                </div>
+              </div>
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
