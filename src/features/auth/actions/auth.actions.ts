@@ -119,5 +119,31 @@ export async function signInWithGoogleAction(): Promise<ActionResult> {
     return { error: error.message }
   }
 
+  // `signInWithOAuth` builds the authorize URL locally — it never calls the
+  // auth server, so `error` above is null even when Google isn't enabled on
+  // the project. Without this probe the browser navigates to that URL and the
+  // user is dropped on a raw JSON 400 with no navigation and no way back.
+  //
+  // Asking the URL first turns that dead end into an inline message on the
+  // form, and needs no configuration flag: the moment the provider is enabled
+  // in Supabase the probe starts succeeding on its own.
+  const probe = await fetch(data.url, { redirect: "manual" }).catch(() => null)
+  if (probe && probe.status >= 400) {
+    const body: unknown = await probe.json().catch(() => null)
+    const message =
+      typeof body === "object" && body !== null && "msg" in body
+        ? String((body as { msg: unknown }).msg)
+        : "Google sign-in is unavailable."
+    console.error("[signInWithGoogleAction] provider rejected the request", message)
+    // No directional wording: this message renders under the fields on the
+    // login form and above them on sign-up, so "below" would be wrong on one
+    // of the two.
+    return {
+      error: "Google sign-in isn't set up yet — please use your email and password instead.",
+    }
+  }
+
+  // `redirect` throws internally to unwind, so it has to stay outside any
+  // try/catch that would swallow it.
   redirect(data.url)
 }
