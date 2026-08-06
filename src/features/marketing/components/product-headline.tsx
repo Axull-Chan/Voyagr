@@ -9,19 +9,20 @@ import { slideUp } from "@/lib/motion"
  * participants in the ancestor Reveal's staggerChildren sequence — Framer's
  * variant propagation passes through plain elements and component
  * boundaries alike, it only stops at another motion component with its own
- * variants.
+ * variants. (A `RevealItem` here would put a <div> inside the heading, which
+ * is invalid HTML — that's why this needs its own component.)
  *
- * An <h2>, not an <h1>: this section now sits below the Blue Hour film on
- * the landing page, and the film's closing beat carries the page's h1.
+ * An <h2>, not an <h1>: this section sits below the Blue Hour film, whose
+ * closing beat carries the page's h1.
  */
-export function HeroHeadline() {
+export function ProductHeadline() {
   return (
-    <h2 className="text-4xl font-semibold tracking-tight text-foreground sm:text-6xl">
+    <h2 className="text-4xl font-semibold tracking-tight text-balance text-foreground sm:text-5xl">
       <motion.span variants={slideUp} className="block">
-        Plan smarter trips,
+        Day two,
       </motion.span>
       <motion.span variants={slideUp} className="block">
-        not longer ones.
+        already handled.
       </motion.span>
     </h2>
   )

@@ -56,7 +56,9 @@ export function HeroMockupCard() {
   }
 
   return (
-    <div className="w-full max-w-sm [perspective:800px]">
+    // max-w-md rather than -sm: it's the right-hand half of a two-column
+    // section now, not a small proof-shot under a centred hero stack.
+    <div className="w-full max-w-md [perspective:800px]">
       <motion.div
         className="relative w-full"
         animate={

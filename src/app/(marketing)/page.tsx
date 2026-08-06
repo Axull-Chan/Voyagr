@@ -4,7 +4,8 @@ import { cn } from "@/lib/utils"
 import { MarketingNavbar } from "@/components/layout/marketing-navbar"
 import { MarketingFooter } from "@/components/layout/marketing-footer"
 import { FilmHero } from "@/features/film/components/film-hero"
-import { HeroSection } from "@/features/marketing/components/hero-section"
+import { ProductSection } from "@/features/marketing/components/product-section"
+import { DestinationsSection } from "@/features/marketing/components/destinations-section"
 import { FeatureSection } from "@/features/marketing/components/feature-section"
 import { HowItWorksSection } from "@/features/marketing/components/how-it-works-section"
 import { TestimonialsSection } from "@/features/marketing/components/testimonials-section"
@@ -23,10 +24,11 @@ export default function LandingPage() {
       <MarketingNavbar overHero />
       <main className="flex-1">
         <FilmHero />
-        {/* The original hero, kept as the product introduction directly under
-            the film: the film sets the mood and states the promise, this
-            says what you actually get and shows the interface. */}
-        <HeroSection />
+        {/* The film sets the mood and carries the one CTA; these two say what
+            you actually get and where you'd start. Split out of the old hero
+            so neither repeats the film's pitch — see product-section.tsx. */}
+        <ProductSection />
+        <DestinationsSection />
         <FeatureSection />
         <HowItWorksSection />
         <TestimonialsSection />

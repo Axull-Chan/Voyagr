@@ -97,7 +97,12 @@ export function HeroFloatingElements() {
   return (
     <div
       aria-hidden="true"
-      className="pointer-events-none absolute inset-0 -z-[5] hidden md:block"
+      // `xl`, not `md`: these sit in the outer margins beside a max-w-5xl
+      // column, and that margin only exists once the viewport is wider than
+      // the column. Below xl the copy runs edge-to-edge and every flag ends
+      // up behind body text — same reasoning as the original md gate, just
+      // against a left-aligned block instead of a centred one.
+      className="pointer-events-none absolute inset-0 -z-[5] hidden xl:block"
     >
       <FlightPath />
 
@@ -152,8 +157,10 @@ export function HeroFloatingElements() {
 
       {/* A couple of quiet secondary travel motifs — kept subtle so the
           flags stay the dominant decoration. */}
+      {/* Both were at 9%, which put them inside the text column once the copy
+          became left-aligned — pulled out to the margin with the flags. */}
       <FloatingIcon
-        style={{ top: "22%", left: "9%" }}
+        style={{ top: "22%", left: "5%" }}
         duration={13}
         delay={1.2}
         range={10}
@@ -163,7 +170,7 @@ export function HeroFloatingElements() {
         <CloudIcon className="size-9 text-foreground/15" />
       </FloatingIcon>
       <FloatingIcon
-        style={{ top: "50%", right: "9%" }}
+        style={{ top: "50%", right: "5%" }}
         duration={9}
         delay={2}
         range={12}

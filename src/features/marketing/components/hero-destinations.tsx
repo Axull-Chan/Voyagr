@@ -39,8 +39,10 @@ const destinations = [
 
 export function HeroDestinations() {
   return (
-    <div className="w-full max-w-2xl">
-      <h2 className="sr-only">Popular destinations</h2>
+    // No sr-only heading any more: `DestinationsSection` now gives this rail
+    // a real visible <h2>, and two headings for one list is a worse
+    // screen-reader experience than none.
+    <div className="w-full">
       <ul
         className="flex snap-x snap-mandatory gap-4 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         style={{ WebkitOverflowScrolling: "touch" }}
