@@ -9,9 +9,9 @@ committed before the next begins — don't skip ahead without the user's go-ahea
 - [x] **Phase 1 — Project foundation**
 - [x] **Phase 2 — Landing page & dashboard**, plus a post-review polish pass,
   a final professional design-refinement pass, two out-of-sequence hero
-  redesign passes, and a feature-section redesign (this commit) — see
-  "Phase 2 polish", "Phase 2 final polish pass", "Phase 2.5", and "Feature
-  section redesign" below
+  redesign passes, a feature-section redesign, and the Blue Hour
+  scroll-film (this commit) — see "Phase 2 polish", "Phase 2 final polish
+  pass", "Phase 2.5", "Feature section redesign", and "Blue Hour" below
 - [ ] Phase 3 — Create trip wizard
 - [ ] Phase 4 — AI itinerary generation (OpenAI)
 - [ ] Phase 5 — Maps & location (Google Maps)
@@ -589,6 +589,108 @@ when it did work here it just confirmed what the CSS should already do.
   technique from the hero pass to extract 4 more flags (`it`, `de`, `nl`,
   `se`, 10 total) rather than either repeating the hero's 6 visibly down a
   much longer scroll or diluting the flag motif with more generic icons.
+
+## Blue Hour — scroll-scrubbed film (landing hero + campaign page)
+
+An out-of-sequence, user-requested pass. A 6s AI-generated Tokyo clip was
+turned into a scroll-scrubbed canvas "film" that now opens the landing page
+(`src/features/film/`), plus a standalone campaign page at `/blue-hour`
+(film + stats + gallery + inquiry form). The original Phase 2.5 hero was
+kept and moved directly below the film as the product introduction.
+
+- **The scrub is a `<canvas>` painting pre-extracted JPEGs, never a
+  `<video>`.** A video element has its own playback clock, and seeking
+  `currentTime` once per scroll frame stutters badly because browsers snap
+  seeks to keyframes. 71 frames were extracted with
+  `ffmpeg -i in.mp4 -vf "fps=12,scale=1280:-2" -q:v 9 frame-%03d.jpg`
+  (4.4 MB total, ~63 kB/frame) into `public/film/frames/`.
+  **This ffmpeg build has no webp encoder** (`Default encoder for format
+  image2 (codec webp) is probably disabled`) — JPEG is the right call
+  anyway, since decode speed matters more than a few hundred kB when the
+  reader can outrun the decoder by scrolling fast. All frames are preloaded
+  before the scrub arms; loading on demand shows holes exactly when the
+  reader is scrolling fastest.
+- **Everything per-frame is written imperatively inside one rAF callback**
+  (canvas paint, beat opacity, progress bar, frame counter), never through
+  React state — a state-driven rerender of the overlay tree at ~60/sec
+  janks the scrub for no benefit.
+- **A beat with a zero-width fade-in needs `<` not `<=` in the opacity
+  ramp.** The opening title card is meant to be legible at rest, but
+  `if (progress <= in0) return 0` makes it invisible at progress 0 — the
+  page's very first paint had no text on it at all. Fixed by guarding with
+  `progress < in0` and giving that beat `in0 === in1 === 0`; the beat also
+  ships with `opacity: 1` inline so it's correct before the loop first runs.
+- **Full-bleed `cover` is wrong for a 16:9 film on a portrait phone.**
+  Covering 390×844 from a 1280×720 source is a ~2.3× upscale (visibly soft)
+  *and* crops out the two stalls framing the shot. Below `sm` the film is a
+  centered letterboxed band instead (0.61× — downsampling, pixel-sharp,
+  whole composition intact), with the beats moved into the space beneath it
+  rather than over it. Verify this by computing
+  `canvasCSSWidth * devicePixelRatio / sourceWidth`, not by eye.
+- **A transparent navbar over a full-bleed hero needs the hero pulled up
+  under it.** `MarketingNavbar` is `sticky`, which still occupies 64px of
+  normal flow, so the film started *below* it with a solid strip across the
+  top. `FilmHero` carries `-mt-16` to slide under it. The navbar's
+  `overHero` mode measures `#film-hero`'s real `getBoundingClientRect()
+  .bottom` rather than a hardcoded pixel threshold, so it stays correct
+  whatever height the section resolves to.
+- **Paired grid items sharing one aspect ratio don't share a height.** In
+  the gallery's 7/5 and 5/7 rows, `aspect-video` on different column spans
+  produced different heights, so each pair's captions sat on visibly
+  different baselines. Fixed with an explicit per-row height from `lg` up
+  (`lg:aspect-auto lg:h-[26rem]`). Confirmed by comparing each figcaption's
+  `getBoundingClientRect().top` — 376/376 and 881/881 — not by eye.
+- **This project has `noUncheckedIndexedAccess` on**, so `someArray[0]` is
+  `T | undefined` and can't be spread into a `T`. Shared beat data is built
+  from named consts (`titleCard`, `middleBeats`) rather than by indexing.
+- **The film's dark palette is scoped via a `.film-surface` class**, not the
+  app's theme tokens: `@theme inline` maps `--color-film-*` to `--film-*`
+  vars that only resolve inside that class, so the utilities are inert
+  everywhere else and the film looks identical in light and dark mode.
+- **One `<h1>` per page, chosen by data.** `FilmBeat.isHeading` marks which
+  beat renders as the `h1`: the campaign page uses its opening title card,
+  the landing hero uses its *closing* beat (the only line that states what
+  Voyagr is). `HeroHeadline` was demoted `h1` → `h2` accordingly.
+- The showcase inquiry form deliberately has no action and no endpoint —
+  submit is `preventDefault()` + local state, and the page says so in plain
+  text above the button. Verified via `read_network_requests` that no
+  request follows a submit.
+
+### Higgsfield asset generation (free plan)
+
+- `higgsfield generate cost <model> ...` before submitting — costs vary by
+  two orders of magnitude. Images ran 0.15–7 credits; **video is the
+  expensive side**: Seedance 2.0 quoted 12–54 credits for a single clip,
+  vs ~6 for Minimax Hailuo (`--variant minimax-2.3` for text-to-video, or
+  it demands a start/end image).
+- **Model availability is plan-gated independently of credits.** Soul
+  Location — the model the catalog recommends for no-people environment
+  shots — fails with `job_minimum_basic_plan_required` on the free plan
+  regardless of balance. `z_image` (0.15 credits) and `nano_banana_2` work.
+- `--wait` on a video job exceeds the 120s foreground Bash timeout; it
+  moves to the background and completes fine.
+
+### Browser-tooling notes specific to the scrub
+
+- **The scrub cannot be verified while the Browser pane is hidden.** A
+  backgrounded document freezes `requestAnimationFrame` *and* stops
+  delivering `scroll` events (measured: `rafFired: 0`, `scrollFired: 0`),
+  so the film simply never advances even though `window.scrollY` changes
+  and the progress math computes correctly. Check
+  `document.visibilityState` and a one-shot `requestAnimationFrame` counter
+  *first* — a fresh tab is sometimes `"visible"` and sometimes not, so keep
+  opening tabs until one reports `visible`, rather than debugging the code.
+- **The rendered frame counter makes each screenshot self-validating.**
+  Screenshots in this environment can lag or capture a stale scroll state;
+  since `NNN / 71` is painted on screen, a capture whose counter doesn't
+  match the expected frame can be discarded and retaken instead of trusted.
+- `history.scrollRestoration = 'manual'` plus setting
+  `document.documentElement.style.scrollBehavior = 'auto'` is required for
+  deterministic positioning — otherwise the page drifts between setting a
+  scroll position and capturing it (observed drifting 2380 → 5768).
+- Screenshot capture degrades after a reload or a `colorScheme` change on
+  an already-resized tab (renders the page into a small corner, or blank at
+  non-zero scroll). Fresh tab, navigate, resize once, then capture.
 
 ## Auth flow
 

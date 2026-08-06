@@ -3,6 +3,7 @@
 import { Moon, Sun, Monitor } from "lucide-react"
 import { useTheme } from "next-themes"
 
+import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -11,14 +12,27 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 
-export function ThemeToggle() {
+/**
+ * `onDark` forces the light-on-dark treatment for placements that sit over
+ * fixed-dark artwork (the Blue Hour hero) rather than over the themed page
+ * background, where `text-foreground` would follow the user's theme and
+ * disappear against the film in light mode.
+ */
+export function ThemeToggle({ onDark = false }: { onDark?: boolean }) {
   const { setTheme } = useTheme()
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
         render={
-          <Button variant="ghost" size="icon" aria-label="Toggle theme" />
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label="Toggle theme"
+            className={cn(
+              onDark && "text-white hover:bg-white/10 hover:text-white"
+            )}
+          />
         }
       >
         <Sun

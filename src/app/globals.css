@@ -46,6 +46,15 @@
     --radius-2xl: calc(var(--radius) * 1.8);
     --radius-3xl: calc(var(--radius) * 2.2);
     --radius-4xl: calc(var(--radius) * 2.6);
+
+    /* Blue Hour palette — resolves only inside `.film-surface` (see the
+       `.film-surface` block below), so these utilities are inert everywhere
+       else in the app. */
+    --color-film-bg: var(--film-bg);
+    --color-film-raise: var(--film-raise);
+    --color-film-ink: var(--film-ink);
+    --color-film-muted: var(--film-muted);
+    --color-film-line: var(--film-line);
 }
 
 :root {
@@ -133,4 +142,19 @@
       scroll-behavior: auto;
     }
   }
+}
+
+/**
+ * Blue Hour surfaces run their own fixed dark palette rather than the app's
+ * light/dark theme tokens: it's a night film, and it should look identical
+ * whichever theme the visitor has selected. Applied to the whole campaign
+ * page and to the landing hero alike, and scoped to this class so nothing
+ * here leaks into the themed product UI.
+ */
+.film-surface {
+  --film-bg: oklch(0.145 0.012 265);
+  --film-raise: oklch(0.185 0.014 265);
+  --film-ink: oklch(0.96 0.006 85);
+  --film-muted: oklch(0.66 0.014 265);
+  --film-line: oklch(1 0 0 / 12%);
 }
