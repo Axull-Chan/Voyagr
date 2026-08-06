@@ -59,15 +59,29 @@ const features: Feature[] = [
 
 export function FeatureSection() {
   return (
-    <section id="features" className="scroll-mt-16 px-6 py-16 sm:py-20">
-      <div className="mx-auto max-w-6xl">
+    <section
+      id="features"
+      className="relative scroll-mt-16 overflow-hidden px-6 py-16 sm:py-20"
+    >
+      {/* Outside the content wrapper on purpose — these belong in the
+          section's outer margin, and nested inside max-w-5xl they'd sit on
+          the cards. Matches how the product section places its own set. */}
+      <FeatureFloatingElements />
+      <div className="mx-auto max-w-5xl">
         <SectionHeading
           title="Everything you need, nothing you have to build"
           description="One place for the itinerary, the budget, the maps, and the back-and-forth it takes to get a trip right."
         />
 
-        <div className="relative mt-12 flex flex-col gap-8 sm:gap-10">
-          <FeatureFloatingElements />
+        {/* A grid, not the single tall column this used to be. Stacking six
+            full-width "moments" cost ~1500px of scrolling for six short
+            lines of copy, and the page already opens with a long cinematic
+            sequence — a second one right after it is repetitive pacing, not
+            drama. Six divides evenly by 2 and 3, so neither breakpoint
+            strands a lone card on its own row. Each block is still its own
+            Reveal, so they continue to appear as you scroll rather than all
+            at once. */}
+        <div className="mt-12 grid gap-x-8 gap-y-12 sm:grid-cols-2 lg:grid-cols-3">
           {features.map((feature) => (
             <FeatureBlock
               key={feature.title}

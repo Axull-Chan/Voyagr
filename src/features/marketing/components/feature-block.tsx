@@ -7,32 +7,36 @@ interface FeatureBlockProps {
 }
 
 /**
- * One "moment" in the feature section's sequential scroll reveal. Each
- * instance is its own `Reveal`, so it triggers independently as *this*
- * block scrolls into view rather than bursting in together with the
- * others — see feature-section.tsx for why. `icon` is a pre-rendered
- * element, not a component reference: the caller (a Server Component)
- * can't pass a lucide component itself across the Client Component
- * boundary — only serializable props or already-rendered elements cross
- * that boundary. Centered, large title, tight icon->title->description
- * stagger — matches the reference (a short, centered stat line that fades
- * in, not a big alternating-sides "scene").
+ * One card in the feature grid. Each instance is its own `Reveal`, so it
+ * triggers independently as *this* card scrolls into view rather than
+ * bursting in together with the others — that accumulating behaviour is
+ * worth keeping even though the layout is no longer one tall column.
+ *
+ * The type is sized for a grid cell, not a full-width "moment": display-size
+ * headings made sense when each feature owned an entire screen, but at a
+ * third of the width they would wrap to three or four lines each.
+ *
+ * `icon` is a pre-rendered element, not a component reference — the caller
+ * is a Server Component, and a lucide component itself can't cross that
+ * boundary; only serializable props or already-rendered elements can.
  */
 export function FeatureBlock({ icon, title, description }: FeatureBlockProps) {
   return (
-    <Reveal className="mx-auto max-w-lg text-center">
+    <Reveal className="text-center">
       <RevealItem>
-        <div className="mx-auto flex size-12 items-center justify-center rounded-xl bg-primary/10">
+        <div className="mx-auto flex size-11 items-center justify-center rounded-xl bg-primary/10">
           {icon}
         </div>
       </RevealItem>
-      <RevealItem className="mt-3">
-        <h3 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
+      <RevealItem className="mt-4">
+        <h3 className="text-lg font-semibold tracking-tight text-foreground">
           {title}
         </h3>
       </RevealItem>
       <RevealItem className="mt-2">
-        <p className="text-base text-muted-foreground">{description}</p>
+        <p className="text-sm leading-relaxed text-muted-foreground">
+          {description}
+        </p>
       </RevealItem>
     </Reveal>
   )
