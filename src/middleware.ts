@@ -6,7 +6,13 @@ import { NextResponse, type NextRequest } from "next/server"
 // an already logged-in user changing their password, so it can't be in the
 // "bounce logged-in users away" list below.
 const AUTH_ROUTES = ["/login", "/sign-up", "/forgot-password"]
-const PROTECTED_PREFIXES = ["/dashboard"]
+
+// Every route in the (app) group, not just /dashboard. RLS already stops a
+// signed-out visitor reading anyone's data, but without this they reach the
+// app shell and can fill in the whole trip wizard before the submit fails —
+// so this is about not wasting their time as much as it is about access.
+// Keep in step with the folders under src/app/(app).
+const PROTECTED_PREFIXES = ["/dashboard", "/trips", "/favorites"]
 
 export async function middleware(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })

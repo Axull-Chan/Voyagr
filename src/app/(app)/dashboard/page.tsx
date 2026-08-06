@@ -12,12 +12,10 @@ import {
 
 import { EmptyState } from "@/components/shared/empty-state"
 import { Reveal, RevealGroup, RevealItem } from "@/components/shared/reveal"
-import { buttonVariants } from "@/components/ui/button"
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { Button } from "@/components/ui/button"
 import { StatCard } from "@/features/trips/components/stat-card"
 import { TripCard } from "@/features/trips/components/trip-card"
 import { createClient } from "@/lib/supabase/server"
-import { cn } from "@/lib/utils"
 
 export const metadata: Metadata = { title: "Dashboard" }
 
@@ -108,23 +106,10 @@ export default async function DashboardPage() {
               AI builds the itinerary for you
             </p>
           </div>
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <span
-                  aria-disabled="true"
-                  className={cn(
-                    buttonVariants({ size: "sm" }),
-                    "cursor-not-allowed opacity-60"
-                  )}
-                />
-              }
-            >
-              <Plus aria-hidden="true" />
-              New trip
-            </TooltipTrigger>
-            <TooltipContent>Coming soon</TooltipContent>
-          </Tooltip>
+          <Button size="sm" nativeButton={false} render={<Link href="/trips/new" />}>
+            <Plus aria-hidden="true" />
+            New trip
+          </Button>
         </RevealItem>
         <RevealItem
           className="rounded-xl"

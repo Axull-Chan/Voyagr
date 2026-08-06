@@ -158,6 +158,74 @@ export type Database = {
           },
         ]
       }
+      hotels: {
+        Row: {
+          address: string | null
+          amenities: string[]
+          booking_url: string | null
+          check_in_date: string | null
+          check_out_date: string | null
+          created_at: string
+          id: string
+          image_url: string | null
+          is_primary: boolean
+          lat: number | null
+          lng: number | null
+          name: string
+          nights: number | null
+          price_per_night: number | null
+          rating: number | null
+          total_cost: number | null
+          trip_id: string
+        }
+        Insert: {
+          address?: string | null
+          amenities?: string[]
+          booking_url?: string | null
+          check_in_date?: string | null
+          check_out_date?: string | null
+          created_at?: string
+          id?: string
+          image_url?: string | null
+          is_primary?: boolean
+          lat?: number | null
+          lng?: number | null
+          name: string
+          nights?: number | null
+          price_per_night?: number | null
+          rating?: number | null
+          total_cost?: number | null
+          trip_id: string
+        }
+        Update: {
+          address?: string | null
+          amenities?: string[]
+          booking_url?: string | null
+          check_in_date?: string | null
+          check_out_date?: string | null
+          created_at?: string
+          id?: string
+          image_url?: string | null
+          is_primary?: boolean
+          lat?: number | null
+          lng?: number | null
+          name?: string
+          nights?: number | null
+          price_per_night?: number | null
+          rating?: number | null
+          total_cost?: number | null
+          trip_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hotels_trip_id_fkey"
+            columns: ["trip_id"]
+            isOneToOne: false
+            referencedRelation: "trips"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       packing_lists: {
         Row: {
           category: string | null
@@ -279,6 +347,75 @@ export type Database = {
           },
         ]
       }
+      transportation: {
+        Row: {
+          arrive_at: string | null
+          booking_reference: string | null
+          cost: number | null
+          created_at: string
+          depart_at: string | null
+          duration_minutes: number | null
+          from_location: string
+          id: string
+          mode: string
+          notes: string | null
+          provider: string | null
+          sort_order: number
+          to_location: string
+          trip_day_id: string | null
+          trip_id: string
+        }
+        Insert: {
+          arrive_at?: string | null
+          booking_reference?: string | null
+          cost?: number | null
+          created_at?: string
+          depart_at?: string | null
+          duration_minutes?: number | null
+          from_location: string
+          id?: string
+          mode: string
+          notes?: string | null
+          provider?: string | null
+          sort_order?: number
+          to_location: string
+          trip_day_id?: string | null
+          trip_id: string
+        }
+        Update: {
+          arrive_at?: string | null
+          booking_reference?: string | null
+          cost?: number | null
+          created_at?: string
+          depart_at?: string | null
+          duration_minutes?: number | null
+          from_location?: string
+          id?: string
+          mode?: string
+          notes?: string | null
+          provider?: string | null
+          sort_order?: number
+          to_location?: string
+          trip_day_id?: string | null
+          trip_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "transportation_trip_day_id_fkey"
+            columns: ["trip_day_id"]
+            isOneToOne: false
+            referencedRelation: "trip_days"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transportation_trip_id_fkey"
+            columns: ["trip_id"]
+            isOneToOne: false
+            referencedRelation: "trips"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       trip_days: {
         Row: {
           created_at: string
@@ -313,6 +450,48 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "trip_days_trip_id_fkey"
+            columns: ["trip_id"]
+            isOneToOne: false
+            referencedRelation: "trips"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      trip_notes: {
+        Row: {
+          body: string
+          created_at: string
+          id: string
+          trip_day_id: string | null
+          trip_id: string
+          updated_at: string
+        }
+        Insert: {
+          body: string
+          created_at?: string
+          id?: string
+          trip_day_id?: string | null
+          trip_id: string
+          updated_at?: string
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          id?: string
+          trip_day_id?: string | null
+          trip_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trip_notes_trip_day_id_fkey"
+            columns: ["trip_day_id"]
+            isOneToOne: false
+            referencedRelation: "trip_days"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trip_notes_trip_id_fkey"
             columns: ["trip_id"]
             isOneToOne: false
             referencedRelation: "trips"
@@ -388,6 +567,59 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      weather: {
+        Row: {
+          condition: string
+          fetched_at: string
+          humidity: number | null
+          id: string
+          precipitation_chance: number | null
+          source: string
+          sunrise: string | null
+          sunset: string | null
+          temp_high_c: number | null
+          temp_low_c: number | null
+          trip_day_id: string
+          wind_kph: number | null
+        }
+        Insert: {
+          condition: string
+          fetched_at?: string
+          humidity?: number | null
+          id?: string
+          precipitation_chance?: number | null
+          source?: string
+          sunrise?: string | null
+          sunset?: string | null
+          temp_high_c?: number | null
+          temp_low_c?: number | null
+          trip_day_id: string
+          wind_kph?: number | null
+        }
+        Update: {
+          condition?: string
+          fetched_at?: string
+          humidity?: number | null
+          id?: string
+          precipitation_chance?: number | null
+          source?: string
+          sunrise?: string | null
+          sunset?: string | null
+          temp_high_c?: number | null
+          temp_low_c?: number | null
+          trip_day_id?: string
+          wind_kph?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "weather_trip_day_id_fkey"
+            columns: ["trip_day_id"]
+            isOneToOne: true
+            referencedRelation: "trip_days"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
