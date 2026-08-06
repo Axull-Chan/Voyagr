@@ -32,23 +32,18 @@ const titleCard: FilmBeat = {
   out1: 0.24,
 }
 
+const streetCopy = {
+  kicker: "The street",
+  line: "Six turns from the station. Steam, paper lanterns, no crowd.",
+}
+const planCopy = {
+  kicker: "The plan",
+  line: "Found, routed and timed before you landed.",
+}
+
 const middleBeats: FilmBeat[] = [
-  {
-    kicker: "The street",
-    line: "Six turns from the station. Steam, paper lanterns, no crowd.",
-    in0: 0.3,
-    in1: 0.37,
-    out0: 0.46,
-    out1: 0.54,
-  },
-  {
-    kicker: "The plan",
-    line: "Found, routed and timed before you landed.",
-    in0: 0.6,
-    in1: 0.67,
-    out0: 0.76,
-    out1: 0.83,
-  },
+  { ...streetCopy, in0: 0.3, in1: 0.37, out0: 0.46, out1: 0.54 },
+  { ...planCopy, in0: 0.6, in1: 0.67, out0: 0.76, out1: 0.83 },
 ]
 
 /** The standalone campaign page: pure film, closing on its own title. */
@@ -66,19 +61,25 @@ export const campaignBeats: FilmBeat[] = [
 ]
 
 /**
- * The landing hero: identical footage and pacing, but the closing beat
- * hands off to the product instead of a title card — a hero that never
- * says what the product is would be a poor first screen, however good the
- * film looks.
+ * The landing hero: same footage, but the closing beat hands off to the
+ * product instead of a title card — a hero that never says what the product
+ * is would be a poor first screen, however good the film looks.
+ *
+ * The windows are pulled earlier than the campaign's, because this hero runs
+ * over 200svh rather than 400 — the same fractions buy roughly half as many
+ * pixels. At the campaign's timings the closing beat's CTA would hold for
+ * about one wheel notch before the film unpinned and scrolled away; starting
+ * it at 0.76 keeps it on screen for a reasonable stretch instead.
  */
 export const landingBeats: FilmBeat[] = [
-  titleCard,
-  ...middleBeats,
+  { ...titleCard, out0: 0.14, out1: 0.2 },
+  { ...streetCopy, in0: 0.26, in1: 0.32, out0: 0.4, out1: 0.46 },
+  { ...planCopy, in0: 0.52, in1: 0.58, out0: 0.66, out1: 0.72 },
   {
     kicker: "Voyagr",
     line: "We plan the trip around moments like this.",
-    in0: 0.86,
-    in1: 0.92,
+    in0: 0.76,
+    in1: 0.82,
     out0: 1,
     out1: 1,
     isHeading: true,

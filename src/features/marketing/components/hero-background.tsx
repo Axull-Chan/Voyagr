@@ -6,9 +6,14 @@
  */
 export function HeroBackground() {
   return (
+    // The mask is what stops this reading as a seam. Every layer inside is
+    // `absolute inset-0`, so without it the map wash, the colour blobs and
+    // the grain all end on a hard horizontal line at the section boundary —
+    // a visible edge across the full width where the next section's flat
+    // background takes over. Fading both ends dissolves it instead.
     <div
       aria-hidden="true"
-      className="pointer-events-none absolute inset-0 -z-20 overflow-hidden"
+      className="pointer-events-none absolute inset-0 -z-20 overflow-hidden [mask-image:linear-gradient(to_bottom,transparent_0%,black_14%,black_66%,transparent_100%)]"
     >
       <div
         className="absolute inset-0 bg-center bg-no-repeat opacity-[0.06] blur-md dark:invert"

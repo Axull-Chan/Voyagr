@@ -22,10 +22,10 @@ export function FilmHero() {
     <div id="film-hero" className="film-surface -mt-16 bg-film-bg text-film-ink">
       <ScrollFilm
         beats={landingBeats}
-        // Shorter than the campaign page's 400svh: this one sits in front of
-        // an entire product page, so the film shouldn't cost three full
-        // viewports of scrolling before anything else is reachable.
-        scrollLength="300svh"
+        // 200svh = one viewport of scrub. The campaign page can afford 400;
+        // here the film was 38% of the whole landing page on its own, which
+        // is a long way to scroll before reaching any product content.
+        scrollLength="200svh"
         finalAction={
           <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
             <Link

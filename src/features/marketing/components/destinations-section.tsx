@@ -9,7 +9,7 @@ import { HeroDestinations } from "@/features/marketing/components/hero-destinati
  */
 export function DestinationsSection() {
   return (
-    <section className="px-6 pb-24 sm:pb-32">
+    <section className="px-6 pb-16 sm:pb-20">
       {/* Same max-w-5xl as the product section above so the two blocks share
           one left edge; the rail's five cards still fit without scrolling. */}
       <Reveal mode="scroll" className="mx-auto max-w-5xl">

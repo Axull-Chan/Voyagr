@@ -65,7 +65,13 @@ export function HeroDestinations() {
                   sizes="(min-width: 640px) 176px, 144px"
                   className="object-cover transition-transform duration-300 group-hover:scale-105"
                 />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/5 to-transparent" />
+                {/* An eased multi-stop scrim rather than
+                    `from-black/70 via-black/5 to-transparent`: a single
+                    midpoint at 5% put almost the whole falloff in the bottom
+                    half, which showed up as a hard band across the photo.
+                    These stops approximate an ease-out so it reads as one
+                    continuous fade. */}
+                <div className="absolute inset-0 bg-[linear-gradient(to_top,rgba(0,0,0,0.88)_0%,rgba(0,0,0,0.75)_14%,rgba(0,0,0,0.58)_28%,rgba(0,0,0,0.40)_42%,rgba(0,0,0,0.24)_56%,rgba(0,0,0,0.12)_70%,rgba(0,0,0,0.04)_84%,transparent_100%)]" />
                 <Badge
                   variant="secondary"
                   className="absolute top-2 right-2 bg-background/80 backdrop-blur-sm"

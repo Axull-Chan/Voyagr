@@ -59,14 +59,14 @@ const features: Feature[] = [
 
 export function FeatureSection() {
   return (
-    <section id="features" className="scroll-mt-16 px-6 py-24">
+    <section id="features" className="scroll-mt-16 px-6 py-16 sm:py-20">
       <div className="mx-auto max-w-6xl">
         <SectionHeading
           title="Everything you need, nothing you have to build"
           description="One place for the itinerary, the budget, the maps, and the back-and-forth it takes to get a trip right."
         />
 
-        <div className="relative mt-16 flex flex-col gap-12 sm:gap-16">
+        <div className="relative mt-12 flex flex-col gap-8 sm:gap-10">
           <FeatureFloatingElements />
           {features.map((feature) => (
             <FeatureBlock

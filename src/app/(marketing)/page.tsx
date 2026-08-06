@@ -8,7 +8,6 @@ import { ProductSection } from "@/features/marketing/components/product-section"
 import { DestinationsSection } from "@/features/marketing/components/destinations-section"
 import { FeatureSection } from "@/features/marketing/components/feature-section"
 import { HowItWorksSection } from "@/features/marketing/components/how-it-works-section"
-import { TestimonialsSection } from "@/features/marketing/components/testimonials-section"
 import { PricingSection } from "@/features/marketing/components/pricing-section"
 
 /** Only the film hero uses the serif — see the campaign page for the rationale. */
@@ -31,7 +30,6 @@ export default function LandingPage() {
         <DestinationsSection />
         <FeatureSection />
         <HowItWorksSection />
-        <TestimonialsSection />
         <PricingSection />
       </main>
       <MarketingFooter />

@@ -32,7 +32,7 @@ export function HowItWorksSection() {
   return (
     <section
       id="how-it-works"
-      className="scroll-mt-16 border-y border-border bg-muted/30 px-6 py-24"
+      className="scroll-mt-16 border-y border-border bg-muted/30 px-6 py-16 sm:py-20"
     >
       <div className="mx-auto max-w-6xl">
         <SectionHeading
