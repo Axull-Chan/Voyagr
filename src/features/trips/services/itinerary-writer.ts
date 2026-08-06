@@ -21,6 +21,28 @@ export async function persistItinerary(
   tripId: string,
   itinerary: GeneratedItinerary
 ): Promise<void> {
+  // Start from a clean trip.
+  //
+  // The Supabase client can't wrap these inserts in a transaction, so a
+  // failure part-way through leaves some child tables written and others not.
+  // Because a failed generation deliberately leaves the trip as a retryable
+  // draft rather than deleting it, a retry would otherwise stack a second
+  // itinerary on top of the debris. Clearing first makes this function
+  // idempotent, so a retry always converges on one correct itinerary.
+  //
+  // Deleting the days is enough to take activities, restaurants and weather
+  // with them — all three cascade from trip_days.
+  const cleanup = await Promise.all([
+    supabase.from("trip_days").delete().eq("trip_id", tripId),
+    supabase.from("hotels").delete().eq("trip_id", tripId),
+    supabase.from("transportation").delete().eq("trip_id", tripId),
+    supabase.from("budget_breakdown").delete().eq("trip_id", tripId),
+    supabase.from("packing_lists").delete().eq("trip_id", tripId),
+  ])
+  for (const result of cleanup) {
+    if (result.error) throw result.error
+  }
+
   // Days first: their generated ids are the parent for almost everything else.
   const dayRows: TablesInsert<"trip_days">[] = itinerary.days.map((day) => ({
     trip_id: tripId,
