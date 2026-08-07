@@ -236,6 +236,13 @@ export interface ActivityTemplate {
    * avoid.
    */
   slots?: TimeSlot[]
+  /**
+   * Whether the title reads naturally with a neighbourhood or with a single
+   * landmark. Drawing from one combined pool produced "Food walk through
+   * Kinkaku-ji" — a wandering activity pinned to one temple. Omitted means
+   * either pool will do.
+   */
+  placeKind?: "area" | "site"
 }
 
 /** Activity archetypes, chosen by the traveller's declared interests. */
@@ -246,11 +253,13 @@ export const ACTIVITY_TEMPLATES: Record<Interest, ActivityTemplate[]> = {
       category: "food",
       description: "Graze the stalls before the queues build, then take coffee standing up like a local.",
       slots: ["morning"],
+      placeKind: "site",
     },
     {
       title: (p) => `Food walk through ${p}`,
       category: "food",
       description: "Six or seven small stops rather than one big meal — the best way to read a neighbourhood.",
+      placeKind: "area",
     },
   ],
   history: [
@@ -259,11 +268,13 @@ export const ACTIVITY_TEMPLATES: Record<Interest, ActivityTemplate[]> = {
       category: "history",
       description: "Arrive at opening to have the older halls largely to yourself.",
       slots: ["morning"],
+      placeKind: "site",
     },
     {
       title: (p) => `Guided history walk from ${p}`,
       category: "history",
       description: "Two hours on foot covering the layers most visitors walk straight past.",
+      placeKind: "area",
     },
   ],
   art: [
@@ -271,11 +282,13 @@ export const ACTIVITY_TEMPLATES: Record<Interest, ActivityTemplate[]> = {
       title: (p) => `${p} collection`,
       category: "art",
       description: "Skip the blockbuster wing and start at the back — the crowd moves the other way.",
+      placeKind: "site",
     },
     {
       title: (p) => `Gallery hop around ${p}`,
       category: "art",
       description: "Small independent spaces, most free to enter, most happy to talk.",
+      placeKind: "area",
     },
   ],
   nature: [
@@ -284,12 +297,14 @@ export const ACTIVITY_TEMPLATES: Record<Interest, ActivityTemplate[]> = {
       category: "nature",
       description: "Cool air, low light, and almost nobody else out yet.",
       slots: ["morning"],
+      placeKind: "site",
     },
     {
       title: (p) => `Afternoon in the gardens near ${p}`,
       category: "nature",
       description: "A deliberate gap in the day — somewhere to sit rather than something to see.",
       slots: ["afternoon"],
+      placeKind: "area",
     },
   ],
   nightlife: [
@@ -298,12 +313,14 @@ export const ACTIVITY_TEMPLATES: Record<Interest, ActivityTemplate[]> = {
       category: "nightlife",
       description: "Start with a drink somewhere small, follow whatever sounds good from the street.",
       slots: ["evening"],
+      placeKind: "area",
     },
     {
       title: (p) => `Live music near ${p}`,
       category: "nightlife",
       description: "Doors are usually later than you think; eat first.",
       slots: ["evening"],
+      placeKind: "area",
     },
   ],
   shopping: [
@@ -311,12 +328,14 @@ export const ACTIVITY_TEMPLATES: Record<Interest, ActivityTemplate[]> = {
       title: (p) => `Independent shops in ${p}`,
       category: "shopping",
       description: "Makers and small labels rather than the high-street names you have at home.",
+      placeKind: "area",
     },
     {
       title: (p) => `Flea market at ${p}`,
       category: "shopping",
       description: "Cash helps. So does going early.",
       slots: ["morning"],
+      placeKind: "area",
     },
   ],
   adventure: [
@@ -325,11 +344,13 @@ export const ACTIVITY_TEMPLATES: Record<Interest, ActivityTemplate[]> = {
       category: "adventure",
       description: "An early start out of the city and back before dinner.",
       slots: ["morning"],
+      placeKind: "area",
     },
     {
       title: (p) => `Cycle route from ${p}`,
       category: "adventure",
       description: "Mostly flat, mostly car-free, with somewhere good to stop halfway.",
+      placeKind: "area",
     },
   ],
   architecture: [
@@ -337,12 +358,14 @@ export const ACTIVITY_TEMPLATES: Record<Interest, ActivityTemplate[]> = {
       title: (p) => `Architecture walk: ${p}`,
       category: "architecture",
       description: "A route built around six buildings worth stopping in front of.",
+      placeKind: "area",
     },
     {
       title: (p) => `Rooftop view over ${p}`,
       category: "architecture",
       description: "Worth timing for the last hour of light.",
       slots: ["evening"],
+      placeKind: "site",
     },
   ],
   beaches: [
@@ -351,12 +374,14 @@ export const ACTIVITY_TEMPLATES: Record<Interest, ActivityTemplate[]> = {
       category: "beaches",
       description: "Go before eleven — the light is better and the sand is still cool.",
       slots: ["morning"],
+      placeKind: "area",
     },
     {
       title: (p) => `Sunset swim at ${p}`,
       category: "beaches",
       description: "Bring something warm for afterwards; the temperature drops fast.",
       slots: ["evening"],
+      placeKind: "area",
     },
   ],
   wellness: [
@@ -364,12 +389,14 @@ export const ACTIVITY_TEMPLATES: Record<Interest, ActivityTemplate[]> = {
       title: (p) => `Bathhouse near ${p}`,
       category: "wellness",
       description: "An hour of doing nothing, which is harder to schedule than it sounds.",
+      placeKind: "area",
     },
     {
       title: (p) => `Morning yoga in ${p}`,
       category: "wellness",
       description: "Drop-in classes, no booking, mats provided.",
       slots: ["morning"],
+      placeKind: "area",
     },
   ],
 }

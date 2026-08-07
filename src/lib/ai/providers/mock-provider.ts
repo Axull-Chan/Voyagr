@@ -155,7 +155,15 @@ function buildActivities(
     const { template } = pick(rng, unused.length > 0 ? unused : fitsSlot)
     usedTitles.add(template.description)
 
-    const placePool = [...profile.landmarks, ...profile.neighbourhoods]
+    // Draw from the pool the title actually reads well with — "Food walk
+    // through <neighbourhood>", "Morning at <landmark>" — rather than one
+    // combined pool, which produced things like "Food walk through Kinkaku-ji".
+    const placePool =
+      template.placeKind === "area"
+        ? profile.neighbourhoods
+        : template.placeKind === "site"
+          ? profile.landmarks
+          : [...profile.landmarks, ...profile.neighbourhoods]
     const freshPlaces = placePool.filter((p) => !usedPlaces.has(p))
     const place = pick(rng, freshPlaces.length > 0 ? freshPlaces : placePool)
     usedPlaces.add(place)
@@ -407,6 +415,17 @@ class MockAiProvider implements AiProvider {
     const perDay = ACTIVITIES_PER_DAY[request.travelStyle] ?? 3
     const costPerActivity = profile.dailyCostIndex * 0.22
 
+    // Summaries name a neighbourhood, so they need their own memory of what's
+    // been used — otherwise two days in a row read "A day built around
+    // Arashiyama."
+    const usedSummaryAreas = new Set<string>()
+    const nextArea = () => {
+      const fresh = profile.neighbourhoods.filter((n) => !usedSummaryAreas.has(n))
+      const area = pick(rng, fresh.length > 0 ? fresh : profile.neighbourhoods)
+      usedSummaryAreas.add(area)
+      return area
+    }
+
     const days: GeneratedDay[] = Array.from({ length: dayCount }, (_, index) => {
       const activities = buildActivities(
         rng,
@@ -426,10 +445,10 @@ class MockAiProvider implements AiProvider {
         date: addDays(request.startDate, index),
         summary:
           index === 0
-            ? `Arrive, settle into ${pick(rng, profile.neighbourhoods)}, and keep the first evening light.`
+            ? `Arrive, settle into ${nextArea()}, and keep the first evening light.`
             : index === dayCount - 1
               ? "A slower last day with room to revisit whatever you liked most."
-              : `A day built around ${pick(rng, profile.neighbourhoods)}.`,
+              : `A day built around ${nextArea()}.`,
         estimatedCost: round(estimatedCost),
         activities,
         restaurants,
