@@ -14,6 +14,7 @@ import type {
   GeneratedTransport,
   GeneratedWeather,
   ItineraryRequest,
+  SourcedVenue,
 } from "@/lib/ai/types"
 import {
   ACTIVITY_TEMPLATES,
@@ -88,6 +89,29 @@ function jitterCoord(
   return {
     lat: round(profile.lat + (rng() - 0.5) * 0.08, 5),
     lng: round(profile.lng + (rng() - 0.5) * 0.08, 5),
+  }
+}
+
+/**
+ * Rotates through real venues without repeating one until the list is
+ * exhausted, then starts again.
+ *
+ * A trip must never list the same museum twice in a week, but a fortnight in
+ * a small city genuinely runs out of listed venues — wrapping is the honest
+ * behaviour, and better than padding with invented ones.
+ */
+function createRotation<T>(items: T[]) {
+  let cursor = 0
+  return {
+    get available() {
+      return items.length > 0
+    },
+    next(): T | null {
+      if (items.length === 0) return null
+      const item = items[cursor % items.length]
+      cursor += 1
+      return item ?? null
+    },
   }
 }
 
@@ -379,6 +403,145 @@ function buildBudget(
   }
 }
 
+/**
+ * Builds a day's activities from real venues.
+ *
+ * The template copy is reused for framing ("Morning at X"), but the *place*
+ * is always a listed one, so nothing venue-shaped is invented. Coordinates
+ * come from the venue itself, which is what makes the map markers land on
+ * real buildings rather than a jittered guess around the city centre.
+ */
+/**
+ * Framing derived from what a venue actually is.
+ *
+ * The interest-based templates cannot be used with real listings: applied to
+ * whatever OpenTripMap returns they produced "Food walk through Battle of
+ * Toba-Fushimi" and "Narasaki Ryō collection" — a battle and a historical
+ * figure, neither of which you can walk through or browse. The venue's own
+ * OSM categories are the only reliable guide to what it is, so the verb comes
+ * from those, and anything unrecognised gets the neutral "Visit".
+ *
+ * Descriptions are deliberately about *planning* rather than about the place:
+ * we have not read the place, and asserting what it is like would be
+ * inventing exactly what this phase set out to stop.
+ */
+const VENUE_FRAMING: { match: string[]; verb: string; note: string }[] = [
+  {
+    match: ["museums", "history_museums", "art_galleries", "galleries"],
+    verb: "Visit",
+    note: "Check the opening hours before you set out — many close one day a week.",
+  },
+  {
+    match: ["gardens_and_parks", "natural", "nature_reserves", "beaches"],
+    verb: "Walk in",
+    note: "Best earlier in the day, when it's quieter and cooler.",
+  },
+  {
+    match: ["religion", "temples", "churches", "monasteries", "shrines"],
+    verb: "Visit",
+    note: "Dress modestly; some areas may be closed during services.",
+  },
+  {
+    match: ["bridges", "architecture", "historic_architecture", "towers"],
+    verb: "See",
+    note: "Worth a short detour on the way between other stops.",
+  },
+  {
+    match: ["theatres_and_entertainments", "cinemas", "concert_halls"],
+    verb: "An evening at",
+    note: "Book ahead — walk-up tickets are rare.",
+  },
+  {
+    match: ["shops", "marketplaces", "malls"],
+    verb: "Browse",
+    note: "Bring cash; smaller stalls often don't take cards.",
+  },
+  {
+    match: ["fortifications", "castles", "ruins", "archaeology", "historic"],
+    verb: "Explore",
+    note: "Uneven ground in places — sensible shoes help.",
+  },
+]
+
+function frameVenue(venue: SourcedVenue): { verb: string; note: string } {
+  for (const framing of VENUE_FRAMING) {
+    if (venue.kinds.some((kind) => framing.match.includes(kind))) {
+      return { verb: framing.verb, note: framing.note }
+    }
+  }
+  return {
+    verb: "Visit",
+    note: "Worth confirming opening times before you go.",
+  }
+}
+
+function buildActivitiesFromVenues(
+  rng: () => number,
+  rotation: ReturnType<typeof createRotation<SourcedVenue>>,
+  count: number,
+  costPerActivity: number
+): GeneratedActivity[] {
+  const activities: GeneratedActivity[] = []
+
+  for (let index = 0; index < count; index += 1) {
+    const venue = rotation.next()
+    if (!venue) break
+
+    const slot = TIME_SLOTS[index % TIME_SLOTS.length] ?? "morning"
+    const { verb, note } = frameVenue(venue)
+
+    activities.push({
+      timeSlot: slot,
+      title: `${verb} ${venue.name}`,
+      description: note,
+      locationName: venue.name,
+      lat: venue.latitude,
+      lng: venue.longitude,
+      startTime: SLOT_START[slot],
+      durationMinutes: round(60 + rng() * 120),
+      travelTimeMinutes: round(8 + rng() * 25),
+      walkingDistanceKm: round(0.3 + rng() * 2.2, 1),
+      estimatedCost: rng() > 0.66 ? 0 : round(costPerActivity * (0.6 + rng() * 0.9)),
+      // A venue's own OSM categories describe it better than our guess.
+      category: venue.kinds[0] ?? "interesting_places",
+    })
+  }
+
+  return activities
+}
+
+/** Restaurants straight from the listings, with no invented names. */
+function buildRestaurantsFromVenues(
+  rng: () => number,
+  rotation: ReturnType<typeof createRotation<SourcedVenue>>,
+  count: number
+): GeneratedRestaurant[] {
+  const out: GeneratedRestaurant[] = []
+  for (let index = 0; index < count; index += 1) {
+    const venue = rotation.next()
+    if (!venue) break
+    const meal: MealType = MEAL_TYPES[index % MEAL_TYPES.length] ?? "lunch"
+    out.push({
+      mealType: meal,
+      name: venue.name,
+      // OSM rarely tags cuisine on these nodes; claiming one would be inventing.
+      cuisine: venue.kinds.includes("cafes") ? "Café" : "Local",
+      rating: round(3.8 + rng() * 1.1, 1),
+      priceLevel: 1 + Math.floor(rng() * 3),
+      distanceKm: round(venue.rating > 0 ? 0.4 + rng() * 1.6 : 0.8, 1),
+      openingHours:
+        meal === "breakfast"
+          ? "07:00 – 11:00"
+          : meal === "lunch"
+            ? "11:30 – 15:00"
+            : "17:30 – 22:30",
+      lat: venue.latitude,
+      lng: venue.longitude,
+    })
+  }
+  return out
+}
+
 class MockAiProvider implements AiProvider {
   readonly id = "mock" as const
   readonly label = "Mock planner"
@@ -426,23 +589,51 @@ class MockAiProvider implements AiProvider {
       return area
     }
 
+    // Real venues when they were gathered, the example catalogue otherwise.
+    const sourced = request.sourced ?? null
+    const attractionRotation = createRotation(sourced?.attractions ?? [])
+    const restaurantRotation = createRotation(sourced?.restaurants ?? [])
+    const usingRealPlaces = attractionRotation.available
+
     const days: GeneratedDay[] = Array.from({ length: dayCount }, (_, index) => {
-      const activities = buildActivities(
-        rng,
-        profile,
-        interests,
-        perDay,
-        costPerActivity
-      )
-      const restaurants = buildRestaurants(rng, profile, 2 + (index % 2))
-      const weather = buildWeather(rng, profile)
+      const date = addDays(request.startDate, index)
+
+      const activities = usingRealPlaces
+        ? buildActivitiesFromVenues(
+            rng,
+            attractionRotation,
+            perDay,
+            costPerActivity
+          )
+        : buildActivities(rng, profile, interests, perDay, costPerActivity)
+
+      const mealCount = 2 + (index % 2)
+      const restaurants = restaurantRotation.available
+        ? buildRestaurantsFromVenues(rng, restaurantRotation, mealCount)
+        : buildRestaurants(rng, profile, mealCount)
+
+      // A real forecast beats a modelled one; days beyond the horizon still
+      // need something plausible so the itinerary isn't half-empty.
+      const realWeather = sourced?.weatherByDate[date]
+      const weather: GeneratedWeather = realWeather
+        ? {
+            condition: realWeather.condition,
+            tempHighC: realWeather.tempHighC ?? profile.climate.high,
+            tempLowC: realWeather.tempLowC ?? profile.climate.low,
+            precipitationChance: realWeather.precipitationChance ?? 0,
+            windKph: realWeather.windKph ?? 0,
+            humidity: realWeather.humidity ?? 0,
+            sunrise: realWeather.sunrise ?? "06:12",
+            sunset: realWeather.sunset ?? "18:44",
+          }
+        : buildWeather(rng, profile)
       const estimatedCost =
         activities.reduce((sum, a) => sum + a.estimatedCost, 0) +
         restaurants.length * profile.dailyCostIndex * 0.18
 
       return {
         dayNumber: index + 1,
-        date: addDays(request.startDate, index),
+        date,
         summary:
           index === 0
             ? `Arrive, settle into ${nextArea()}, and keep the first evening light.`

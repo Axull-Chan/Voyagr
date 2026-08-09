@@ -18,6 +18,46 @@ import type {
  * reaches the schema.
  */
 
+/**
+ * A real place the planner may schedule, gathered before generation.
+ *
+ * Supplying these rather than letting a provider name venues is what stops
+ * invented restaurants reaching a user. A real model provider would receive
+ * the same list as grounding; the mock arranges them directly.
+ */
+export interface SourcedVenue {
+  id: string
+  name: string
+  latitude: number
+  longitude: number
+  rating: number
+  kinds: string[]
+}
+
+export interface SourcedContext {
+  latitude: number
+  longitude: number
+  /** Canonical destination name from geocoding, e.g. "Kyoto". */
+  resolvedName: string
+  attractions: SourcedVenue[]
+  restaurants: SourcedVenue[]
+  hotels: SourcedVenue[]
+  /** Date → real forecast, where one exists. */
+  weatherByDate: Record<
+    string,
+    {
+      condition: string
+      tempHighC: number | null
+      tempLowC: number | null
+      precipitationChance: number | null
+      windKph: number | null
+      humidity: number | null
+      sunrise: string | null
+      sunset: string | null
+    }
+  >
+}
+
 export interface ItineraryRequest {
   destination: string
   startingCity: string | null
@@ -33,6 +73,12 @@ export interface ItineraryRequest {
   accommodation: AccommodationPreference
   transportation: TransportPreference
   notes: string | null
+  /**
+   * Real places and weather gathered before generation. Absent when the
+   * providers are unconfigured or unreachable, in which case the planner
+   * falls back to its example catalogue and says so.
+   */
+  sourced?: SourcedContext | null
 }
 
 export interface GeneratedActivity {

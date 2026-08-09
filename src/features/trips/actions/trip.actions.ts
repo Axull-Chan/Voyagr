@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache"
 
 import { AiGenerationError, getAiProvider, type ItineraryRequest } from "@/lib/ai"
 import { createClient } from "@/lib/supabase/server"
+import { buildTripContext } from "@/services/itinerary-service"
+import { recordImageUse } from "@/services/image-service"
 import { persistItinerary } from "@/features/trips/services/itinerary-writer"
 import {
   createTripSchema,
@@ -73,34 +75,59 @@ export async function createTripAction(
     return { ok: false, error: "We couldn't save your trip. Please try again." }
   }
 
-  const request: ItineraryRequest = {
-    destination: input.destination,
-    startingCity,
-    startDate: input.startDate,
-    endDate: input.endDate,
-    travelers: input.travelers,
-    budget: input.budget,
-    currency: input.currency,
-    travelStyle: input.travelStyle,
-    interests: input.interests,
-    accommodation: input.accommodation,
-    transportation: input.transportation,
-    notes,
-  }
-
   try {
+    // Real-world data first: coordinates, listed venues, live forecast and a
+    // destination photo. Each degrades independently, so a missing photo or
+    // an unreachable places API still yields a usable itinerary.
+    const context = await buildTripContext({
+      destination: input.destination,
+      startDate: input.startDate,
+      endDate: input.endDate,
+      interests: input.interests,
+    })
+
+    const request: ItineraryRequest = {
+      destination: input.destination,
+      startingCity,
+      startDate: input.startDate,
+      endDate: input.endDate,
+      travelers: input.travelers,
+      budget: input.budget,
+      currency: input.currency,
+      travelStyle: input.travelStyle,
+      interests: input.interests,
+      accommodation: input.accommodation,
+      transportation: input.transportation,
+      notes,
+      sourced: context.sourced,
+    }
+
     const itinerary = await getAiProvider().generateItinerary(request)
     await persistItinerary(supabase, trip.id, itinerary)
 
     await supabase
       .from("trips")
-      .update({ title: itinerary.title, status: "ready" })
+      .update({
+        title: itinerary.title,
+        status: "ready",
+        cover_image_url: context.image?.url ?? null,
+      })
       .eq("id", trip.id)
+
+    // Unsplash requires a usage ping when a photo is actually adopted, which
+    // is here — once per trip — rather than on every page view.
+    if (context.image) await recordImageUse(context.image)
 
     revalidatePath("/trips")
     revalidatePath("/dashboard")
 
-    return { ok: true, tripId: trip.id, warnings: itinerary.warnings }
+    // Context notices ("photos aren't connected") matter to the user as much
+    // as the planner's own warnings, so they surface together.
+    return {
+      ok: true,
+      tripId: trip.id,
+      warnings: [...context.notices, ...itinerary.warnings],
+    }
   } catch (error) {
     // Leave the trip recoverable rather than throwing away what they entered.
     await supabase.from("trips").update({ status: "draft" }).eq("id", trip.id)
