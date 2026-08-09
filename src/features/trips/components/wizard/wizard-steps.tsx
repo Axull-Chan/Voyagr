@@ -32,7 +32,10 @@ export function DestinationStep({ control, errors }: StepProps) {
     <div className="space-y-5">
       <WizardField
         label="Destination"
-        hint="A city or region — “Tokyo”, “Northern Portugal”."
+        // Both examples verified to geocode. "Northern Portugal" was the
+        // previous suggestion and resolves to a flowerbed in Madeira — named
+        // regions work, descriptive ones don't.
+        hint="A city or region — “Tokyo”, “Tuscany”."
         error={errors.destination?.message}
       >
         {({ controlId, describedBy }) => (
