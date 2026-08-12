@@ -74,7 +74,20 @@ export function TripMap({ markers, center, className }: TripMapProps) {
     }
 
     map.addControl(new NavigationControl({ showCompass: false }), "top-right")
-    map.on("error", () => setFailed(true))
+
+    // MapLibre emits `error` for recoverable problems too — a single tile
+    // failing, a font missing — and treating those as fatal would swap a
+    // working map for an error panel mid-pan. Only a failure *before* the
+    // style finishes loading means there is nothing to show.
+    let loaded = false
+    map.on("load", () => {
+      loaded = true
+    })
+    map.on("error", (event) => {
+      if (!loaded) setFailed(true)
+      else console.warn("[TripMap] recoverable map error", event.error)
+    })
+
     mapRef.current = map
 
     return () => {

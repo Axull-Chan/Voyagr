@@ -11,10 +11,32 @@ import { cn } from "@/lib/utils"
 import { formatCurrency, TIME_SLOTS, type TimeSlot } from "@/lib/trips/trip-domain"
 import type { TripDay } from "@/features/trips/queries/trip-detail"
 
-const SLOT_LABEL: Record<TimeSlot, string> = {
+/**
+ * The shape this component displays, deliberately not the database row.
+ *
+ * Weather reaches the page from two places — the snapshot stored when the
+ * trip was created, and a live refresh when the dates are close enough to
+ * forecast — so the component takes a normalised shape and neither source
+ * has to look like the other.
+ */
+export interface DayForecast {
+  condition: string
+  tempHighC: number | null
+  tempLowC: number | null
+  precipitationChance: number | null
+  windKph: number | null
+  humidity: number | null
+  sunrise: string | null
+  sunset: string | null
+  /** True when refetched now rather than read from the creation snapshot. */
+  isLive: boolean
+}
+
+const SLOT_LABEL: Record<TimeSlot | "unscheduled", string> = {
   morning: "Morning",
   afternoon: "Afternoon",
   evening: "Evening",
+  unscheduled: "Any time",
 }
 
 function formatDayDate(date: string | null): string {
@@ -40,14 +62,30 @@ function clockTime(value: string | null): string {
 export function DayTimeline({
   day,
   currency,
+  forecast,
 }: {
   day: TripDay
   currency: string
+  forecast: DayForecast | null
 }) {
-  const bySlot = TIME_SLOTS.map((slot) => ({
-    slot,
-    items: day.activities.filter((a) => a.time_slot === slot),
-  })).filter((group) => group.items.length > 0)
+  // `activities.time_slot` is nullable, so grouping strictly by the three
+  // known slots silently drops anything unslotted — it would sit in the
+  // database and simply never appear. Anything unrecognised is collected into
+  // its own group rather than lost.
+  const known = new Set<string>(TIME_SLOTS)
+  const bySlot: { slot: TimeSlot | "unscheduled"; items: typeof day.activities }[] =
+    [
+      ...TIME_SLOTS.map((slot) => ({
+        slot: slot as TimeSlot | "unscheduled",
+        items: day.activities.filter((a) => a.time_slot === slot),
+      })),
+      {
+        slot: "unscheduled" as const,
+        items: day.activities.filter(
+          (a) => a.time_slot === null || !known.has(a.time_slot)
+        ),
+      },
+    ].filter((group) => group.items.length > 0)
 
   return (
     <article
@@ -61,7 +99,7 @@ export function DayTimeline({
           </h3>
           <p className="text-sm text-muted-foreground">{formatDayDate(day.date)}</p>
         </div>
-        {day.weather ? <WeatherChip weather={day.weather} /> : null}
+        {forecast ? <WeatherChip forecast={forecast} /> : null}
       </header>
 
       {day.summary ? (
@@ -162,13 +200,8 @@ function formatDuration(minutes: number): string {
  * fortnight out; a day past the horizon simply shows less rather than
  * rendering blanks or zeroes that would read as real readings.
  */
-function WeatherChip({
-  weather,
-}: {
-  weather: NonNullable<TripDay["weather"]>
-}) {
-  const high = weather.temp_high_c
-  const low = weather.temp_low_c
+function WeatherChip({ forecast }: { forecast: DayForecast }) {
+  const { tempHighC: high, tempLowC: low } = forecast
 
   return (
     <div
@@ -176,42 +209,48 @@ function WeatherChip({
         "flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg bg-muted/60 px-3 py-2 text-xs text-muted-foreground"
       )}
     >
-      <span className="font-medium text-foreground">{weather.condition}</span>
+      <span className="font-medium text-foreground">{forecast.condition}</span>
       {high !== null && low !== null ? (
         <span className="tabular-nums">
-          {Math.round(Number(low))}° / {Math.round(Number(high))}°
+          {Math.round(low)}° / {Math.round(high)}°
         </span>
       ) : null}
-      {weather.precipitation_chance !== null ? (
+      {forecast.precipitationChance !== null ? (
         <span className="flex items-center gap-1">
           <CloudRain aria-hidden="true" className="size-3.5" />
-          {weather.precipitation_chance}%
+          {forecast.precipitationChance}%
         </span>
       ) : null}
-      {weather.wind_kph !== null ? (
+      {forecast.windKph !== null ? (
         <span className="flex items-center gap-1">
           <Wind aria-hidden="true" className="size-3.5" />
-          {Math.round(Number(weather.wind_kph))} km/h
+          {Math.round(forecast.windKph)} km/h
         </span>
       ) : null}
-      {weather.humidity !== null ? (
+      {forecast.humidity !== null ? (
         <span className="flex items-center gap-1">
           <Droplets aria-hidden="true" className="size-3.5" />
-          {weather.humidity}%
+          {forecast.humidity}%
         </span>
       ) : null}
-      {weather.sunrise ? (
+      {forecast.sunrise ? (
         <span className="flex items-center gap-1">
           <Sunrise aria-hidden="true" className="size-3.5" />
-          {weather.sunrise.slice(0, 5)}
+          {forecast.sunrise.slice(0, 5)}
         </span>
       ) : null}
-      {weather.sunset ? (
+      {forecast.sunset ? (
         <span className="flex items-center gap-1">
           <Sunset aria-hidden="true" className="size-3.5" />
-          {weather.sunset.slice(0, 5)}
+          {forecast.sunset.slice(0, 5)}
         </span>
       ) : null}
+      {/* Says plainly whether this is today’s forecast or the reading taken
+          when the trip was created — the brief requires fallback data to be
+          identifiable rather than passed off as live. */}
+      <span className="text-[0.65rem] opacity-70">
+        {forecast.isLive ? "live forecast" : "at time of planning"}
+      </span>
     </div>
   )
 }

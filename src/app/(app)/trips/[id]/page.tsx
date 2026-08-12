@@ -7,9 +7,13 @@ import { Button } from "@/components/ui/button"
 import { tripDurationDays } from "@/lib/trips/trip-domain"
 import { createClient } from "@/lib/supabase/server"
 import { getRates } from "@/services/currency-service"
+import { getTripWeather } from "@/services/weather-service"
 import type { MapMarker } from "@/services/map-service"
 import { getTripDetail } from "@/features/trips/queries/trip-detail"
-import { DayTimeline } from "@/features/trips/components/detail/day-timeline"
+import {
+  DayTimeline,
+  type DayForecast,
+} from "@/features/trips/components/detail/day-timeline"
 import { TripHero } from "@/features/trips/components/detail/trip-hero"
 import { LazyTripMap } from "@/features/trips/components/detail/trip-map-lazy"
 import {
@@ -105,6 +109,53 @@ export default async function TripDetailPage({ params }: TripDetailPageProps) {
     ? { latitude: markers[0].latitude, longitude: markers[0].longitude }
     : null
 
+  // Weather is stored when the trip is created, but a trip planned months
+  // ahead is created *beyond* the forecast horizon and would otherwise show
+  // that empty snapshot forever. Refetching here means the forecast simply
+  // appears once the dates come within range, without a background job.
+  // Coordinates come from the first marker because trips themselves store
+  // none — every activity now carries the venue's own position.
+  const liveWeather =
+    mapCentre && trip.start_date && trip.end_date
+      ? await getTripWeather(
+          mapCentre.latitude,
+          mapCentre.longitude,
+          trip.start_date,
+          trip.end_date
+        )
+      : null
+
+  /** Live reading for a date, else the snapshot taken at planning time. */
+  function forecastFor(day: (typeof days)[number]): DayForecast | null {
+    const fresh = day.date ? liveWeather?.data.byDate[day.date] : undefined
+    if (fresh) {
+      return {
+        condition: fresh.condition,
+        tempHighC: fresh.tempHighC,
+        tempLowC: fresh.tempLowC,
+        precipitationChance: fresh.precipitationChance,
+        windKph: fresh.windKph,
+        humidity: fresh.humidity,
+        sunrise: fresh.sunrise,
+        sunset: fresh.sunset,
+        isLive: true,
+      }
+    }
+    const stored = day.weather
+    if (!stored) return null
+    return {
+      condition: stored.condition,
+      tempHighC: stored.temp_high_c === null ? null : Number(stored.temp_high_c),
+      tempLowC: stored.temp_low_c === null ? null : Number(stored.temp_low_c),
+      precipitationChance: stored.precipitation_chance,
+      windKph: stored.wind_kph === null ? null : Number(stored.wind_kph),
+      humidity: stored.humidity,
+      sunrise: stored.sunrise,
+      sunset: stored.sunset,
+      isLive: false,
+    }
+  }
+
   return (
     <Reveal mode="mount" className="space-y-6">
       <RevealItem>
@@ -142,7 +193,12 @@ export default async function TripDetailPage({ params }: TripDetailPageProps) {
             {days.length > 0 ? (
               <div className="space-y-4">
                 {days.map((day) => (
-                  <DayTimeline key={day.id} day={day} currency={trip.currency} />
+                  <DayTimeline
+                    key={day.id}
+                    day={day}
+                    currency={trip.currency}
+                    forecast={forecastFor(day)}
+                  />
                 ))}
               </div>
             ) : (
