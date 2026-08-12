@@ -511,7 +511,10 @@ const VENUE_FRAMING: { match: string[]; verb: string; note: string }[] = [
   },
   {
     match: ["theatres_and_entertainments", "cinemas", "concert_halls"],
-    verb: "An evening at",
+    // Time-neutral on purpose: slots are assigned round-robin by position, so
+    // "An evening at Teatro Municipal Rivoli" kept landing under Morning at
+    // 09:30. A verb that names a time of day contradicts the heading above it.
+    verb: "Catch a show at",
     note: "Book ahead — walk-up tickets are rare.",
   },
   {

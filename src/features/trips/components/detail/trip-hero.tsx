@@ -2,6 +2,7 @@ import Image from "next/image"
 import { CalendarDays, MapPin, Users } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
+import { UNSPLASH_REFERRAL_URL } from "@/integrations/unsplash/images"
 import { formatCurrency } from "@/lib/trips/trip-domain"
 import type { TripRow } from "@/features/trips/queries/trip-detail"
 
@@ -71,6 +72,32 @@ export function TripHero({ trip, nights }: TripHeroProps) {
       )}
 
       <div className="absolute inset-0 bg-gradient-to-t from-background via-background/70 to-background/10" />
+
+      {/* The photographer-and-Unsplash credit is a licence condition, not a
+          courtesy, and both halves must link back with referral parameters.
+          Sits top-right so it never collides with the title block below. */}
+      {trip.cover_image_url && trip.cover_image_credit_name ? (
+        <p className="absolute top-2 right-3 text-[0.65rem] text-foreground/60">
+          Photo by{" "}
+          <a
+            href={trip.cover_image_credit_url ?? UNSPLASH_REFERRAL_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline underline-offset-2 hover:text-foreground focus-visible:ring-ring rounded-xs focus-visible:ring-2 focus-visible:outline-none"
+          >
+            {trip.cover_image_credit_name}
+          </a>{" "}
+          on{" "}
+          <a
+            href={trip.cover_image_link ?? UNSPLASH_REFERRAL_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline underline-offset-2 hover:text-foreground focus-visible:ring-ring rounded-xs focus-visible:ring-2 focus-visible:outline-none"
+          >
+            Unsplash
+          </a>
+        </p>
+      ) : null}
 
       <div className="absolute inset-x-0 bottom-0 space-y-3 p-5 sm:p-7">
         <div className="flex flex-wrap items-center gap-2">

@@ -111,6 +111,14 @@ export async function createTripAction(
         title: itinerary.title,
         status: "ready",
         cover_image_url: context.image?.url ?? null,
+        // Stored alongside the URL, not derived later: the licence requires a
+        // visible credit wherever the photo appears, and the trip page renders
+        // from these rows rather than from a live API response.
+        cover_image_credit_name:
+          context.image?.attribution.photographerName ?? null,
+        cover_image_credit_url:
+          context.image?.attribution.photographerUrl ?? null,
+        cover_image_link: context.image?.attribution.photoUrl ?? null,
       })
       .eq("id", trip.id)
 

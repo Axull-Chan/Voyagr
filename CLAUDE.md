@@ -787,6 +787,23 @@ Worth generalising: when derived copy makes a **claim about the real world**,
 a first-match-wins lookup over multi-valued source data will eventually assert
 something false, and it will look completely normal in the code.
 
+### The Unsplash credit was built but never persisted
+
+`src/integrations/unsplash/images.ts` captures `attribution`
+(photographerName / photographerUrl / photoUrl), its header documents that a
+credit is required, and `TripHero`'s own doc comment claimed the photo was
+"credited inline" — but `trip.actions.ts` persisted only `cover_image_url`, so
+the credit was discarded at the write and **no attribution appeared anywhere on
+the page**. The `trackDownload` ping was wired up correctly, which made the
+integration look finished.
+
+Worth remembering as a review technique: a layer being *correct in isolation*
+says nothing about whether its output survives to the screen. Checking the
+rendered page for the word "Unsplash" found in seconds what reading
+`images.ts` would never have shown. Now stored on `trips` as three columns and
+rendered top-right over the hero, with `UNSPLASH_REFERRAL_URL` exported so the
+"on Unsplash" half carries the same referral parameters.
+
 ### maplibre-gl.css sets a popup background but no text colour
 
 Popups render white with the text colour inherited from the page, which in dark

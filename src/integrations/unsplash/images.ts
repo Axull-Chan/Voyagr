@@ -95,6 +95,15 @@ function withUtm(url: string): string {
   return parsed.toString()
 }
 
+/**
+ * Unsplash's own referral link, for the "on Unsplash" half of a credit.
+ *
+ * Exported because the credit is rendered from persisted columns rather than
+ * from a live `DestinationImage`, so the UI needs this without going through
+ * the API — and it must carry the same referral parameters as the rest.
+ */
+export const UNSPLASH_REFERRAL_URL = withUtm("https://unsplash.com")
+
 function toDestinationImage(photo: UnsplashPhoto): DestinationImage | null {
   const url = photo.urls?.regular
   const id = photo.id

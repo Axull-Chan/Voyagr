@@ -507,6 +507,9 @@ export type Database = {
           accommodation: string | null
           additional_notes: string | null
           budget: number | null
+          cover_image_credit_name: string | null
+          cover_image_credit_url: string | null
+          cover_image_link: string | null
           cover_image_url: string | null
           created_at: string
           currency: string
@@ -529,6 +532,9 @@ export type Database = {
           accommodation?: string | null
           additional_notes?: string | null
           budget?: number | null
+          cover_image_credit_name?: string | null
+          cover_image_credit_url?: string | null
+          cover_image_link?: string | null
           cover_image_url?: string | null
           created_at?: string
           currency?: string
@@ -551,6 +557,9 @@ export type Database = {
           accommodation?: string | null
           additional_notes?: string | null
           budget?: number | null
+          cover_image_credit_name?: string | null
+          cover_image_credit_url?: string | null
+          cover_image_link?: string | null
           cover_image_url?: string | null
           created_at?: string
           currency?: string
