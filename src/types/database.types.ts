@@ -175,6 +175,7 @@ export type Database = {
           nights: number | null
           price_per_night: number | null
           rating: number | null
+          source: string
           total_cost: number | null
           trip_id: string
         }
@@ -194,6 +195,7 @@ export type Database = {
           nights?: number | null
           price_per_night?: number | null
           rating?: number | null
+          source?: string
           total_cost?: number | null
           trip_id: string
         }
@@ -213,6 +215,7 @@ export type Database = {
           nights?: number | null
           price_per_night?: number | null
           rating?: number | null
+          source?: string
           total_cost?: number | null
           trip_id?: string
         }

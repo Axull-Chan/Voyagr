@@ -17,7 +17,6 @@ export interface DestinationProfile {
   neighbourhoods: string[]
   landmarks: string[]
   cuisines: string[]
-  hotelNames: string[]
   /** Rough daily cost per traveller in the destination's own currency. */
   dailyCostIndex: number
   /** Typical high/low in Celsius, used as the centre of the weather model. */
@@ -44,7 +43,6 @@ const PROFILES: DestinationProfile[] = [
       "Tsukiji Outer Market",
     ],
     cuisines: ["Sushi", "Ramen", "Yakitori", "Tempura", "Izakaya"],
-    hotelNames: ["Hotel Ryumeikan", "Park Hotel Tokyo", "Nohga Hotel Ueno"],
     dailyCostIndex: 130,
     climate: { high: 21, low: 13, wetChance: 30 },
   },
@@ -61,7 +59,6 @@ const PROFILES: DestinationProfile[] = [
       "Nishiki Market",
     ],
     cuisines: ["Kaiseki", "Soba", "Obanzai", "Matcha desserts"],
-    hotelNames: ["Hotel Kanra", "Node Hotel", "Rakuyado Ryokan"],
     dailyCostIndex: 120,
     climate: { high: 22, low: 12, wetChance: 32 },
   },
@@ -78,7 +75,6 @@ const PROFILES: DestinationProfile[] = [
       "Père Lachaise",
     ],
     cuisines: ["Bistro", "Patisserie", "Brasserie", "Wine bar"],
-    hotelNames: ["Hôtel Fabric", "Le Pigalle", "Hôtel des Grands Boulevards"],
     dailyCostIndex: 150,
     climate: { high: 18, low: 10, wetChance: 38 },
   },
@@ -95,7 +91,6 @@ const PROFILES: DestinationProfile[] = [
       "Gwangjang Market",
     ],
     cuisines: ["Korean BBQ", "Bunsik", "Temple cuisine", "Fried chicken"],
-    hotelNames: ["L7 Hongdae", "Hotel Cappuccino", "Nine Tree Premier"],
     dailyCostIndex: 110,
     climate: { high: 20, low: 11, wetChance: 28 },
   },
@@ -112,7 +107,6 @@ const PROFILES: DestinationProfile[] = [
       "Grand Central Terminal",
     ],
     cuisines: ["Delis", "Pizza", "Steakhouse", "Dim sum"],
-    hotelNames: ["The Hoxton", "Ace Hotel", "citizenM Bowery"],
     dailyCostIndex: 190,
     climate: { high: 19, low: 11, wetChance: 34 },
   },
@@ -129,7 +123,6 @@ const PROFILES: DestinationProfile[] = [
       "Uluwatu Temple",
     ],
     cuisines: ["Warung", "Balinese", "Seafood grill", "Health cafés"],
-    hotelNames: ["Bisma Eight", "Katamama", "Suarga Padang Padang"],
     dailyCostIndex: 70,
     climate: { high: 31, low: 24, wetChance: 45 },
   },
@@ -141,7 +134,6 @@ const PROFILES: DestinationProfile[] = [
     neighbourhoods: ["Shoreditch", "South Bank", "Notting Hill", "Soho"],
     landmarks: ["Tate Modern", "Borough Market", "Hampstead Heath", "V&A"],
     cuisines: ["Gastropub", "Indian", "Modern British", "Afternoon tea"],
-    hotelNames: ["The Hoxton Shoreditch", "Sea Containers", "The Zetter"],
     dailyCostIndex: 165,
     climate: { high: 16, low: 9, wetChance: 42 },
   },
@@ -153,7 +145,6 @@ const PROFILES: DestinationProfile[] = [
     neighbourhoods: ["Trastevere", "Monti", "Testaccio", "Prati"],
     landmarks: ["Pantheon", "Galleria Borghese", "Appian Way", "Trastevere lanes"],
     cuisines: ["Trattoria", "Pizza al taglio", "Enoteca", "Gelateria"],
-    hotelNames: ["Hotel Locarno", "G-Rough", "Casa Monti"],
     dailyCostIndex: 135,
     climate: { high: 23, low: 13, wetChance: 26 },
   },
@@ -165,7 +156,6 @@ const PROFILES: DestinationProfile[] = [
     neighbourhoods: ["Alfama", "Príncipe Real", "Belém", "Cais do Sodré"],
     landmarks: ["Jerónimos Monastery", "Miradouro da Graça", "LX Factory", "Tram 28"],
     cuisines: ["Tasca", "Seafood", "Pastelaria", "Petiscos"],
-    hotelNames: ["Memmo Alfama", "The Ivens", "Casa Amora"],
     dailyCostIndex: 105,
     climate: { high: 22, low: 14, wetChance: 24 },
   },
@@ -177,7 +167,6 @@ const PROFILES: DestinationProfile[] = [
     neighbourhoods: ["Riverside", "Thonglor", "Ari", "Old Town"],
     landmarks: ["Wat Pho", "Jim Thompson House", "Chatuchak Market", "Wat Arun"],
     cuisines: ["Street food", "Southern Thai", "Boat noodles", "Rooftop dining"],
-    hotelNames: ["The Siam", "Josh Hotel", "Riva Surya"],
     dailyCostIndex: 75,
     climate: { high: 33, low: 26, wetChance: 40 },
   },
@@ -196,7 +185,6 @@ const genericProfile: DestinationProfile = {
     "the botanical gardens",
   ],
   cuisines: ["Local", "Seafood", "Café", "Modern European"],
-  hotelNames: ["The Grand", "Central Boutique Hotel", "Old Town Rooms"],
   dailyCostIndex: 120,
   climate: { high: 22, low: 13, wetChance: 30 },
 }

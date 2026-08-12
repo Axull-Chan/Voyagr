@@ -127,14 +127,24 @@ export function StaysPanel({
             <p className="mt-0.5 text-xs text-muted-foreground">
               {[
                 hotel.nights ? `${hotel.nights} nights` : null,
+                // Marked as an estimate even for a real listing: the nightly
+                // rate is modelled from a cost index, not quoted by the hotel.
                 hotel.price_per_night
-                  ? `${formatCurrency(Number(hotel.price_per_night), currency)} / night`
+                  ? `est. ${formatCurrency(Number(hotel.price_per_night), currency)} / night`
                   : null,
                 hotel.rating ? `${Number(hotel.rating)}★` : null,
               ]
                 .filter(Boolean)
                 .join(" · ")}
             </p>
+            {/* A real listing carries a real name and a real location; an
+                example carries neither, and saying which is which is the
+                difference between a suggestion and a claim about a business. */}
+            {hotel.source === "mock" ? (
+              <p className="mt-1 text-xs text-muted-foreground italic">
+                An example stay for budgeting — not a real listing.
+              </p>
+            ) : null}
           </li>
         ))}
       </ul>

@@ -137,6 +137,7 @@ function buildWeather(
   const wet = rng() * 100 < profile.climate.wetChance
   const swing = (rng() - 0.5) * 6
   return {
+    source: "mock",
     condition: wet ? pick(rng, WET_CONDITIONS) : pick(rng, DRY_CONDITIONS),
     tempHighC: round(profile.climate.high + swing),
     tempLowC: round(profile.climate.low + swing * 0.6),
@@ -242,27 +243,89 @@ function buildRestaurants(
   })
 }
 
+/** How to describe an example stay of the requested kind. */
+const ACCOMMODATION_NOUN: Record<string, string> = {
+  hotel: "hotel",
+  boutique: "boutique stay",
+  apartment: "apartment",
+  hostel: "hostel",
+  resort: "resort",
+}
+
+/** What the requested standard of accommodation does to a nightly rate. */
+function accommodationMultiplier(request: ItineraryRequest): number {
+  return request.accommodation === "hostel"
+    ? 0.35
+    : request.accommodation === "resort"
+      ? 1.8
+      : request.accommodation === "boutique"
+        ? 1.3
+        : request.accommodation === "apartment"
+          ? 0.85
+          : 1
+}
+
+/**
+ * A stay taken from a real listing.
+ *
+ * Only the nightly rate is modelled — the name and the point are the venue's
+ * own. Everything this can't know is left null rather than filled in, because
+ * the failure mode here is worse than a gap: `buildHotel` below pairs a real
+ * hotel name from the catalogue with a randomly jittered coordinate, which put
+ * a genuine Lisbon hotel on the map about four kilometres from where it is,
+ * under a neighbourhood it isn't in, beside a star rating nobody gave it.
+ */
+function buildHotelFromVenue(
+  rng: () => number,
+  profile: DestinationProfile,
+  request: ItineraryRequest,
+  venue: SourcedVenue,
+  nights: number
+): GeneratedHotel {
+  const pricePerNight = round(
+    profile.dailyCostIndex * accommodationMultiplier(request) * (0.9 + rng() * 0.3)
+  )
+
+  return {
+    source: "opentripmap",
+    name: venue.name,
+    address: null,
+    checkInDate: request.startDate,
+    checkOutDate: request.endDate,
+    nights,
+    pricePerNight,
+    totalCost: pricePerNight * nights,
+    rating: null,
+    // Listing data doesn't say what a place offers, and guessing "Wi-Fi,
+    // breakfast" about a specific hotel is a claim about that business.
+    amenities: [],
+    lat: venue.latitude,
+    lng: venue.longitude,
+    isPrimary: true,
+  }
+}
+
 function buildHotel(
   rng: () => number,
   profile: DestinationProfile,
   request: ItineraryRequest,
   nights: number
 ): GeneratedHotel {
-  const multiplier =
-    request.accommodation === "hostel"
-      ? 0.35
-      : request.accommodation === "resort"
-        ? 1.8
-        : request.accommodation === "boutique"
-          ? 1.3
-          : request.accommodation === "apartment"
-            ? 0.85
-            : 1
-  const pricePerNight = round(profile.dailyCostIndex * multiplier * (0.9 + rng() * 0.3))
+  const pricePerNight = round(
+    profile.dailyCostIndex * accommodationMultiplier(request) * (0.9 + rng() * 0.3)
+  )
   const coords = jitterCoord(rng, profile)
 
   return {
-    name: pick(rng, profile.hotelNames),
+    source: "mock",
+    // Describes the kind of stay rather than naming one.
+    //
+    // The catalogue used to hold real hotel names per city, and pairing one
+    // with a jittered coordinate and a modelled rate published false details
+    // about a real business. The provenance label on the page fixes the
+    // presentation, but the name itself travels — into the map popup, a future
+    // export — so it has to carry its own honesty.
+    name: `Example ${ACCOMMODATION_NOUN[request.accommodation] ?? "stay"} in ${profile.city}`,
     address: `${pick(rng, profile.neighbourhoods)}, ${profile.city}`,
     checkInDate: request.startDate,
     checkOutDate: request.endDate,
@@ -617,6 +680,7 @@ class MockAiProvider implements AiProvider {
       const realWeather = sourced?.weatherByDate[date]
       const weather: GeneratedWeather = realWeather
         ? {
+            source: "open-meteo",
             condition: realWeather.condition,
             tempHighC: realWeather.tempHighC ?? profile.climate.high,
             tempLowC: realWeather.tempLowC ?? profile.climate.low,
@@ -648,7 +712,13 @@ class MockAiProvider implements AiProvider {
     })
 
     const nights = Math.max(dayCount - 1, 1)
-    const hotel = buildHotel(rng, profile, request, nights)
+    // The listings come back nearest-first, so the head of the list is the most
+    // central place to stay — which is what someone planning a short city trip
+    // actually wants, and is a defensible choice rather than an arbitrary one.
+    const sourcedHotel = sourced?.hotels[0] ?? null
+    const hotel = sourcedHotel
+      ? buildHotelFromVenue(rng, profile, request, sourcedHotel, nights)
+      : buildHotel(rng, profile, request, nights)
     const transportation = buildTransport(rng, request, profile)
     const transportTotal = transportation.reduce((sum, t) => sum + t.cost, 0)
     const { lines, warning } = buildBudget(
@@ -663,6 +733,14 @@ class MockAiProvider implements AiProvider {
     if (isApproximate) {
       warnings.push(
         `We don't have detailed data for ${request.destination} yet, so map pins and costs are approximate.`
+      )
+    }
+    // Said explicitly, because this is the one remaining place a real-sounding
+    // name can reach the page without a listing behind it. Without this the
+    // example hotel is indistinguishable from the sourced one.
+    if (!sourcedHotel) {
+      warnings.push(
+        "We couldn't find a listed place to stay here, so the suggested hotel is an example to budget against rather than a real one."
       )
     }
     if (warning) warnings.push(warning)

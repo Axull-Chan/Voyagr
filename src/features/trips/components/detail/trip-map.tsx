@@ -2,7 +2,13 @@
 
 import { useEffect, useRef, useState } from "react"
 // maplibre-gl v6 ships named exports only; there is no default export.
-import { Map as MapLibreMap, Marker, Popup, NavigationControl } from "maplibre-gl"
+import {
+  Map as MapLibreMap,
+  Marker,
+  NavigationControl,
+  Popup,
+  setWorkerUrl,
+} from "maplibre-gl"
 import { useReducedMotion } from "framer-motion"
 
 import { cn } from "@/lib/utils"
@@ -21,6 +27,17 @@ interface TripMapProps {
   center: { latitude: number; longitude: number } | null
   className?: string
 }
+
+// MapLibre decodes vector tiles in a Web Worker that it locates at runtime,
+// relative to its own `import.meta.url`. Once bundled that points at
+// `/_next/static/chunks/…`, where the worker file doesn't exist, so it 404s to
+// Next's HTML error page and the worker never starts — leaving a live canvas
+// with markers on it and a permanently blank basemap, since nothing is left to
+// decode the tiles. `scripts/copy-maplibre-worker.mjs` publishes the worker to
+// this fixed path on predev/prebuild; naming it here takes bundler resolution
+// out of the picture. Module scope runs before any map is constructed, and the
+// worker pool is only built when the first one is.
+setWorkerUrl("/maplibre/maplibre-gl-worker.mjs")
 
 /** Marker colours by role, so the legend and pins can't drift apart. */
 const MARKER_STYLES: Record<MapMarker["kind"], { color: string; label: string }> = {
@@ -111,7 +128,14 @@ export function TripMap({ markers, center, className }: TripMapProps) {
       element.style.cssText = `width:14px;height:14px;border-radius:9999px;border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,.4);background:${MARKER_STYLES[marker.kind].color}`
       element.setAttribute("aria-label", marker.name)
 
-      const popup = new Popup({ offset: 14, closeButton: false }).setHTML(
+      // `className` is what the themed popup rules in globals.css hang off —
+      // MapLibre's own stylesheet paints the panel white and leaves the text
+      // colour to the page, which is unreadable in dark mode.
+      const popup = new Popup({
+        offset: 14,
+        closeButton: false,
+        className: "trip-map-popup",
+      }).setHTML(
         `<strong style="display:block;font-size:12px">${escapeHtml(marker.name)}</strong>` +
           (marker.detail
             ? `<span style="font-size:11px;opacity:.75">${escapeHtml(marker.detail)}</span>`

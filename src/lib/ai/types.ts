@@ -111,6 +111,12 @@ export interface GeneratedRestaurant {
 }
 
 export interface GeneratedWeather {
+  /**
+   * Where this reading came from — a real forecast provider, or the planner's
+   * own climate model. Recorded per day rather than per itinerary because a
+   * trip can straddle the forecast horizon and have both.
+   */
+  source: string
   condition: string
   tempHighC: number
   tempLowC: number
@@ -134,14 +140,31 @@ export interface GeneratedDay {
 }
 
 export interface GeneratedHotel {
+  /**
+   * Where this stay came from — a places provider, or the planner's own
+   * examples. A hotel is the one item that can carry a real business name
+   * without a listing behind it, so the trip page needs to be able to say
+   * which it is on every visit, not only in the notice shown at creation.
+   */
+  source: string
   name: string
-  address: string
+  /**
+   * Null for a stay taken from a real listing: the place data carries a point,
+   * not a postal address, and naming a neighbourhood we haven't verified would
+   * put a genuine business on the wrong street.
+   */
+  address: string | null
   checkInDate: string
   checkOutDate: string
   nights: number
   pricePerNight: number
   totalCost: number
-  rating: number
+  /**
+   * Null for a real listing. The places provider ranks how well-known a place
+   * is, which is not a guest score — rendering it as stars beside a real
+   * hotel's name would be publishing a review nobody wrote.
+   */
+  rating: number | null
   amenities: string[]
   lat: number
   lng: number

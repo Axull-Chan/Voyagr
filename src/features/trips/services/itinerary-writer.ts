@@ -119,7 +119,9 @@ export async function persistItinerary(
       humidity: day.weather.humidity,
       sunrise: day.weather.sunrise,
       sunset: day.weather.sunset,
-      source: itinerary.providerId,
+      // The reading's own provenance — a trip straddling the forecast
+      // horizon has real rows for the near days and modelled ones after.
+      source: day.weather.source,
     })
   }
 
@@ -137,6 +139,9 @@ export async function persistItinerary(
     lat: hotel.lat,
     lng: hotel.lng,
     is_primary: hotel.isPrimary,
+    // Whether a real listing backs this name, so the page can keep saying so
+    // long after the creation notice has gone.
+    source: hotel.source,
   }))
 
   const transportRows: TablesInsert<"transportation">[] =

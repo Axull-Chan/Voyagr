@@ -20,6 +20,9 @@ const eslintConfig = [
       "out/**",
       "build/**",
       "next-env.d.ts",
+      // Minified MapLibre worker copied in by scripts/copy-maplibre-worker.mjs
+      // — vendor output, not ours to lint.
+      "public/maplibre/**",
     ],
   },
 ];

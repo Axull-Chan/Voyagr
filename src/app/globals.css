@@ -145,6 +145,51 @@
 }
 
 /**
+ * Trip map popups.
+ *
+ * maplibre-gl.css hardcodes a white popup background but never sets a text
+ * colour, so the text inherits the page's. In dark mode that resolves to a
+ * near-white foreground on that white panel — a marker's popup opens as a
+ * blank box with unreadable text. Painting both sides from the app's own
+ * popover tokens fixes it in both themes and keeps the popup looking like the
+ * rest of the UI rather than like stock MapLibre.
+ *
+ * Scoped to the class `TripMap` passes as the popup's `className`, so nothing
+ * here reaches any other MapLibre instance added later.
+ */
+.trip-map-popup .maplibregl-popup-content {
+  background: var(--popover);
+  color: var(--popover-foreground);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 0.5rem 0.75rem;
+  box-shadow: 0 4px 16px oklch(0 0 0 / 25%);
+}
+
+/* The tip is a CSS triangle: only the edge facing the popup is painted, and
+   which edge that is depends on where MapLibre anchored it. Colouring all four
+   unconditionally would fill the square and show a block instead of an arrow. */
+.trip-map-popup.maplibregl-popup-anchor-top .maplibregl-popup-tip,
+.trip-map-popup.maplibregl-popup-anchor-top-left .maplibregl-popup-tip,
+.trip-map-popup.maplibregl-popup-anchor-top-right .maplibregl-popup-tip {
+  border-bottom-color: var(--popover);
+}
+
+.trip-map-popup.maplibregl-popup-anchor-bottom .maplibregl-popup-tip,
+.trip-map-popup.maplibregl-popup-anchor-bottom-left .maplibregl-popup-tip,
+.trip-map-popup.maplibregl-popup-anchor-bottom-right .maplibregl-popup-tip {
+  border-top-color: var(--popover);
+}
+
+.trip-map-popup.maplibregl-popup-anchor-left .maplibregl-popup-tip {
+  border-right-color: var(--popover);
+}
+
+.trip-map-popup.maplibregl-popup-anchor-right .maplibregl-popup-tip {
+  border-left-color: var(--popover);
+}
+
+/**
  * Blue Hour surfaces run their own fixed dark palette rather than the app's
  * light/dark theme tokens: it's a night film, and it should look identical
  * whichever theme the visitor has selected. Applied to the whole campaign

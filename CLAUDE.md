@@ -692,6 +692,89 @@ kept and moved directly below the film as the product introduction.
   an already-resized tab (renders the page into a small corner, or blank at
   non-zero scroll). Fresh tab, navigate, resize once, then capture.
 
+## Phase 3B — real data, the map, and honest provenance
+
+### MapLibre's worker cannot be bundled — this is why the basemap was blank
+
+The map rendered its canvas, its controls and all 23 markers, but the tiles
+themselves never appeared. Everything upstream checked out: the TileJSON
+resolved, and a direct fetch of the exact Lisbon tile returned **200, 111 kB,
+`application/vnd.mapbox-vector-tile`, `access-control-allow-origin: *`**. So
+the provider was fine and the fault was client-side.
+
+The cause was a single console error that was easy to dismiss as this
+session's recurring stale-chunk artifact: *"Failed to load module script: The
+server responded with a non-JavaScript MIME type of text/html."* The tell that
+it was real is that it reproduced **once per page load, including on brand-new
+tabs** — the stale-chunk variant only ever recurs on a tab that already had the
+bad code.
+
+MapLibre v6 locates its tile-decoding worker at runtime with
+`new URL('./maplibre-gl-worker.mjs', import.meta.url)`. That specifier is
+built from a variable, so **no bundler can see it**. Turbopack rewrites the
+maplibre chunk to `/_next/static/chunks/…`, the worker is looked for beside
+*that* file, Next answers with its HTML 404 page, and the browser refuses it
+for a module script. Vector tiles are decoded in the worker, so the basemap
+stays permanently blank while markers — main-thread DOM — keep working. That
+split is the diagnostic signature: **markers fine + tiles blank means the
+worker, not the tile source.**
+
+The fix is the library's own escape hatch, `setWorkerUrl`:
+
+- `scripts/copy-maplibre-worker.mjs` copies `maplibre-gl-worker.mjs` **and
+  `maplibre-gl-shared.mjs`** into `public/maplibre/`. Both are required and
+  must land in the same directory — the worker imports the shared chunk by
+  relative path. They are two halves of one minified build whose symbol names
+  only line up within a single release, so the script runs from `predev` and
+  `prebuild` rather than being committed; `public/maplibre/` is gitignored and
+  excluded from ESLint (otherwise it contributes ~1,000 lint warnings).
+- `trip-map.tsx` calls `setWorkerUrl("/maplibre/maplibre-gl-worker.mjs")` at
+  module scope. That is early enough: the worker pool is built lazily when the
+  first map is constructed.
+
+### Provenance: a real name with invented details is worse than a fake name
+
+`buildHotel` picked a name from a hardcoded per-city catalogue and paired it
+with `jitterCoord()` — a *random* offset from the city centre. For Lisbon that
+published **"Memmo Alfama", a real hotel, ~4 km from where it actually is**, in
+a neighbourhood it isn't in (Belém), beside a 4.7★ rating nobody gave it — while
+the real OpenTripMap accommodation data the app already fetched went unused.
+Activities and restaurants had venue-backed builders; hotels never got one.
+
+Found by noticing a lone marker far from the others on the map and checking the
+distance in SQL, then diffing against what OpenTripMap actually returns for
+that name. Worth repeating as a technique: **compute distance-from-centre over
+the stored rows rather than eyeballing pins** — one outlier among 23 markers is
+invisible at a glance but obvious as a number.
+
+- `buildHotelFromVenue` now takes the name and point from the same real record.
+  Everything it cannot know is left **null rather than filled in**: `address`
+  (listing data has a point, not a postal address), `rating` (OpenTripMap's
+  `rate` is a popularity index, not a guest score — rendering it as stars
+  publishes a review nobody wrote) and `amenities`. The DB columns were already
+  nullable and `StaysPanel` already tolerated nulls.
+- The nightly rate stays modelled, since budgeting needs a number, but it is
+  labelled `est.` in the UI for real and example stays alike.
+- `hotels.source` mirrors `weather.source`. The creation-time warning list is
+  **never persisted**, so without a stored flag a revisited trip had no way to
+  say its hotel was an example. The migration's `default 'mock'` backfills
+  existing rows correctly — everything written before the column existed
+  genuinely was catalogue-generated.
+- The fallback no longer names real businesses at all. `hotelNames` is gone
+  from all 11 profiles; an example is now `Example ${kind} in ${city}`. The
+  provenance label fixes the panel, but **the name itself travels** — into the
+  map popup, and into a future PDF export — so it has to carry its own honesty.
+
+### maplibre-gl.css sets a popup background but no text colour
+
+Popups render white with the text colour inherited from the page, which in dark
+mode is a near-white foreground: an opened marker popup was an unreadable blank
+white box. Fixed by passing `className: "trip-map-popup"` and theming it from
+the app's own `--popover` tokens. The tip is a CSS triangle where only the edge
+facing the popup is painted, and which edge that is depends on the anchor —
+colouring all four fills the square into a block, so each
+`.maplibregl-popup-anchor-*` variant is targeted separately.
+
 ## Auth flow
 
 - Email/password + Google OAuth via `@supabase/ssr`. Server actions live in
