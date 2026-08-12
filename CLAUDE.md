@@ -765,6 +765,28 @@ invisible at a glance but obvious as a number.
   provenance label fixes the panel, but **the name itself travels** — into the
   map popup, and into a future PDF export — so it has to carry its own honesty.
 
+### A venue's categories can belong to two families at once
+
+`frameVenue` turns a venue's OSM categories into a verb and a note. Porto's
+**Cinema da Trindade is a church converted into a cinema**, listed as
+`religion,churches,cultural,cinemas,theatres_and_entertainments,…`, which
+produced *"Visit Cinema da Trindade — Dress modestly; some areas may be closed
+during services."*
+
+Reordering doesn't fix this: our declaration order is arbitrary, and the
+provider's own order puts `religion` **first** for that cinema, so keying off
+`kinds[0]` is no better. The distinction that matters is that the *verb*
+("Visit", "See") asserts nothing falsifiable while the *note* gives a
+behavioural instruction. So the specific note is used only when exactly one
+family matches, and an ambiguous venue keeps the verb with the neutral note.
+Measured on a regenerated Porto trip: 10 of 12 activities kept their specific
+note, and the only two that fell back — the church-cinema, and a market also
+listed under architecture — are genuinely ambiguous.
+
+Worth generalising: when derived copy makes a **claim about the real world**,
+a first-match-wins lookup over multi-valued source data will eventually assert
+something false, and it will look completely normal in the code.
+
 ### maplibre-gl.css sets a popup background but no text colour
 
 Popups render white with the text colour inherited from the page, which in dark

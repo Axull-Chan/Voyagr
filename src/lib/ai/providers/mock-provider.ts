@@ -526,15 +526,34 @@ const VENUE_FRAMING: { match: string[]; verb: string; note: string }[] = [
   },
 ]
 
+const NEUTRAL_NOTE = "Worth confirming opening times before you go."
+
+/**
+ * Chooses how to introduce a venue from its own categories.
+ *
+ * The notes give behavioural instructions — how to dress, when to book — and a
+ * place carrying categories from two different families cannot be given one
+ * truthfully. Porto's Cinema da Trindade is a church converted into a cinema
+ * and is listed under `religion,churches,cultural,cinemas,…`, so matching on
+ * the first family in declaration order produced "Visit Cinema da Trindade —
+ * Dress modestly; some areas may be closed during services."
+ *
+ * Neither ordering fixes this: ours is arbitrary, and the provider's own puts
+ * `religion` first for that cinema. So the specific note is only used when
+ * exactly one family matches. The verb survives an ambiguous match because
+ * "Visit" or "See" asserts nothing that can be wrong; the note doesn't.
+ */
 function frameVenue(venue: SourcedVenue): { verb: string; note: string } {
-  for (const framing of VENUE_FRAMING) {
-    if (venue.kinds.some((kind) => framing.match.includes(kind))) {
-      return { verb: framing.verb, note: framing.note }
-    }
-  }
+  const matches = VENUE_FRAMING.filter((framing) =>
+    venue.kinds.some((kind) => framing.match.includes(kind))
+  )
+
+  const first = matches[0]
+  if (!first) return { verb: "Visit", note: NEUTRAL_NOTE }
+
   return {
-    verb: "Visit",
-    note: "Worth confirming opening times before you go.",
+    verb: first.verb,
+    note: matches.length === 1 ? first.note : NEUTRAL_NOTE,
   }
 }
 
