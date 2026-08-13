@@ -12,11 +12,35 @@ committed before the next begins — don't skip ahead without the user's go-ahea
   redesign passes, a feature-section redesign, and the Blue Hour
   scroll-film (this commit) — see "Phase 2 polish", "Phase 2 final polish
   pass", "Phase 2.5", "Feature section redesign", and "Blue Hour" below
-- [ ] Phase 3 — Create trip wizard
-- [ ] Phase 4 — AI itinerary generation (OpenAI)
-- [ ] Phase 5 — Maps & location (Google Maps)
-- [ ] Phase 6 — Weather + currency + restaurants
-- [ ] Phase 7 — Budget tracker
+- [x] **Phase 3 — Create trip wizard**, done in two milestones: 3A built the
+  12-field multi-step wizard, the 10-table schema (FKs, indexes, RLS,
+  generated types) and a provider-agnostic AI abstraction sitting on a mock
+  itinerary generator; 3B replaced that mock's placeholder places/weather/
+  currency/imagery with real providers, added the map, and fixed the
+  provenance and correctness bugs the review passes found — see "Phase 3B —
+  real data, the map, and honest provenance" below for the detail. Along the
+  way this absorbed most of what Phases 5 and 6 originally asked for (see the
+  notes on those two lines below) — flagged here rather than checked off,
+  since squaring that against the original per-phase spec is a call for you
+  to make, not one to default into by editing this file.
+- [ ] Phase 4 — AI itinerary generation (OpenAI). Still fully mock: the
+  provider abstraction (`src/lib/ai/`) supports swapping in a real model, but
+  no `OpenAiProvider` exists yet and `AI_PROVIDER` is unset, so every
+  itinerary — including real venues, weather, hotels — is assembled by
+  template rather than generated. This is the one clean phase-shaped gap left.
+- [ ] Phase 5 — Maps & location (Google Maps). A working map shipped in 3B,
+  but as MapLibre GL + OpenFreeMap tiles + Nominatim geocoding — a free,
+  keyless stack — rather than Google Maps as titled here. Functionally
+  covers "maps & location"; doesn't literally match the spec's named
+  provider, and nothing Google-specific (Places autocomplete, Directions)
+  was attempted.
+- [ ] Phase 6 — Weather + currency + restaurants. Live in 3B via Open-Meteo,
+  Frankfurter and OpenTripMap respectively — see `src/integrations/`. Left
+  unchecked for the same reason as Phase 5: real functionality exists, but
+  confirming it satisfies this phase as originally specified is your call.
+- [ ] Phase 7 — Budget tracker. A budget breakdown exists (planned amounts by
+  category, shown in `BudgetPanel`) but there's no way to log or see actual
+  spend yet — `budget_breakdown.actual_amount` is in the schema and unused.
 - [ ] Phase 8 — Packing checklist
 - [ ] Phase 9 — AI travel assistant (chat-based itinerary editing)
 - [ ] Phase 10 — Trip management (rename/duplicate/archive/export)
