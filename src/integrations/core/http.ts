@@ -16,6 +16,10 @@ export interface RequestOptions {
   headers?: Record<string, string>
   /** Lets a caller cancel, e.g. when a React `cache()` scope is torn down. */
   signal?: AbortSignal
+  /** GET unless a body is supplied, in which case POST. */
+  method?: "GET" | "POST"
+  /** JSON-serialised and sent with `content-type: application/json`. */
+  body?: unknown
 }
 
 const DEFAULT_TIMEOUT_MS = 8_000
@@ -50,6 +54,8 @@ export async function fetchJson<T>(
     retries = DEFAULT_RETRIES,
     headers,
     signal,
+    method = options.body === undefined ? "GET" : "POST",
+    body,
   } = options
 
   let lastError: IntegrationError | undefined
@@ -63,7 +69,13 @@ export async function fetchJson<T>(
 
     try {
       const response = await fetch(url, {
-        headers: { accept: "application/json", ...headers },
+        method,
+        headers: {
+          accept: "application/json",
+          ...(body !== undefined ? { "content-type": "application/json" } : {}),
+          ...headers,
+        },
+        body: body !== undefined ? JSON.stringify(body) : undefined,
         signal: controller.signal,
         // These are upstream services with their own TTLs; our TtlCache owns
         // freshness, so Next's fetch cache would just be a second, invisible
@@ -72,10 +84,20 @@ export async function fetchJson<T>(
       })
 
       if (!response.ok) {
+        // Best-effort: most JSON APIs (OpenAI included) put an actionable
+        // message in the error body, and "responded 400" alone gives nobody
+        // enough to debug a bad schema or a typo'd model name.
+        const detail = await response
+          .json()
+          .then((json: unknown) => extractErrorMessage(json))
+          .catch(() => null)
+
         const error = new IntegrationError(
           provider,
           kindFromStatus(response.status),
-          `${provider} responded ${response.status}`,
+          detail
+            ? `${provider} responded ${response.status}: ${detail}`
+            : `${provider} responded ${response.status}`,
           { status: response.status }
         )
         if (!error.isRetryable || attempt === retries) throw error
@@ -132,6 +154,24 @@ export async function fetchJson<T>(
     lastError ??
     new IntegrationError(provider, "unavailable", `${provider} request failed`)
   )
+}
+
+/**
+ * Pulls a human-readable message out of an error body, tolerating the two
+ * shapes providers actually use (`{ error: { message } }` — OpenAI and most
+ * REST APIs — or a bare `{ message }`) without assuming either.
+ */
+function extractErrorMessage(json: unknown): string | null {
+  if (typeof json !== "object" || json === null) return null
+  const record = json as Record<string, unknown>
+
+  const nested = record.error
+  if (typeof nested === "object" && nested !== null) {
+    const message = (nested as Record<string, unknown>).message
+    if (typeof message === "string") return message
+  }
+
+  return typeof record.message === "string" ? record.message : null
 }
 
 /** Builds a URL with undefined/null params dropped rather than stringified. */

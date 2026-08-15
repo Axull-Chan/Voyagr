@@ -23,11 +23,13 @@ committed before the next begins — don't skip ahead without the user's go-ahea
   notes on those two lines below) — flagged here rather than checked off,
   since squaring that against the original per-phase spec is a call for you
   to make, not one to default into by editing this file.
-- [ ] Phase 4 — AI itinerary generation (OpenAI). Still fully mock: the
-  provider abstraction (`src/lib/ai/`) supports swapping in a real model, but
-  no `OpenAiProvider` exists yet and `AI_PROVIDER` is unset, so every
-  itinerary — including real venues, weather, hotels — is assembled by
-  template rather than generated. This is the one clean phase-shaped gap left.
+- [x] **Phase 4 — AI itinerary generation**, live via Gemini rather than
+  OpenAI as titled here — the user declined to add a payment method for "just
+  a mere project," and Gemini's free tier needs no card at all. `OpenAiProvider`
+  was built first, fully wired and live-tested up to the account-billing wall,
+  and stays in the registry unused rather than deleted, in case that changes.
+  See "Phase 4 — real generation, and the enum bug that cost an afternoon"
+  below for what building two providers back to back actually required.
 - [ ] Phase 5 — Maps & location (Google Maps). A working map shipped in 3B,
   but as MapLibre GL + OpenFreeMap tiles + Nominatim geocoding — a free,
   keyless stack — rather than Google Maps as titled here. Functionally
@@ -837,6 +839,130 @@ the app's own `--popover` tokens. The tip is a CSS triangle where only the edge
 facing the popup is painted, and which edge that is depends on the anchor —
 colouring all four fills the square into a block, so each
 `.maplibregl-popup-anchor-*` variant is targeted separately.
+
+## Phase 4 — real generation, and the enum bug that cost an afternoon
+
+### OpenAI first, Gemini for real — a mid-build pivot, not a redesign
+
+`OpenAiProvider` was built first, exactly to the phase title. Live-tested with
+a raw smoke script before touching the app: the key authenticated fine (it
+could list models), and a real Structured-Outputs request reached the API
+with the correct shape — but every generation call came back `429 You
+exceeded your current quota`. OpenAI's API is metered pay-per-use with no
+meaningful free tier for new accounts as of mid-2025, separate from any
+ChatGPT subscription, so this needed a card on the account before anything
+past this point could be tested live. Asked the user; they declined —
+reasonably, for a portfolio project.
+
+That ruled out the *provider*, not the *design*. `AI_PROVIDER_IDS` already
+listed `gemini`/`groq`/`openrouter`/`deepseek` alongside `openai`, so the
+provider abstraction from 3A had already anticipated exactly this — this
+was always meant to be a one-file, one-registry-line swap. Verified Gemini's
+free tier first rather than assume it'd be friction-free too: no card, no
+expiry, 1,500 req/day on Flash models, and — the part that actually
+mattered — real schema-constrained JSON output, not just "valid JSON, any
+shape." `OpenAiProvider` was kept rather than deleted: it's fully built,
+live-tested up to the billing wall, and costs nothing sitting unused in the
+registry if the account ever gets funded.
+
+Building the second provider immediately surfaced what should have been
+shared from the start: `openai-provider.ts`'s ~250 lines of venue
+resolution, weather/budget/packing mapping and prompt-building had nothing
+OpenAI-specific in them — only the schema dialect and the transport call
+differed. Split into `venue-grounded.ts` (shared) plus a thin
+`buildSchema` + transport call per provider. Two schema dialects, confirmed
+by hitting a live 400 rather than trusting docs:
+- **Nullability.** OpenAI (JSON Schema) wants `type: [x, "null"]`. Gemini
+  (an OpenAPI 3.0 subset) wants a separate `nullable: true` flag on a
+  scalar `type` — copying one schema into the other silently mistypes every
+  optional field.
+- **`additionalProperties`.** Present in OpenAI's schema, present in every
+  doc summary fetched for Gemini too — and rejected outright by the live
+  API: `Unknown name "additionalProperties" ... Cannot find field`. Gemini's
+  subset doesn't have it. Dropped for Gemini; harmless, since `required`
+  plus an exhaustive `properties` list is what actually constrains valid
+  data, and the mapping code only ever reads named fields.
+
+### The real bug: two real ids in one enum, and Gemini says no
+
+First live trip through the actual wizard (not the isolated smoke test —
+that used six hand-picked venues) failed with `400 Request contains an
+invalid argument`, no further detail in the error body. The isolated test
+had passed cleanly; the only structural difference was scale — the real
+places-service pool (here: 18 attractions, 16 restaurants, 10 hotels) is
+much larger than six hand-picked venues.
+
+Scale wasn't it, though — a same-size slice of the *real* data (6/3/1) failed
+identically, and the exact same nested-schema shape with *fake* ids at
+4-day depth had already succeeded. Bisected by literally swapping values in
+and out of a captured request body and re-`curl`ing it:
+
+- One real xid anywhere in an enum: fine.
+- Two real xids in the *same* enum: `400`, every time, regardless of which
+  two, regardless of digit length. A single real value in the (non-nested)
+  hotel field: fine, at any count — the failure only ever reproduced inside
+  the array-nested `venueId` enums.
+
+No further detail was available from Gemini's own error body to explain
+*why* — this is an implementation quirk on their side, not a documented
+limit, and not something to keep chasing once it's this precisely
+characterised. **Fix: don't send OpenTripMap's real xids as enum values at
+all.** `venue-grounded.ts` now assigns short synthetic tokens (`a1`, `a2`,
+`r1`, `h1`, …) per venue and resolves them back to the real `SourcedVenue`
+server-side — the enum-constraint safety guarantee is unchanged (still a
+closed set of tokens, still resolved against real data, still dropped with
+a warning if unresolvable), only the token shape sent to the model differs.
+Applied to *both* providers, not just Gemini: OpenAI's own request never
+got a live full-schema test (blocked on billing before this point), so
+there's no evidence it's immune to the same class of issue, and a short
+token costs nothing either provider cares about.
+
+Worth keeping as a debugging pattern: when a live API rejection gives no
+useful detail and a docs-summary contradicts what the API just said (as it
+did for `additionalProperties`), bisect the actual request body directly —
+capture it once, then re-`curl` restricted variants — rather than keep
+re-reading documentation that has already been shown to be wrong once.
+
+### Never let the model be the source of truth for a fact
+
+Same rule 3B established for hotels, applied from the start here rather
+than found as a bug after the fact: the model chooses *which* offered venue
+to feature and writes the prose, but never supplies a name, coordinate,
+category, or number that a real source already provides.
+
+- **Weather** is populated from `sourced.weatherByDate[date]` only, never
+  asked of the model — even the numbers visible in the prompt (given so the
+  model can write weather-aware summaries — see Day 3's Lisbon run, which
+  correctly rescheduled itself indoors for a forecast of drizzle) are for
+  *reading*, not reproducing. A day past the forecast horizon gets
+  `source: "unavailable"` and nulls throughout, not an invented estimate —
+  this provider has no per-destination climate catalogue to fall back on
+  the way the mock does, and building one just to fill this gap wasn't
+  worth it.
+- **Travel time and walking distance** have no real source either (no
+  routing/directions provider is wired up — see Phase 5's notes), but
+  *can* be grounded rather than guessed: both are now derived via haversine
+  distance between the real coordinates of the real, resolved venues in
+  scheduled order. Still an estimate, but one connected to the actual
+  places chosen, unlike the mock's `jitterCoord`-adjacent random numbers.
+- **Budget** is computed from the real totals once the rest of the
+  itinerary is resolved (hotel + transport + summed activity costs), not
+  asked of the model as its own line items — a model-produced breakdown has
+  no guarantee of summing to the total it was also asked for.
+
+### A pre-existing fabrication found while building this, fixed alongside it
+
+`buildRestaurantsFromVenues` (and its no-real-data sibling
+`buildRestaurants`) invented a plausible-looking star rating
+(`round(3.8 + rng() * 1.1, 1)`) for every restaurant — including ones
+backed by a real, named venue. Exact same bug class as the hotel-rating fix
+in 3B (OpenTripMap's `rate` is a popularity index, not a guest score), just
+never caught, because nothing in the UI renders a restaurant rating yet —
+so a plausible 4.2★ sat in the database with no visible symptom. Found
+while deciding what the new Gemini/OpenAI restaurant builder should put in
+that field; fixed in both places at once rather than left inconsistent
+between mock and real. `GeneratedRestaurant.rating` is now `number | null`,
+same treatment as the hotel.
 
 ## Auth flow
 

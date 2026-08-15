@@ -5,7 +5,9 @@ import {
   type AiProvider,
   type AiProviderId,
 } from "@/lib/ai/provider"
+import { geminiProvider } from "@/lib/ai/providers/gemini-provider"
 import { mockAiProvider } from "@/lib/ai/providers/mock-provider"
+import { openAiProvider } from "@/lib/ai/providers/openai-provider"
 
 export { AiGenerationError, AI_PROVIDER_IDS, isAiProviderId }
 export type { AiProvider, AiProviderId }
@@ -22,7 +24,8 @@ export type * from "@/lib/ai/types"
  */
 const registry: Partial<Record<AiProviderId, () => AiProvider>> = {
   mock: () => mockAiProvider,
-  // openai: () => new OpenAiProvider({ apiKey: process.env.OPENAI_API_KEY }),
+  openai: () => openAiProvider,
+  gemini: () => geminiProvider,
   // anthropic: () => new AnthropicProvider({ apiKey: process.env.ANTHROPIC_API_KEY }),
 }
 

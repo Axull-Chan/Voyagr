@@ -3,6 +3,7 @@ import {
   type AiProvider,
   type GenerateOptions,
 } from "@/lib/ai/provider"
+import { ACCOMMODATION_NOUN, accommodationMultiplier } from "@/lib/ai/pricing"
 import type {
   GeneratedActivity,
   GeneratedBudgetLine,
@@ -115,8 +116,13 @@ function createRotation<T>(items: T[]) {
   }
 }
 
-/** How many activities a day carries, driven by the declared travel style. */
-const ACTIVITIES_PER_DAY: Record<string, number> = {
+/**
+ * How many activities a day carries, driven by the declared travel style.
+ *
+ * Exported so a real provider paces its own days the same way — "packed"
+ * should mean the same thing regardless of which provider is running.
+ */
+export const ACTIVITIES_PER_DAY: Record<string, number> = {
   relaxed: 2,
   balanced: 3,
   packed: 3,
@@ -228,7 +234,11 @@ function buildRestaurants(
       mealType: meal,
       name: `${cuisine} ${pick(rng, ["House", "Room", "Table", "Counter", "Kitchen"])} ${area}`,
       cuisine,
-      rating: round(4 + rng() * 0.9, 1),
+      // An example restaurant has no diners behind it, so it has no rating —
+      // same reasoning as the hotel fallback below: an invented name is
+      // already a placeholder, but a specific star score reads as a claim
+      // about real satisfaction that nobody using this app actually gave.
+      rating: null,
       priceLevel: 1 + Math.floor(rng() * 4),
       distanceKm: round(0.2 + rng() * 1.8, 1),
       openingHours:
@@ -241,28 +251,6 @@ function buildRestaurants(
       lng: coords.lng,
     }
   })
-}
-
-/** How to describe an example stay of the requested kind. */
-const ACCOMMODATION_NOUN: Record<string, string> = {
-  hotel: "hotel",
-  boutique: "boutique stay",
-  apartment: "apartment",
-  hostel: "hostel",
-  resort: "resort",
-}
-
-/** What the requested standard of accommodation does to a nightly rate. */
-function accommodationMultiplier(request: ItineraryRequest): number {
-  return request.accommodation === "hostel"
-    ? 0.35
-    : request.accommodation === "resort"
-      ? 1.8
-      : request.accommodation === "boutique"
-        ? 1.3
-        : request.accommodation === "apartment"
-          ? 0.85
-          : 1
 }
 
 /**
@@ -405,9 +393,11 @@ function buildPacking(
     group.items.map((item) => ({ category: group.category, item }))
   )
 
-  const anyWet = days.some((d) => d.weather.precipitationChance >= 50)
-  const anyHot = days.some((d) => d.weather.tempHighC >= 28)
-  const anyCold = days.some((d) => d.weather.tempLowC <= 8)
+  // A day with no reading at all shouldn't trigger a weather-specific item —
+  // that would assert something about conditions the trip has no idea about.
+  const anyWet = days.some((d) => (d.weather.precipitationChance ?? 0) >= 50)
+  const anyHot = days.some((d) => (d.weather.tempHighC ?? -Infinity) >= 28)
+  const anyCold = days.some((d) => (d.weather.tempLowC ?? Infinity) <= 8)
 
   if (anyWet) {
     items.push(...WET_WEATHER_ITEMS.map((item) => ({ category: "Weather", item })))
@@ -611,7 +601,12 @@ function buildRestaurantsFromVenues(
       name: venue.name,
       // OSM rarely tags cuisine on these nodes; claiming one would be inventing.
       cuisine: venue.kinds.includes("cafes") ? "Café" : "Local",
-      rating: round(3.8 + rng() * 1.1, 1),
+      // Same reasoning as the hotel builder above: OpenTripMap's `rating`
+      // field is a popularity index, not a guest score, and this function
+      // was inventing a plausible-looking star rating for a real, named
+      // restaurant — publishing a review nobody wrote, same bug, just never
+      // caught because nothing in the UI renders it yet.
+      rating: null,
       priceLevel: 1 + Math.floor(rng() * 3),
       distanceKm: round(venue.rating > 0 ? 0.4 + rng() * 1.6 : 0.8, 1),
       openingHours:

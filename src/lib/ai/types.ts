@@ -101,7 +101,13 @@ export interface GeneratedRestaurant {
   mealType: MealType
   name: string
   cuisine: string
-  rating: number
+  /**
+   * Null for every provider today: no source here supplies an actual guest
+   * rating, so there is nothing honest to put in this field yet. Kept
+   * nullable rather than removed — a real reviews provider would populate it
+   * without a contract change.
+   */
+  rating: number | null
   /** 1–4, the conventional "$" through "$$$$". */
   priceLevel: number
   distanceKm: number
@@ -118,14 +124,20 @@ export interface GeneratedWeather {
    */
   source: string
   condition: string
-  tempHighC: number
-  tempLowC: number
-  precipitationChance: number
-  windKph: number
-  humidity: number
-  /** `HH:MM`, 24-hour. */
-  sunrise: string
-  sunset: string
+  /**
+   * Null past the forecast horizon for a provider with no climate model of
+   * its own to fall back on — matching `DayForecast` and `weatherByDate`,
+   * which were already nullable here; a plain `number` would have forced a
+   * value to be invented rather than admitted unknown.
+   */
+  tempHighC: number | null
+  tempLowC: number | null
+  precipitationChance: number | null
+  windKph: number | null
+  humidity: number | null
+  /** `HH:MM`, 24-hour. Null under the same condition as the fields above. */
+  sunrise: string | null
+  sunset: string | null
 }
 
 export interface GeneratedDay {
