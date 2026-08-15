@@ -35,6 +35,31 @@ export default function TripDetailLoading() {
               </div>
             ))}
           </div>
+
+          <div className="space-y-3">
+            <Skeleton className="h-4 w-20" />
+            <div className="space-y-4 rounded-xl border border-border p-5">
+              <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+                {[0, 1, 2, 3].map((i) => (
+                  <div key={i} className="space-y-1.5">
+                    <Skeleton className="h-3 w-14" />
+                    <Skeleton className="h-6 w-20" />
+                  </div>
+                ))}
+              </div>
+              <Skeleton className="h-1 w-full rounded-full" />
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <Skeleton className="h-4 w-16" />
+            <div className="space-y-2 rounded-xl border border-border p-5">
+              <Skeleton className="h-1 w-full rounded-full" />
+              {[0, 1, 2].map((i) => (
+                <Skeleton key={i} className="h-4 w-full max-w-xs" />
+              ))}
+            </div>
+          </div>
         </div>
 
         <div className="space-y-4">

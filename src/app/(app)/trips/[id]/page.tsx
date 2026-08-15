@@ -16,11 +16,9 @@ import {
 } from "@/features/trips/components/detail/day-timeline"
 import { TripHero } from "@/features/trips/components/detail/trip-hero"
 import { LazyTripMap } from "@/features/trips/components/detail/trip-map-lazy"
-import {
-  BudgetPanel,
-  StaysPanel,
-  TransportPanel,
-} from "@/features/trips/components/detail/trip-aside"
+import { StaysPanel, TransportPanel } from "@/features/trips/components/detail/trip-aside"
+import { BudgetSection } from "@/features/trips/components/detail/budget-section"
+import { PackingSection } from "@/features/trips/components/detail/packing-section"
 
 interface TripDetailPageProps {
   params: Promise<{ id: string }>
@@ -49,7 +47,8 @@ export async function generateMetadata({
  */
 export default async function TripDetailPage({ params }: TripDetailPageProps) {
   const { id } = await params
-  const { trip, days, hotels, transportation, budget } = await getTripDetail(id)
+  const { trip, days, hotels, transportation, budget, expenses, packing } =
+    await getTripDetail(id)
 
   // The traveller's own currency, for converting a foreign budget back.
   const supabase = await createClient()
@@ -59,9 +58,18 @@ export default async function TripDetailPage({ params }: TripDetailPageProps) {
     .maybeSingle()
   const homeCurrency = profile?.preferred_currency ?? null
 
-  const rates = homeCurrency && homeCurrency !== trip.currency
-    ? await getRates(trip.currency, [homeCurrency])
-    : { data: { base: trip.currency, rates: {}, asOf: "" }, source: "live" as const }
+  // Only what's actually needed to convert back to the trip's currency: the
+  // traveller's own currency, plus whatever currencies expenses were logged
+  // in. Earlier this requested all 8 supported currencies unconditionally,
+  // which cost a real (if usually fast) external round trip for currencies
+  // nothing on the page would ever use.
+  const quoteCurrencies = [
+    ...new Set([homeCurrency, ...expenses.map((e) => e.currency)].filter((c): c is string => Boolean(c))),
+  ].filter((c) => c !== trip.currency)
+  const rates =
+    quoteCurrencies.length > 0
+      ? await getRates(trip.currency, quoteCurrencies)
+      : { data: { base: trip.currency, rates: {}, asOf: "" }, source: "live" as const }
 
   const nights = Math.max(
     tripDurationDays(trip.start_date ?? "", trip.end_date ?? "") - 1,
@@ -211,18 +219,25 @@ export default async function TripDetailPage({ params }: TripDetailPageProps) {
               </div>
             )}
           </RevealItem>
-        </div>
 
-        <aside className="space-y-4 lg:sticky lg:top-20">
           <RevealItem>
-            <BudgetPanel
+            <BudgetSection
+              tripId={trip.id}
               budget={budget}
+              expenses={expenses}
               currency={trip.currency}
               total={trip.budget ? Number(trip.budget) : null}
               rates={rates.data}
               homeCurrency={homeCurrency}
             />
           </RevealItem>
+
+          <RevealItem>
+            <PackingSection tripId={trip.id} items={packing} />
+          </RevealItem>
+        </div>
+
+        <aside className="space-y-4 lg:sticky lg:top-20">
           <RevealItem>
             <StaysPanel hotels={hotels} currency={trip.currency} />
           </RevealItem>

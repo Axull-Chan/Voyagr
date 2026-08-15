@@ -40,10 +40,12 @@ committed before the next begins — don't skip ahead without the user's go-ahea
   Frankfurter and OpenTripMap respectively — see `src/integrations/`. Left
   unchecked for the same reason as Phase 5: real functionality exists, but
   confirming it satisfies this phase as originally specified is your call.
-- [ ] Phase 7 — Budget tracker. A budget breakdown exists (planned amounts by
-  category, shown in `BudgetPanel`) but there's no way to log or see actual
-  spend yet — `budget_breakdown.actual_amount` is in the schema and unused.
-- [ ] Phase 8 — Packing checklist
+- [x] **Phase 7 — Budget tracker.** Planned-vs-actual, a live progress bar,
+  and full expense add/edit/delete, landed alongside Phase 8 in an
+  out-of-sequence pass the user called "Phase 3C" — see that section below.
+- [x] **Phase 8 — Packing checklist.** Check/uncheck, add/edit/delete, and
+  category grouping over the already-generated `packing_lists` rows — same
+  pass as Phase 7, see below.
 - [ ] Phase 9 — AI travel assistant (chat-based itinerary editing)
 - [ ] Phase 10 — Trip management (rename/duplicate/archive/export)
 - [ ] Phase 11 — PDF export
@@ -963,6 +965,96 @@ while deciding what the new Gemini/OpenAI restaurant builder should put in
 that field; fixed in both places at once rather than left inconsistent
 between mock and real. `GeneratedRestaurant.rating` is now `number | null`,
 same treatment as the hotel.
+
+## Phase 3C — budget tracker, packing checklist, polish, QA
+
+An out-of-sequence pass (the user's own name for it), closing Phases 7 and 8
+and doing a polish/QA sweep — briefed explicitly as "reuse existing
+architecture, don't redesign."
+
+### Why actual spend needed a new table, not a bigger `budget_breakdown`
+
+`budget_breakdown` is one row per category holding a single `planned_amount`
+and `actual_amount` — there is no field for a date or a description, and no
+room for more than one entry per category. "Log an expense" needs all three,
+so stretching that table wasn't an option; a new `expenses` table holds
+itemized spend instead, and `budget_breakdown` stays exactly what it was.
+"Spent per category" is computed by summing `expenses` at render time —
+`budget_breakdown.actual_amount` is still never written to, same as before
+this phase, just now for a documented reason instead of by omission.
+
+`packing_lists`, by contrast, needed *zero* schema changes — `is_checked`,
+`category`, `item` and `sort_order` were already exactly the right shape.
+Auditing before writing a single line of schema (as briefed) is what caught
+this: one table needed new structure, the other didn't need any.
+
+### Expense currency is independent of the trip's currency
+
+An expense can be logged in any of the app's supported currencies, not just
+the trip's own — someone planning in EUR may have paid a specific bill in
+USD. Every expense converts back to the trip's currency for the totals using
+the same Frankfurter-backed `currency-service.ts` already built in Phase 6,
+via `convert()`'s existing null-on-no-rate behaviour: an expense in a
+currency with no quote contributes 0 to the total rather than a silently
+wrong number.
+
+The rates fetch itself started by requesting all 8 app-supported currencies
+unconditionally against the trip's currency, "so any expense currency would
+resolve." Live testing surfaced a real, external Frankfurter slowdown at the
+time (a *single*-quote request took 30+ seconds; see the raw `curl` timings
+this was diagnosed with) — the page still rendered correctly throughout,
+which is the `attempt()`/`ServiceResult` fallback working exactly as
+designed, not a bug. The quote list was still narrowed to just the
+traveller's home currency plus whatever currencies are actually on the
+expenses already loaded, typically 0–2 quotes instead of 7: strictly less
+external surface regardless of how fast Frankfurter is on a given day.
+
+### A duplicate-panel mistake, avoided this time
+
+The old sidebar `BudgetPanel` (planned amounts only) and the new full Budget
+section would have shown overlapping information in two different places on
+the same page — the exact "why are there two panels for one thing" mistake
+flagged earlier in this project (see the feature-section de-duplication
+note). `BudgetPanel` was removed outright rather than left stale alongside
+the new section; nothing else imported it, confirmed by grep before deleting.
+
+### One real responsive bug, found by the sweep
+
+At 375px, the packing "add an item" row (item input, category input, add
+button) squeezed onto a single `flex-wrap` line instead of actually
+wrapping, truncating the item input's placeholder text illegibly. `flex-wrap`
+technically permits wrapping but doesn't *prefer* it over shrinking — the
+fix is `flex-col sm:flex-row`, an unconditional stack below the `sm`
+breakpoint rather than a wrap that only triggers under overflow. Caught by
+the same "screenshot at each breakpoint, don't just check for zero
+horizontal scroll" discipline established in Phase 2's polish passes:
+`horizontalOverflow: 0` was true even on the broken layout, since a
+tight-but-not-overflowing row is still a bug a scroll-width check alone
+can't see.
+
+### The loading skeleton needed the same edit as the page
+
+`trips/[id]/loading.tsx` mirrors the real layout's shape so nothing shifts
+when content arrives — adding the two new sections to the page without
+updating its skeleton would have left the loading state silently
+out-of-sync, reintroducing the shift the skeleton exists to prevent. Fixed
+alongside the page change itself. Worth remembering as a general rule: a
+route with a `loading.tsx` needs that file touched in the same commit as any
+layout change to the route it mirrors, not as a follow-up.
+
+### Verification
+
+Every add/edit/delete for both expenses and packing items was exercised live
+against the real database (not just type-checked) — confirmed via direct
+DOM inspection after each action, not just a screenshot: total/planned/
+spent/remaining and the per-category bars recompute correctly, the packing
+progress count and percentage update immediately, and deleted rows are
+actually gone from Postgres afterward, checked directly by SQL rather than
+trusted from the UI alone. Every new form field's `<label for>` was
+confirmed programmatically to resolve to its real control, not just
+visually adjacent to it. Data-integrity guarantees from Phases 3B/4 (no
+fabricated ratings, correct hotel provenance) were re-confirmed unchanged,
+since nothing in this phase touches generation.
 
 ## Auth flow
 

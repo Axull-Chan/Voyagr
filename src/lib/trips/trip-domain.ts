@@ -86,6 +86,7 @@ export const BUDGET_CATEGORIES = [
 ] as const
 
 export type BudgetCategory = (typeof BUDGET_CATEGORIES)[number]["value"]
+export const BUDGET_CATEGORY_VALUES = BUDGET_CATEGORIES.map((c) => c.value)
 
 /** Time slots mirror the `activities.time_slot` check constraint. */
 export const TIME_SLOTS = ["morning", "afternoon", "evening"] as const

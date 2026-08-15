@@ -19,6 +19,8 @@ export type WeatherRow = Tables<"weather">
 export type HotelRow = Tables<"hotels">
 export type TransportRow = Tables<"transportation">
 export type BudgetRow = Tables<"budget_breakdown">
+export type ExpenseRow = Tables<"expenses">
+export type PackingItemRow = Tables<"packing_lists">
 
 export interface TripDay {
   id: string
@@ -37,29 +39,48 @@ export interface TripDetail {
   hotels: HotelRow[]
   transportation: TransportRow[]
   budget: BudgetRow[]
+  expenses: ExpenseRow[]
+  packing: PackingItemRow[]
 }
 
 export async function getTripDetail(tripId: string): Promise<TripDetail> {
   const supabase = await createClient()
 
-  const [tripResult, daysResult, hotelsResult, transportResult, budgetResult] =
-    await Promise.all([
-      supabase.from("trips").select("*").eq("id", tripId).maybeSingle(),
-      supabase
-        .from("trip_days")
-        .select(
-          "*, activities(*), restaurants(*), weather(*)"
-        )
-        .eq("trip_id", tripId)
-        .order("day_number", { ascending: true }),
-      supabase.from("hotels").select("*").eq("trip_id", tripId),
-      supabase
-        .from("transportation")
-        .select("*")
-        .eq("trip_id", tripId)
-        .order("sort_order", { ascending: true }),
-      supabase.from("budget_breakdown").select("*").eq("trip_id", tripId),
-    ])
+  const [
+    tripResult,
+    daysResult,
+    hotelsResult,
+    transportResult,
+    budgetResult,
+    expensesResult,
+    packingResult,
+  ] = await Promise.all([
+    supabase.from("trips").select("*").eq("id", tripId).maybeSingle(),
+    supabase
+      .from("trip_days")
+      .select(
+        "*, activities(*), restaurants(*), weather(*)"
+      )
+      .eq("trip_id", tripId)
+      .order("day_number", { ascending: true }),
+    supabase.from("hotels").select("*").eq("trip_id", tripId),
+    supabase
+      .from("transportation")
+      .select("*")
+      .eq("trip_id", tripId)
+      .order("sort_order", { ascending: true }),
+    supabase.from("budget_breakdown").select("*").eq("trip_id", tripId),
+    supabase
+      .from("expenses")
+      .select("*")
+      .eq("trip_id", tripId)
+      .order("expense_date", { ascending: false }),
+    supabase
+      .from("packing_lists")
+      .select("*")
+      .eq("trip_id", tripId)
+      .order("sort_order", { ascending: true }),
+  ])
 
   // A missing trip and a trip owned by someone else are indistinguishable
   // here by design — RLS filters the latter, and both should 404 rather than
@@ -92,5 +113,7 @@ export async function getTripDetail(tripId: string): Promise<TripDetail> {
     hotels: hotelsResult.data ?? [],
     transportation: transportResult.data ?? [],
     budget: budgetResult.data ?? [],
+    expenses: expensesResult.data ?? [],
+    packing: packingResult.data ?? [],
   }
 }
