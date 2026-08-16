@@ -21,6 +21,7 @@ import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { Progress, ProgressTrack, ProgressIndicator } from "@/components/ui/progress"
+import { SwipeToDelete } from "@/components/shared/swipe-to-delete"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { useDialogTriggerOrigin } from "@/hooks/use-dialog-trigger-origin"
 import { WizardField } from "@/features/trips/components/wizard/wizard-field"
@@ -383,47 +384,51 @@ export function BudgetSection({
           ) : (
             <ul className="mt-3 divide-y divide-border">
               {expenses.map((expense) => (
-                <li key={expense.id} className="flex items-start justify-between gap-3 py-3">
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-foreground">
-                      {CATEGORY_LABEL.get(expense.category) ?? expense.category}
-                      {expense.description ? (
-                        <span className="font-normal text-muted-foreground"> · {expense.description}</span>
-                      ) : null}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {new Intl.DateTimeFormat("en-GB", {
-                        day: "numeric",
-                        month: "short",
-                        year: "numeric",
-                      }).format(new Date(`${expense.expense_date}T00:00:00Z`))}
-                    </p>
-                  </div>
-                  <div className="flex shrink-0 items-center gap-2">
-                    <span className="text-price text-sm text-foreground">
-                      {formatCurrency(Number(expense.amount), expense.currency)}
-                    </span>
-                    <Button
-                      size="icon-sm"
-                      variant="ghost"
-                      aria-label={`Edit expense: ${expense.description || CATEGORY_LABEL.get(expense.category)}`}
-                      onClick={(event) => {
-                        captureOrigin(event)
-                        openEdit(expense)
-                      }}
-                    >
-                      <Pencil aria-hidden="true" className="size-3.5" />
-                    </Button>
-                    <Button
-                      size="icon-sm"
-                      variant="ghost"
-                      aria-label={`Delete expense: ${expense.description || CATEGORY_LABEL.get(expense.category)}`}
-                      disabled={isPending}
-                      onClick={() => handleDelete(expense.id)}
-                    >
-                      <Trash2 aria-hidden="true" className="size-3.5" />
-                    </Button>
-                  </div>
+                <li key={expense.id}>
+                  <SwipeToDelete onDelete={() => handleDelete(expense.id)} disabled={isPending}>
+                    <div className="flex items-start justify-between gap-3 py-3">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-foreground">
+                          {CATEGORY_LABEL.get(expense.category) ?? expense.category}
+                          {expense.description ? (
+                            <span className="font-normal text-muted-foreground"> · {expense.description}</span>
+                          ) : null}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {new Intl.DateTimeFormat("en-GB", {
+                            day: "numeric",
+                            month: "short",
+                            year: "numeric",
+                          }).format(new Date(`${expense.expense_date}T00:00:00Z`))}
+                        </p>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-2">
+                        <span className="text-price text-sm text-foreground">
+                          {formatCurrency(Number(expense.amount), expense.currency)}
+                        </span>
+                        <Button
+                          size="icon-sm"
+                          variant="ghost"
+                          aria-label={`Edit expense: ${expense.description || CATEGORY_LABEL.get(expense.category)}`}
+                          onClick={(event) => {
+                            captureOrigin(event)
+                            openEdit(expense)
+                          }}
+                        >
+                          <Pencil aria-hidden="true" className="size-3.5" />
+                        </Button>
+                        <Button
+                          size="icon-sm"
+                          variant="ghost"
+                          aria-label={`Delete expense: ${expense.description || CATEGORY_LABEL.get(expense.category)}`}
+                          disabled={isPending}
+                          onClick={() => handleDelete(expense.id)}
+                        >
+                          <Trash2 aria-hidden="true" className="size-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+                  </SwipeToDelete>
                 </li>
               ))}
             </ul>

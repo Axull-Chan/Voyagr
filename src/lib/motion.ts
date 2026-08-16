@@ -59,6 +59,58 @@ export function omitNativeMotionConflicts<
   return rest
 }
 
+/**
+ * Stage 2C — gesture-release physics, shared by the mobile Sheet's drag-to-
+ * dismiss and `SwipeToDelete`. Shaped as `InertiaOptions`
+ * (`bounceStiffness`/`bounceDamping`), not the `type`/`bounce`/`duration`
+ * shape `sheetSpring`/`dialogSpring` use — confirmed against the installed
+ * framer-motion types (`dragTransition?: InertiaOptions`). This governs the
+ * *automatic* return-to-constraints animation `dragConstraints` triggers on
+ * every drag release, a different code path from the declarative `animate`
+ * transitions above. Softer than the library default (500/10) — this
+ * project's existing motion is restrained (`sheetSpring`'s own bounce is
+ * 0.15), and the default reads bouncier/looser than that language.
+ */
+export const gestureDragTransition = {
+  bounceStiffness: 380,
+  bounceDamping: 30,
+}
+
+/** Same role as `gestureDragTransition`, under `prefers-reduced-motion`.
+ *  Not zero — snapping to the exact pixel with no transition at all reads
+ *  as a glitch, not a settle, so this is fast and tightly damped rather
+ *  than instant. */
+export const reducedGestureDragTransition = {
+  bounceStiffness: 1000,
+  bounceDamping: 60,
+}
+
+/**
+ * Drag-to-dismiss tuning for the bottom expense Sheet. Both fields are
+ * "either" conditions in `onDragEnd` — a slow drag past `distance`, or a
+ * fast flick that doesn't need the full distance, each count alone as a
+ * deliberate dismissal. `velocity` is px/ms — confirmed against
+ * `PanInfo.velocity`'s own doc comment ("current velocity of the pointer,
+ * in px/ms"), not px/s. 0.5px/ms sits in "a real flick," not an ordinary
+ * drag that happens to be a little quick.
+ */
+export const sheetDismiss = {
+  distance: 120,
+  velocity: 0.5,
+}
+
+/**
+ * Swipe-to-delete tuning, shared by packing items and expense rows via
+ * `SwipeToDelete`. `distance` matches its revealed-icon width (`w-20` =
+ * 80px at the default root size) on purpose — releasing once the delete
+ * icon is fully revealed is exactly the point it commits, so what's shown
+ * lines up with what happens.
+ */
+export const swipeDelete = {
+  distance: 80,
+  velocity: 0.5,
+}
+
 export const fadeIn: Variants = {
   hidden: { opacity: 0 },
   visible: { opacity: 1, transition: { duration: 0.4, ease: "easeOut" } },

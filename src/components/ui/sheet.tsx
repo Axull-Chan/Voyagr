@@ -2,11 +2,24 @@
 
 import * as React from "react"
 import { Dialog as SheetPrimitive } from "@base-ui/react/dialog"
-import { motion, type Transition, type Variants } from "framer-motion"
+import {
+  motion,
+  useDragControls,
+  useReducedMotion,
+  type PanInfo,
+  type Transition,
+  type Variants,
+} from "framer-motion"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
-import { omitNativeMotionConflicts, sheetSpring } from "@/lib/motion"
+import {
+  gestureDragTransition,
+  omitNativeMotionConflicts,
+  reducedGestureDragTransition,
+  sheetDismiss,
+  sheetSpring,
+} from "@/lib/motion"
 import { XIcon } from "lucide-react"
 
 type SheetSide = "top" | "right" | "bottom" | "left"
@@ -111,6 +124,28 @@ function SheetContent({
 }) {
   const actionsRef = React.useContext(SheetActionsContext)
   const { variants, transition } = sheetVariants(side)
+  const isBottomSheet = side === "bottom"
+  const dragControls = useDragControls()
+  const prefersReducedMotion = useReducedMotion()
+
+  // Only the bottom sheet (the mobile Add/Edit Expense form) gets real
+  // drag-to-dismiss — the sidebar's `side="left"` and the other two sides
+  // keep Stage 2B's plain enter/exit untouched.
+  const handleDragEnd = (_event: PointerEvent | MouseEvent | TouchEvent, info: PanInfo) => {
+    const dismissed = info.offset.y > sheetDismiss.distance || info.velocity.y > sheetDismiss.velocity
+    if (dismissed) {
+      // Same logical close Escape/outside-press/the close button already
+      // use (Base UI's own `actions.close`, confirmed in
+      // `useDialogRoot.js` to route through the identical `onOpenChange`
+      // pipeline) — Stage 2B's exit animation and `unmount()` timing take
+      // over from here unchanged, continuing from wherever the drag left
+      // the sheet rather than snapping back first.
+      actionsRef?.current?.close()
+    }
+    // Not dismissed: `dragConstraints={{ top: 0, bottom: 0 }}` below makes
+    // Framer's own post-release animation return the sheet to 0 on its
+    // own — nothing further to do here.
+  }
 
   return (
     <SheetPortal>
@@ -119,7 +154,7 @@ function SheetContent({
         data-slot="sheet-content"
         data-side={side}
         className={cn(
-          "fixed z-50 flex flex-col gap-4 bg-popover bg-clip-padding text-sm text-popover-foreground shadow-lg data-[side=bottom]:inset-x-0 data-[side=bottom]:bottom-0 data-[side=bottom]:h-auto data-[side=bottom]:rounded-t-xl data-[side=bottom]:border-t data-[side=left]:inset-y-0 data-[side=left]:left-0 data-[side=left]:h-full data-[side=left]:w-3/4 data-[side=left]:border-r data-[side=right]:inset-y-0 data-[side=right]:right-0 data-[side=right]:h-full data-[side=right]:w-3/4 data-[side=right]:border-l data-[side=top]:inset-x-0 data-[side=top]:top-0 data-[side=top]:h-auto data-[side=top]:border-b data-[side=left]:sm:max-w-sm data-[side=right]:sm:max-w-sm",
+          "fixed z-50 flex flex-col gap-4 bg-popover bg-clip-padding text-sm text-popover-foreground shadow-lg data-[side=bottom]:inset-x-0 data-[side=bottom]:bottom-0 data-[side=bottom]:h-auto data-[side=bottom]:max-h-[85dvh] data-[side=bottom]:overflow-y-auto data-[side=bottom]:overscroll-contain data-[side=bottom]:rounded-t-xl data-[side=bottom]:border-t data-[side=left]:inset-y-0 data-[side=left]:left-0 data-[side=left]:h-full data-[side=left]:w-3/4 data-[side=left]:border-r data-[side=right]:inset-y-0 data-[side=right]:right-0 data-[side=right]:h-full data-[side=right]:w-3/4 data-[side=right]:border-l data-[side=top]:inset-x-0 data-[side=top]:top-0 data-[side=top]:h-auto data-[side=top]:border-b data-[side=left]:sm:max-w-sm data-[side=right]:sm:max-w-sm",
           className
         )}
         render={(rawPopupProps, state) => (
@@ -129,6 +164,28 @@ function SheetContent({
             animate={state.open ? "visible" : "hidden"}
             variants={variants}
             transition={transition}
+            drag={isBottomSheet ? "y" : false}
+            dragListener={false}
+            dragControls={isBottomSheet ? dragControls : undefined}
+            // A point constraint, not a range: there's nowhere "valid" to
+            // rest except 0, so any release Framer doesn't hand to
+            // `close()` above animates straight back there on its own.
+            dragConstraints={isBottomSheet ? { top: 0, bottom: 0 } : undefined}
+            // top: real but light resistance — the sheet shouldn't drift
+            // upward indefinitely, but a hard 0 reads as a dead stop, not
+            // a physical surface. bottom: unresisted — dragging down is
+            // the sheet's one legitimate gesture, and 1:1 tracking is the
+            // whole point (a delayed/damped dismiss reads as laggy, not
+            // "resisted on purpose").
+            dragElastic={isBottomSheet ? { top: 0.2, bottom: 1 } : undefined}
+            dragTransition={
+              isBottomSheet
+                ? prefersReducedMotion
+                  ? reducedGestureDragTransition
+                  : gestureDragTransition
+                : undefined
+            }
+            onDragEnd={isBottomSheet ? handleDragEnd : undefined}
             onAnimationComplete={(definition) => {
               if (definition === "hidden") actionsRef?.current?.unmount()
             }}
@@ -140,10 +197,17 @@ function SheetContent({
           <div
             aria-hidden="true"
             data-slot="sheet-handle"
-            // Visual affordance only — no drag yet (Stage 2C). aria-hidden
-            // and no interactive role/cursor on purpose, so it doesn't
-            // imply functionality that isn't there yet.
-            className="mx-auto mt-2 h-1 w-9 shrink-0 rounded-full bg-muted-foreground/25"
+            // The drag surface itself — dragControls.start() here is what
+            // arms the gesture on the *parent* motion.div (dragListener is
+            // off there specifically so nothing else in the sheet, form
+            // fields included, can accidentally start one). aria-hidden
+            // stays: dragging has no meaningful screen-reader equivalent,
+            // Escape/the close button remain the accessible dismiss path.
+            // touch-action: none is scoped to this one handle, not the
+            // sheet at large, so the form beneath it keeps native scroll.
+            onPointerDown={(event) => dragControls.start(event)}
+            style={{ touchAction: "none" }}
+            className="mx-auto mt-2 h-1 w-9 shrink-0 cursor-grab rounded-full bg-muted-foreground/25 active:cursor-grabbing"
           />
         )}
         {children}

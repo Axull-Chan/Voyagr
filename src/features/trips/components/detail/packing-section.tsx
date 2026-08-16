@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Progress, ProgressTrack, ProgressIndicator } from "@/components/ui/progress"
+import { SwipeToDelete } from "@/components/shared/swipe-to-delete"
 import {
   addPackingItemAction,
   deletePackingItemAction,
@@ -140,29 +141,33 @@ export function PackingSection({
               </h3>
               <ul className="mt-2 space-y-1.5">
                 {categoryItems.map((item) => (
-                  <li key={item.id} className="group flex items-center gap-2.5">
-                    <Checkbox
-                      id={`pack-${item.id}`}
-                      checked={item.is_checked}
-                      onCheckedChange={() => handleToggle(item)}
-                      disabled={isPending}
-                    />
-                    <label
-                      htmlFor={`pack-${item.id}`}
-                      className={`flex-1 cursor-pointer text-sm ${item.is_checked ? "text-muted-foreground line-through" : "text-foreground"}`}
-                    >
-                      {item.item}
-                    </label>
-                    <Button
-                      size="icon-sm"
-                      variant="ghost"
-                      aria-label={`Remove ${item.item} from packing list`}
-                      className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100"
-                      disabled={isPending}
-                      onClick={() => handleDelete(item)}
-                    >
-                      <Trash2 aria-hidden="true" className="size-3.5" />
-                    </Button>
+                  <li key={item.id}>
+                    <SwipeToDelete onDelete={() => handleDelete(item)} disabled={isPending}>
+                      <div className="group flex items-center gap-2.5">
+                        <Checkbox
+                          id={`pack-${item.id}`}
+                          checked={item.is_checked}
+                          onCheckedChange={() => handleToggle(item)}
+                          disabled={isPending}
+                        />
+                        <label
+                          htmlFor={`pack-${item.id}`}
+                          className={`flex-1 cursor-pointer text-sm ${item.is_checked ? "text-muted-foreground line-through" : "text-foreground"}`}
+                        >
+                          {item.item}
+                        </label>
+                        <Button
+                          size="icon-sm"
+                          variant="ghost"
+                          aria-label={`Remove ${item.item} from packing list`}
+                          className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100"
+                          disabled={isPending}
+                          onClick={() => handleDelete(item)}
+                        >
+                          <Trash2 aria-hidden="true" className="size-3.5" />
+                        </Button>
+                      </div>
+                    </SwipeToDelete>
                   </li>
                 ))}
               </ul>
