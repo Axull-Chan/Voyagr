@@ -118,7 +118,11 @@ export default async function DashboardPage() {
         >
           <Link
             href="/trips"
-            className="group flex items-center justify-between gap-3 rounded-xl border border-border bg-card p-4 transition-all hover:border-primary/40 hover:shadow-md focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+            // Same interactive-card pattern as TripCard (hover:border-primary/40
+            // hover:shadow-md) but was missed by Stage 2A's press-timing pass —
+            // brought in line here: matching duration-100 ease-out
+            // motion-reduce:transition-none and active:scale-[0.98].
+            className="group flex items-center justify-between gap-3 rounded-xl border border-border bg-card p-4 transition-all duration-100 ease-out motion-reduce:transition-none hover:border-primary/40 hover:shadow-md focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none active:scale-[0.98]"
           >
             <div>
               <p className="font-medium text-foreground">View all trips</p>
