@@ -131,7 +131,9 @@ export function OptionToggleGroup<T extends string>(
             onKeyDown={(event) => handleKeyDown(event, index)}
             onClick={() => handleSelect(option.value)}
             className={cn(
-              "group flex items-start gap-2.5 rounded-lg border px-3 py-2.5 text-left transition-all focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none active:scale-[0.98]",
+              // Same Stage 2A press timing/magnitude as TripCard — see that
+              // component's comment for why 0.98, not Button's 0.97.
+              "group flex items-start gap-2.5 rounded-lg border px-3 py-2.5 text-left transition-all duration-100 ease-out motion-reduce:transition-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none active:scale-[0.98]",
               selected
                 ? "border-primary bg-primary/5"
                 : "border-input hover:border-foreground/25 hover:bg-muted/50"

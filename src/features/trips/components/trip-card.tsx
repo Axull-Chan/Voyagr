@@ -46,7 +46,11 @@ export function TripCard({ trip }: { trip: Trip }) {
   return (
     <Link
       href={`/trips/${trip.id}`}
-      className="group flex flex-col overflow-hidden rounded-xl border border-border bg-card transition-all hover:border-primary/40 hover:shadow-md focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none active:scale-[0.98]"
+      // Same Stage 2A press timing as Button; 0.98 rather than 0.97 since a
+      // card-sized surface reads a firmer squeeze as heavy-handed. The hover
+      // border/shadow is unchanged from Stage 1 — already the subtle
+      // elevation cue this stage asks for.
+      className="group flex flex-col overflow-hidden rounded-xl border border-border bg-card transition-all duration-100 ease-out motion-reduce:transition-none hover:border-primary/40 hover:shadow-md focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none active:scale-[0.98]"
     >
       <div className="relative aspect-4/3 bg-muted">
         {trip.cover_image_url ? (
