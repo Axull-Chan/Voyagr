@@ -2,13 +2,44 @@
 
 import * as React from "react"
 import { Dialog as SheetPrimitive } from "@base-ui/react/dialog"
+import { motion, type Transition, type Variants } from "framer-motion"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
+import { omitNativeMotionConflicts, sheetSpring } from "@/lib/motion"
 import { XIcon } from "lucide-react"
 
-function Sheet({ ...props }: SheetPrimitive.Root.Props) {
-  return <SheetPrimitive.Root data-slot="sheet" {...props} />
+type SheetSide = "top" | "right" | "bottom" | "left"
+
+/**
+ * Same mechanism as Dialog (see that file's comment) — a separate context
+ * rather than a shared one, since Sheet and Dialog are conceptually
+ * independent primitives that happen to share an underlying Base UI
+ * component. Applies to *every* side, not just "bottom": once `Root` stops
+ * Base UI's own auto-unmount, every `SheetContent` — whichever side it
+ * renders — has to be the one to call `unmount()` when its own exit
+ * finishes, or a non-bottom sheet (the mobile sidebar's `side="left"`,
+ * today) would stay mounted forever after closing.
+ */
+const SheetActionsContext = React.createContext<React.RefObject<SheetPrimitive.Root.Actions | null> | null>(
+  null
+)
+
+function Sheet({ onOpenChange, ...props }: SheetPrimitive.Root.Props) {
+  const actionsRef = React.useRef<SheetPrimitive.Root.Actions>(null)
+  return (
+    <SheetActionsContext.Provider value={actionsRef}>
+      <SheetPrimitive.Root
+        data-slot="sheet"
+        {...props}
+        actionsRef={actionsRef}
+        onOpenChange={(open, eventDetails) => {
+          if (!open) eventDetails.preventUnmountOnClose()
+          onOpenChange?.(open, eventDetails)
+        }}
+      />
+    </SheetActionsContext.Provider>
+  )
 }
 
 function SheetTrigger({ ...props }: SheetPrimitive.Trigger.Props) {
@@ -28,12 +59,44 @@ function SheetOverlay({ className, ...props }: SheetPrimitive.Backdrop.Props) {
     <SheetPrimitive.Backdrop
       data-slot="sheet-overlay"
       className={cn(
-        "fixed inset-0 z-50 bg-black/10 transition-opacity duration-150 data-ending-style:opacity-0 data-starting-style:opacity-0 supports-backdrop-filter:backdrop-blur-xs",
+        "fixed inset-0 z-50 bg-black/10 transition-opacity duration-200 data-ending-style:opacity-0 data-starting-style:opacity-0 supports-backdrop-filter:backdrop-blur-xs",
         className
       )}
       {...props}
     />
   )
+}
+
+/**
+ * `bottom` gets the new heavier, spring-driven slide (Stage 2B's actual
+ * target — "enter from below, settle naturally, feel heavier than a
+ * tooltip"). The other three sides keep the pre-existing feel — a short
+ * 2.5rem offset plus a fade — just replayed through Framer Motion instead
+ * of the old CSS `data-starting-style`/`data-ending-style` classes, so they
+ * can go through the same actionsRef-driven unmount as bottom. Not a spring:
+ * these were never asked for spring physics, and a tween matching the old
+ * `duration-200 ease-in-out` is the closest thing to "unchanged" for the
+ * one side (`left`) an existing consumer actually uses.
+ */
+function sheetVariants(side: SheetSide): { variants: Variants; transition: Transition } {
+  if (side === "bottom") {
+    return {
+      variants: { hidden: { y: "100%" }, visible: { y: 0 } },
+      transition: sheetSpring,
+    }
+  }
+  const offset: Record<Exclude<SheetSide, "bottom">, { x?: string; y?: string }> = {
+    top: { y: "-2.5rem" },
+    left: { x: "-2.5rem" },
+    right: { x: "2.5rem" },
+  }
+  return {
+    variants: {
+      hidden: { ...offset[side], opacity: 0 },
+      visible: { x: 0, y: 0, opacity: 1 },
+    },
+    transition: { type: "tween", duration: 0.2, ease: "easeInOut" },
+  }
 }
 
 function SheetContent({
@@ -43,9 +106,12 @@ function SheetContent({
   showCloseButton = true,
   ...props
 }: SheetPrimitive.Popup.Props & {
-  side?: "top" | "right" | "bottom" | "left"
+  side?: SheetSide
   showCloseButton?: boolean
 }) {
+  const actionsRef = React.useContext(SheetActionsContext)
+  const { variants, transition } = sheetVariants(side)
+
   return (
     <SheetPortal>
       <SheetOverlay />
@@ -53,11 +119,33 @@ function SheetContent({
         data-slot="sheet-content"
         data-side={side}
         className={cn(
-          "fixed z-50 flex flex-col gap-4 bg-popover bg-clip-padding text-sm text-popover-foreground shadow-lg transition duration-200 ease-in-out data-ending-style:opacity-0 data-starting-style:opacity-0 data-[side=bottom]:inset-x-0 data-[side=bottom]:bottom-0 data-[side=bottom]:h-auto data-[side=bottom]:border-t data-[side=bottom]:data-ending-style:translate-y-[2.5rem] data-[side=bottom]:data-starting-style:translate-y-[2.5rem] data-[side=left]:inset-y-0 data-[side=left]:left-0 data-[side=left]:h-full data-[side=left]:w-3/4 data-[side=left]:border-r data-[side=left]:data-ending-style:translate-x-[-2.5rem] data-[side=left]:data-starting-style:translate-x-[-2.5rem] data-[side=right]:inset-y-0 data-[side=right]:right-0 data-[side=right]:h-full data-[side=right]:w-3/4 data-[side=right]:border-l data-[side=right]:data-ending-style:translate-x-[2.5rem] data-[side=right]:data-starting-style:translate-x-[2.5rem] data-[side=top]:inset-x-0 data-[side=top]:top-0 data-[side=top]:h-auto data-[side=top]:border-b data-[side=top]:data-ending-style:translate-y-[-2.5rem] data-[side=top]:data-starting-style:translate-y-[-2.5rem] data-[side=left]:sm:max-w-sm data-[side=right]:sm:max-w-sm",
+          "fixed z-50 flex flex-col gap-4 bg-popover bg-clip-padding text-sm text-popover-foreground shadow-lg data-[side=bottom]:inset-x-0 data-[side=bottom]:bottom-0 data-[side=bottom]:h-auto data-[side=bottom]:rounded-t-xl data-[side=bottom]:border-t data-[side=left]:inset-y-0 data-[side=left]:left-0 data-[side=left]:h-full data-[side=left]:w-3/4 data-[side=left]:border-r data-[side=right]:inset-y-0 data-[side=right]:right-0 data-[side=right]:h-full data-[side=right]:w-3/4 data-[side=right]:border-l data-[side=top]:inset-x-0 data-[side=top]:top-0 data-[side=top]:h-auto data-[side=top]:border-b data-[side=left]:sm:max-w-sm data-[side=right]:sm:max-w-sm",
           className
+        )}
+        render={(rawPopupProps, state) => (
+          <motion.div
+            {...omitNativeMotionConflicts(rawPopupProps)}
+            initial="hidden"
+            animate={state.open ? "visible" : "hidden"}
+            variants={variants}
+            transition={transition}
+            onAnimationComplete={(definition) => {
+              if (definition === "hidden") actionsRef?.current?.unmount()
+            }}
+          />
         )}
         {...props}
       >
+        {side === "bottom" && (
+          <div
+            aria-hidden="true"
+            data-slot="sheet-handle"
+            // Visual affordance only — no drag yet (Stage 2C). aria-hidden
+            // and no interactive role/cursor on purpose, so it doesn't
+            // imply functionality that isn't there yet.
+            className="mx-auto mt-2 h-1 w-9 shrink-0 rounded-full bg-muted-foreground/25"
+          />
+        )}
         {children}
         {showCloseButton && (
           <SheetPrimitive.Close

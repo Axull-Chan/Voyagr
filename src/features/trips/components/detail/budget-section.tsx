@@ -8,14 +8,21 @@ import { Button } from "@/components/ui/button"
 import {
   Dialog,
   DialogContent,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet"
 import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { Progress, ProgressTrack, ProgressIndicator } from "@/components/ui/progress"
+import { useIsMobile } from "@/hooks/use-mobile"
+import { useDialogTriggerOrigin } from "@/hooks/use-dialog-trigger-origin"
 import { WizardField } from "@/features/trips/components/wizard/wizard-field"
 import {
   addExpenseAction,
@@ -87,6 +94,8 @@ export function BudgetSection({
   const [dialogOpen, setDialogOpen] = useState(false)
   const [form, setForm] = useState<ExpenseFormState>(() => emptyForm(currency))
   const [formError, setFormError] = useState<string | null>(null)
+  const isMobile = useIsMobile()
+  const { origin, captureOrigin } = useDialogTriggerOrigin()
 
   const planned = budget.reduce((sum, row) => sum + Number(row.planned_amount), 0)
 
@@ -171,6 +180,94 @@ export function BudgetSection({
     })
   }
 
+  // Shared by both the desktop Dialog and the mobile Sheet below — only the
+  // presentation container differs, never the form/data-flow itself.
+  const expenseForm = (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <WizardField label="Category">
+        {({ controlId }) => (
+          <Select
+            id={controlId}
+            value={form.category}
+            onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))}
+          >
+            {BUDGET_CATEGORIES.map((c) => (
+              <option key={c.value} value={c.value}>
+                {c.label}
+              </option>
+            ))}
+          </Select>
+        )}
+      </WizardField>
+
+      <div className="grid grid-cols-2 gap-3">
+        <WizardField label="Amount">
+          {({ controlId }) => (
+            <Input
+              id={controlId}
+              type="number"
+              min="0.01"
+              step="0.01"
+              value={form.amount}
+              onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))}
+              required
+            />
+          )}
+        </WizardField>
+        <WizardField label="Currency">
+          {({ controlId }) => (
+            <Select
+              id={controlId}
+              value={form.currency}
+              onChange={(e) => setForm((f) => ({ ...f, currency: e.target.value }))}
+            >
+              {CURRENCIES.map((c) => (
+                <option key={c.value} value={c.value}>
+                  {c.value}
+                </option>
+              ))}
+            </Select>
+          )}
+        </WizardField>
+      </div>
+
+      <WizardField label="Date">
+        {({ controlId }) => (
+          <Input
+            id={controlId}
+            type="date"
+            value={form.expenseDate}
+            onChange={(e) => setForm((f) => ({ ...f, expenseDate: e.target.value }))}
+            required
+          />
+        )}
+      </WizardField>
+
+      <WizardField label="Description" hint="Optional">
+        {({ controlId }) => (
+          <Textarea
+            id={controlId}
+            value={form.description}
+            onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+            rows={2}
+          />
+        )}
+      </WizardField>
+
+      {formError ? (
+        <p role="alert" className="text-sm text-destructive">
+          {formError}
+        </p>
+      ) : null}
+
+      <div className="flex justify-end pt-2">
+        <Button type="submit" disabled={isPending}>
+          {isPending ? "Saving…" : form.id ? "Save changes" : "Add expense"}
+        </Button>
+      </div>
+    </form>
+  )
+
   return (
     <section aria-labelledby="budget-heading">
       <div className="mb-3 flex items-center justify-between gap-3">
@@ -178,7 +275,14 @@ export function BudgetSection({
           <Wallet aria-hidden="true" className="size-4 text-primary" />
           Budget
         </h2>
-        <Button size="sm" variant="outline" onClick={openAdd}>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={(event) => {
+            captureOrigin(event)
+            openAdd()
+          }}
+        >
           <Plus aria-hidden="true" className="size-4" />
           Add expense
         </Button>
@@ -303,7 +407,10 @@ export function BudgetSection({
                       size="icon-sm"
                       variant="ghost"
                       aria-label={`Edit expense: ${expense.description || CATEGORY_LABEL.get(expense.category)}`}
-                      onClick={() => openEdit(expense)}
+                      onClick={(event) => {
+                        captureOrigin(event)
+                        openEdit(expense)
+                      }}
                     >
                       <Pencil aria-hidden="true" className="size-3.5" />
                     </Button>
@@ -324,96 +431,25 @@ export function BudgetSection({
         </div>
       </div>
 
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{form.id ? "Edit expense" : "Add expense"}</DialogTitle>
-          </DialogHeader>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <WizardField label="Category">
-              {({ controlId }) => (
-                <Select
-                  id={controlId}
-                  value={form.category}
-                  onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))}
-                >
-                  {BUDGET_CATEGORIES.map((c) => (
-                    <option key={c.value} value={c.value}>
-                      {c.label}
-                    </option>
-                  ))}
-                </Select>
-              )}
-            </WizardField>
-
-            <div className="grid grid-cols-2 gap-3">
-              <WizardField label="Amount">
-                {({ controlId }) => (
-                  <Input
-                    id={controlId}
-                    type="number"
-                    min="0.01"
-                    step="0.01"
-                    value={form.amount}
-                    onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))}
-                    required
-                  />
-                )}
-              </WizardField>
-              <WizardField label="Currency">
-                {({ controlId }) => (
-                  <Select
-                    id={controlId}
-                    value={form.currency}
-                    onChange={(e) => setForm((f) => ({ ...f, currency: e.target.value }))}
-                  >
-                    {CURRENCIES.map((c) => (
-                      <option key={c.value} value={c.value}>
-                        {c.value}
-                      </option>
-                    ))}
-                  </Select>
-                )}
-              </WizardField>
-            </div>
-
-            <WizardField label="Date">
-              {({ controlId }) => (
-                <Input
-                  id={controlId}
-                  type="date"
-                  value={form.expenseDate}
-                  onChange={(e) => setForm((f) => ({ ...f, expenseDate: e.target.value }))}
-                  required
-                />
-              )}
-            </WizardField>
-
-            <WizardField label="Description" hint="Optional">
-              {({ controlId }) => (
-                <Textarea
-                  id={controlId}
-                  value={form.description}
-                  onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
-                  rows={2}
-                />
-              )}
-            </WizardField>
-
-            {formError ? (
-              <p role="alert" className="text-sm text-destructive">
-                {formError}
-              </p>
-            ) : null}
-
-            <DialogFooter>
-              <Button type="submit" disabled={isPending}>
-                {isPending ? "Saving…" : form.id ? "Save changes" : "Add expense"}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+      {isMobile ? (
+        <Sheet open={dialogOpen} onOpenChange={setDialogOpen}>
+          <SheetContent side="bottom">
+            <SheetHeader>
+              <SheetTitle>{form.id ? "Edit expense" : "Add expense"}</SheetTitle>
+            </SheetHeader>
+            <div className="px-4 pb-4">{expenseForm}</div>
+          </SheetContent>
+        </Sheet>
+      ) : (
+        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+          <DialogContent origin={origin}>
+            <DialogHeader>
+              <DialogTitle>{form.id ? "Edit expense" : "Add expense"}</DialogTitle>
+            </DialogHeader>
+            {expenseForm}
+          </DialogContent>
+        </Dialog>
+      )}
     </section>
   )
 }
