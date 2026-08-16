@@ -133,7 +133,16 @@ export default async function TripDetailPage({ params }: TripDetailPageProps) {
         )
       : null
 
-  /** Live reading for a date, else the snapshot taken at planning time. */
+  /**
+   * Live reading for a date, else the snapshot taken at planning time.
+   *
+   * The stored snapshot's own `source` column matters here, not just whether
+   * it's fresh: `"open-meteo"` was a real reading at creation time (just not
+   * refetched since), `"mock"` (the deterministic provider's fallback) and
+   * `"unavailable"` (Gemini/OpenAI's fallback) were never readings at all —
+   * see the `DayForecast.provenance` doc comment in day-timeline.tsx for why
+   * that distinction has to survive to the label, not just the freshness one.
+   */
   function forecastFor(day: (typeof days)[number]): DayForecast | null {
     const fresh = day.date ? liveWeather?.data.byDate[day.date] : undefined
     if (fresh) {
@@ -146,7 +155,7 @@ export default async function TripDetailPage({ params }: TripDetailPageProps) {
         humidity: fresh.humidity,
         sunrise: fresh.sunrise,
         sunset: fresh.sunset,
-        isLive: true,
+        provenance: "live",
       }
     }
     const stored = day.weather
@@ -160,9 +169,17 @@ export default async function TripDetailPage({ params }: TripDetailPageProps) {
       humidity: stored.humidity,
       sunrise: stored.sunrise,
       sunset: stored.sunset,
-      isLive: false,
+      provenance:
+        stored.source === "open-meteo"
+          ? "planning-real"
+          : stored.source === "unavailable"
+            ? "unavailable"
+            : "planning-modelled",
     }
   }
+
+  const hasAsideContent =
+    hotels.length > 0 || transportation.length > 0 || Boolean(trip.additional_notes)
 
   return (
     <Reveal mode="mount" className="space-y-6">
@@ -183,7 +200,13 @@ export default async function TripDetailPage({ params }: TripDetailPageProps) {
         <TripHero trip={trip} nights={nights} />
       </RevealItem>
 
-      <div className="grid gap-6 lg:grid-cols-[1fr_20rem] lg:items-start">
+      <div
+        className={
+          hasAsideContent
+            ? "grid gap-6 lg:grid-cols-[1fr_20rem] lg:items-start"
+            : "grid gap-6"
+        }
+      >
         <div className="min-w-0 space-y-6">
           {markers.length > 0 ? (
             <RevealItem>
@@ -199,7 +222,7 @@ export default async function TripDetailPage({ params }: TripDetailPageProps) {
               Day by day
             </h2>
             {days.length > 0 ? (
-              <div className="space-y-4">
+              <div className="divide-y divide-border">
                 {days.map((day) => (
                   <DayTimeline
                     key={day.id}
@@ -237,24 +260,24 @@ export default async function TripDetailPage({ params }: TripDetailPageProps) {
           </RevealItem>
         </div>
 
-        <aside className="space-y-4 lg:sticky lg:top-20">
-          <RevealItem>
-            <StaysPanel hotels={hotels} currency={trip.currency} />
-          </RevealItem>
-          <RevealItem>
-            <TransportPanel legs={transportation} currency={trip.currency} />
-          </RevealItem>
-          {trip.additional_notes ? (
+        {hasAsideContent ? (
+          <aside className="lg:sticky lg:top-20">
             <RevealItem>
-              <section className="rounded-xl border border-border bg-card p-5">
-                <h2 className="text-sm font-semibold text-foreground">Your notes</h2>
-                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                  {trip.additional_notes}
-                </p>
-              </section>
+              <div className="divide-y divide-border rounded-xl border border-border bg-card/60">
+                <StaysPanel hotels={hotels} currency={trip.currency} />
+                <TransportPanel legs={transportation} currency={trip.currency} />
+                {trip.additional_notes ? (
+                  <div className="p-5">
+                    <h2 className="text-sm font-semibold text-foreground">Your notes</h2>
+                    <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                      {trip.additional_notes}
+                    </p>
+                  </div>
+                ) : null}
+              </div>
             </RevealItem>
-          ) : null}
-        </aside>
+          </aside>
+        ) : null}
       </div>
     </Reveal>
   )

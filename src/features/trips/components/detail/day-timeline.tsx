@@ -28,8 +28,22 @@ export interface DayForecast {
   humidity: number | null
   sunrise: string | null
   sunset: string | null
-  /** True when refetched now rather than read from the creation snapshot. */
-  isLive: boolean
+  /**
+   * `"live"` — refetched just now, a real current reading.
+   * `"planning-real"` — the creation-time snapshot, itself a real Open-Meteo
+   * reading (just not fresh).
+   * `"planning-modelled"` — the creation-time snapshot, but the date was
+   * already beyond Open-Meteo's ~16-day horizon *then*, so this was never a
+   * reading at all — it's the destination's typical climate (the mock
+   * provider's fallback), not a forecast. Collapsing this into the same "at
+   * time of planning" label as the real snapshot would tell a user a number
+   * was once accurate when it never was.
+   * `"unavailable"` — beyond the horizon and no modelled fallback exists
+   * either (Gemini/OpenAI's fallback, which has no climate catalogue to
+   * model from) — every numeric field is null, `condition` is a plain
+   * placeholder string.
+   */
+  provenance: "live" | "planning-real" | "planning-modelled" | "unavailable"
 }
 
 const SLOT_LABEL: Record<TimeSlot | "unscheduled", string> = {
@@ -90,11 +104,11 @@ export function DayTimeline({
   return (
     <article
       id={`day-${day.dayNumber}`}
-      className="scroll-mt-20 rounded-xl border border-border bg-card p-5"
+      className="scroll-mt-20 py-6 first:pt-0"
     >
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h3 className="text-base font-semibold text-foreground">
+          <h3 className="text-day-heading text-foreground">
             Day {day.dayNumber}
           </h3>
           <p className="text-sm text-muted-foreground">{formatDayDate(day.date)}</p>
@@ -112,7 +126,7 @@ export function DayTimeline({
         <ol className="mt-5 space-y-5">
           {bySlot.map(({ slot, items }) => (
             <li key={slot}>
-              <p className="text-xs font-semibold tracking-[0.14em] text-primary uppercase">
+              <p className="text-eyebrow text-primary">
                 {SLOT_LABEL[slot]}
               </p>
               <ul className="mt-2 space-y-3">
@@ -135,11 +149,17 @@ export function DayTimeline({
                           <span>{formatDuration(activity.duration_minutes)}</span>
                         ) : null}
                         {activity.walking_distance_km ? (
-                          <span>{Number(activity.walking_distance_km)} km walk</span>
+                          // Straight-line distance between real coordinates, not a
+                          // routed one — "est." for the same reason the hotel rate
+                          // gets it: connected to real data, but not a measurement.
+                          <span>est. {Number(activity.walking_distance_km)} km walk</span>
                         ) : null}
                         {Number(activity.estimated_cost) > 0 ? (
+                          // No ticketing/pricing source is wired up — this is
+                          // the plan's own cost estimate, same "est." treatment
+                          // as the rest of the page gives a modelled number.
                           <span>
-                            {formatCurrency(Number(activity.estimated_cost), currency)}
+                            est. {formatCurrency(Number(activity.estimated_cost), currency)}
                           </span>
                         ) : (
                           <span>Free</span>
@@ -160,7 +180,7 @@ export function DayTimeline({
 
       {day.restaurants.length > 0 ? (
         <div className="mt-5 border-t border-border pt-4">
-          <p className="flex items-center gap-1.5 text-xs font-semibold tracking-[0.14em] text-muted-foreground uppercase">
+          <p className="text-eyebrow flex items-center gap-1.5 text-muted-foreground">
             <UtensilsCrossed aria-hidden="true" className="size-3.5" />
             Places to eat
           </p>
@@ -209,7 +229,15 @@ function WeatherChip({ forecast }: { forecast: DayForecast }) {
         "flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg bg-muted/60 px-3 py-2 text-xs text-muted-foreground"
       )}
     >
-      <span className="font-medium text-foreground">{forecast.condition}</span>
+      <span
+        className={
+          forecast.provenance === "unavailable"
+            ? "font-medium text-notice-foreground"
+            : "font-medium text-foreground"
+        }
+      >
+        {forecast.condition}
+      </span>
       {high !== null && low !== null ? (
         <span className="tabular-nums">
           {Math.round(low)}° / {Math.round(high)}°
@@ -245,12 +273,29 @@ function WeatherChip({ forecast }: { forecast: DayForecast }) {
           {forecast.sunset.slice(0, 5)}
         </span>
       ) : null}
-      {/* Says plainly whether this is today’s forecast or the reading taken
-          when the trip was created — the brief requires fallback data to be
-          identifiable rather than passed off as live. */}
-      <span className="text-[0.65rem] opacity-70">
-        {forecast.isLive ? "live forecast" : "at time of planning"}
-      </span>
+      {/* Four states, not two: a real snapshot that's just not fresh reads
+          very differently from a number that was never measured at all.
+          `--notice` only for the modelled case — that's the one where a
+          reasonable reader could mistake an estimate for a real reading.
+          "unavailable" skips this caption entirely: every numeric field
+          above is already null, and the condition text (coloured above)
+          already says there's nothing here — a second caption saying the
+          same thing again would just be noise. */}
+      {forecast.provenance !== "unavailable" ? (
+        <span
+          className={
+            forecast.provenance === "planning-modelled"
+              ? "text-[0.65rem] text-notice-foreground"
+              : "text-[0.65rem] opacity-70"
+          }
+        >
+          {forecast.provenance === "live"
+            ? "live forecast"
+            : forecast.provenance === "planning-real"
+              ? "at time of planning"
+              : "typical weather, not a forecast"}
+        </span>
+      ) : null}
     </div>
   )
 }

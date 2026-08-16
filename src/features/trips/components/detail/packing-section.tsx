@@ -135,7 +135,7 @@ export function PackingSection({
         <div className="space-y-5">
           {grouped.map(([category, categoryItems]) => (
             <div key={category}>
-              <h3 className="text-xs font-semibold tracking-[0.14em] text-muted-foreground uppercase">
+              <h3 className="text-eyebrow text-muted-foreground">
                 {category}
               </h3>
               <ul className="mt-2 space-y-1.5">

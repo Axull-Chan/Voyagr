@@ -108,8 +108,14 @@ export interface GeneratedRestaurant {
    * without a contract change.
    */
   rating: number | null
-  /** 1–4, the conventional "$" through "$$$$". */
-  priceLevel: number
+  /**
+   * 1–4 ("$" through "$$$$") when a real source gives one. Null today for
+   * every provider, same reasoning as `rating` just above: nothing here
+   * actually prices these venues, so a number would be exactly as invented
+   * as a star rating would be — found during the Stage 1 provenance audit,
+   * previously a `Math.random()`/seeded-RNG placeholder that looked real.
+   */
+  priceLevel: number | null
   distanceKm: number
   openingHours: string
   lat: number

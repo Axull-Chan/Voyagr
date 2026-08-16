@@ -188,19 +188,19 @@ export function BudgetSection({
         <dl className="grid grid-cols-2 gap-4 sm:grid-cols-4">
           <div>
             <dt className="text-xs text-muted-foreground">Budget</dt>
-            <dd className="text-lg font-semibold text-foreground tabular-nums">
+            <dd className="text-price text-lg text-foreground">
               {total ? formatCurrency(total, currency) : "—"}
             </dd>
           </div>
           <div>
             <dt className="text-xs text-muted-foreground">Planned</dt>
-            <dd className="text-lg font-semibold text-foreground tabular-nums">
+            <dd className="text-price text-lg text-foreground">
               {formatCurrency(planned, currency)}
             </dd>
           </div>
           <div>
             <dt className="text-xs text-muted-foreground">Spent</dt>
-            <dd className="text-lg font-semibold text-foreground tabular-nums">
+            <dd className="text-price text-lg text-foreground">
               {formatCurrency(spent, currency)}
             </dd>
             {showConversion ? (
@@ -212,7 +212,7 @@ export function BudgetSection({
           <div>
             <dt className="text-xs text-muted-foreground">Remaining</dt>
             <dd
-              className={`text-lg font-semibold tabular-nums ${remaining < 0 ? "text-destructive" : "text-foreground"}`}
+              className={`text-price text-lg ${remaining < 0 ? "text-destructive" : "text-foreground"}`}
             >
               {formatCurrency(remaining, currency)}
             </dd>
@@ -246,7 +246,7 @@ export function BudgetSection({
                     <dt className="text-muted-foreground">
                       {CATEGORY_LABEL.get(row.category) ?? row.category}
                     </dt>
-                    <dd className="font-medium text-foreground tabular-nums">
+                    <dd className="text-price text-foreground">
                       {formatCurrency(actualAmount, currency)}
                       <span className="ml-1 font-normal text-muted-foreground">
                         / {formatCurrency(plannedAmount, currency)}
@@ -269,61 +269,59 @@ export function BudgetSection({
         ) : (
           <p className="mt-4 text-sm text-muted-foreground">No budget breakdown yet.</p>
         )}
-      </div>
 
-      <div className="mt-4 rounded-xl border border-border bg-card p-5">
-        <h3 className="text-xs font-semibold tracking-[0.14em] text-muted-foreground uppercase">
-          Logged expenses
-        </h3>
-        {expenses.length === 0 ? (
-          <p className="mt-3 text-sm text-muted-foreground">
-            Nothing logged yet — add an expense to start tracking actual spend against the plan.
-          </p>
-        ) : (
-          <ul className="mt-3 divide-y divide-border">
-            {expenses.map((expense) => (
-              <li key={expense.id} className="flex items-start justify-between gap-3 py-3">
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-foreground">
-                    {CATEGORY_LABEL.get(expense.category) ?? expense.category}
-                    {expense.description ? (
-                      <span className="font-normal text-muted-foreground"> · {expense.description}</span>
-                    ) : null}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {new Intl.DateTimeFormat("en-GB", {
-                      day: "numeric",
-                      month: "short",
-                      year: "numeric",
-                    }).format(new Date(`${expense.expense_date}T00:00:00Z`))}
-                  </p>
-                </div>
-                <div className="flex shrink-0 items-center gap-2">
-                  <span className="text-sm font-medium text-foreground tabular-nums">
-                    {formatCurrency(Number(expense.amount), expense.currency)}
-                  </span>
-                  <Button
-                    size="icon-sm"
-                    variant="ghost"
-                    aria-label={`Edit expense: ${expense.description || CATEGORY_LABEL.get(expense.category)}`}
-                    onClick={() => openEdit(expense)}
-                  >
-                    <Pencil aria-hidden="true" className="size-3.5" />
-                  </Button>
-                  <Button
-                    size="icon-sm"
-                    variant="ghost"
-                    aria-label={`Delete expense: ${expense.description || CATEGORY_LABEL.get(expense.category)}`}
-                    disabled={isPending}
-                    onClick={() => handleDelete(expense.id)}
-                  >
-                    <Trash2 aria-hidden="true" className="size-3.5" />
-                  </Button>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
+        <div className="mt-5 border-t border-border pt-4">
+          <h3 className="text-eyebrow text-muted-foreground">Logged expenses</h3>
+          {expenses.length === 0 ? (
+            <p className="mt-3 text-sm text-muted-foreground">
+              Nothing logged yet — add an expense to start tracking actual spend against the plan.
+            </p>
+          ) : (
+            <ul className="mt-3 divide-y divide-border">
+              {expenses.map((expense) => (
+                <li key={expense.id} className="flex items-start justify-between gap-3 py-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-foreground">
+                      {CATEGORY_LABEL.get(expense.category) ?? expense.category}
+                      {expense.description ? (
+                        <span className="font-normal text-muted-foreground"> · {expense.description}</span>
+                      ) : null}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {new Intl.DateTimeFormat("en-GB", {
+                        day: "numeric",
+                        month: "short",
+                        year: "numeric",
+                      }).format(new Date(`${expense.expense_date}T00:00:00Z`))}
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <span className="text-price text-sm text-foreground">
+                      {formatCurrency(Number(expense.amount), expense.currency)}
+                    </span>
+                    <Button
+                      size="icon-sm"
+                      variant="ghost"
+                      aria-label={`Edit expense: ${expense.description || CATEGORY_LABEL.get(expense.category)}`}
+                      onClick={() => openEdit(expense)}
+                    >
+                      <Pencil aria-hidden="true" className="size-3.5" />
+                    </Button>
+                    <Button
+                      size="icon-sm"
+                      variant="ghost"
+                      aria-label={`Delete expense: ${expense.description || CATEGORY_LABEL.get(expense.category)}`}
+                      disabled={isPending}
+                      onClick={() => handleDelete(expense.id)}
+                    >
+                      <Trash2 aria-hidden="true" className="size-3.5" />
+                    </Button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       </div>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

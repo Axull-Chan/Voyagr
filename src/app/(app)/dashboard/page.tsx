@@ -35,7 +35,9 @@ export default async function DashboardPage() {
       : Promise.resolve({ data: null }),
     supabase
       .from("trips")
-      .select("id, title, destination, start_date, end_date, status, created_at")
+      .select(
+        "id, title, destination, start_date, end_date, status, created_at, cover_image_url, cover_image_credit_name"
+      )
       .order("created_at", { ascending: false }),
   ])
 

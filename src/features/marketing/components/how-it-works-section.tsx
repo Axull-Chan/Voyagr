@@ -99,9 +99,7 @@ export function HowItWorksSection() {
                 </span>
 
                 <RevealItem>
-                  <span className="text-xs font-semibold tracking-[0.18em] text-primary">
-                    {step.number}
-                  </span>
+                  <span className="text-eyebrow text-primary">{step.number}</span>
                   <h3 className="mt-2 text-base font-semibold text-foreground">
                     {step.title}
                   </h3>

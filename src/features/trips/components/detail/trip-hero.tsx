@@ -109,7 +109,7 @@ export function TripHero({ trip, nights }: TripHeroProps) {
           ) : null}
         </div>
 
-        <h1 className="text-2xl font-semibold tracking-tight text-balance text-foreground sm:text-3xl">
+        <h1 className="text-destination text-balance text-foreground">
           {trip.title}
         </h1>
 

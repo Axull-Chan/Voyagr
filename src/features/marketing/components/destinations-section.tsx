@@ -14,12 +14,10 @@ export function DestinationsSection() {
           one left edge; the rail's five cards still fit without scrolling. */}
       <Reveal mode="scroll" className="mx-auto max-w-5xl">
         <RevealItem>
-          <p className="text-xs font-medium tracking-[0.18em] text-muted-foreground uppercase">
-            Start with a city
-          </p>
+          <p className="text-eyebrow text-muted-foreground">Start with a city</p>
         </RevealItem>
         <RevealItem className="mt-4">
-          <h2 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
+          <h2 className="text-headline text-foreground">
             Somewhere in mind already?
           </h2>
         </RevealItem>

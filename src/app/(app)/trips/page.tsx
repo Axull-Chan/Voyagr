@@ -14,7 +14,9 @@ export default async function TripsPage() {
   const supabase = await createClient()
   const { data: trips } = await supabase
     .from("trips")
-    .select("id, title, destination, start_date, end_date, status")
+    .select(
+      "id, title, destination, start_date, end_date, status, cover_image_url, cover_image_credit_name"
+    )
     .order("created_at", { ascending: false })
 
   return (

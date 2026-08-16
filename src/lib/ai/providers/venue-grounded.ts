@@ -418,8 +418,10 @@ function mapDay(
         : "lunch",
       name: venue.name,
       cuisine: venue.kinds.includes("cafes") ? "Café" : "Local",
+      // Same as the mock provider's identical fix: nothing sourced here
+      // prices these venues, so a "$"–"$$$" reads as a claim nobody made.
       rating: null,
-      priceLevel: 1 + Math.floor(Math.random() * 3),
+      priceLevel: null,
       distanceKm: round(
         haversineKm(originPoint, { lat: venue.latitude, lng: venue.longitude }),
         1

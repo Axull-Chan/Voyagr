@@ -16,6 +16,19 @@ interface FeatureBlockProps {
  * headings made sense when each feature owned an entire screen, but at a
  * third of the width they would wrap to three or four lines each.
  *
+ * Deliberately off the shared type scale (globals.css), not an oversight:
+ * `text-destination`/`text-day-heading` are close in *size* to this h3's
+ * 18px, but both are named and reserved for a specific kind of content
+ * (destination names, itinerary day headings) this isn't — borrowing one
+ * for a generic feature title would blur what the token means everywhere
+ * else it's read. `text-headline` is the right *role* but starts at 1.5rem,
+ * which is exactly the wrap-to-three-lines problem above. And the
+ * description's role matches `text-supporting` conceptually ("supporting
+ * paragraph under a heading"), but that token was sized to pair with
+ * `text-headline`/`text-display` (1.5rem+), not this card's 18px h3 — used
+ * here it would shrink the heading/body size gap from ~4px to ~1px and
+ * flatten the hierarchy it's meant to support. Both stay hand-set.
+ *
  * `icon` is a pre-rendered element, not a component reference — the caller
  * is a Server Component, and a lucide component itself can't cross that
  * boundary; only serializable props or already-rendered elements can.

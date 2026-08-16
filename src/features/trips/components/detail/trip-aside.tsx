@@ -13,7 +13,7 @@ export function StaysPanel({
   if (hotels.length === 0) return null
 
   return (
-    <section className="rounded-xl border border-border bg-card p-5">
+    <section className="p-5">
       <h2 className="flex items-center gap-2 text-sm font-semibold text-foreground">
         <BedDouble aria-hidden="true" className="size-4 text-primary" />
         Where you&apos;re staying
@@ -40,9 +40,12 @@ export function StaysPanel({
             </p>
             {/* A real listing carries a real name and a real location; an
                 example carries neither, and saying which is which is the
-                difference between a suggestion and a claim about a business. */}
+                difference between a suggestion and a claim about a business.
+                `--notice` (not `--muted-foreground`) because this is
+                specifically an approximation/provenance caveat, the exact
+                case that token exists for. */}
             {hotel.source === "mock" ? (
-              <p className="mt-1 text-xs text-muted-foreground italic">
+              <p className="mt-1 text-xs text-notice-foreground italic">
                 An example stay for budgeting — not a real listing.
               </p>
             ) : null}
@@ -63,7 +66,7 @@ export function TransportPanel({
   if (legs.length === 0) return null
 
   return (
-    <section className="rounded-xl border border-border bg-card p-5">
+    <section className="p-5">
       <h2 className="flex items-center gap-2 text-sm font-semibold text-foreground">
         <Plane aria-hidden="true" className="size-4 text-primary" />
         Getting there and around
@@ -77,9 +80,15 @@ export function TransportPanel({
             <p className="text-xs text-muted-foreground capitalize">
               {[
                 leg.mode,
-                leg.duration_minutes ? `${Math.round(leg.duration_minutes / 60)} hr` : null,
+                // No flight-search or fare provider is wired up (see
+                // CLAUDE.md Phase 5/6 notes) — duration and cost are both a
+                // cost-index estimate, not a real fare, so both get the same
+                // "est." treatment as the hotel rate above.
+                leg.duration_minutes
+                  ? `est. ${Math.round(leg.duration_minutes / 60)} hr`
+                  : null,
                 Number(leg.cost) > 0
-                  ? formatCurrency(Number(leg.cost), currency)
+                  ? `est. ${formatCurrency(Number(leg.cost), currency)}`
                   : null,
               ]
                 .filter(Boolean)

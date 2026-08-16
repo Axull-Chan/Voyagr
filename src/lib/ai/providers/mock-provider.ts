@@ -234,12 +234,12 @@ function buildRestaurants(
       mealType: meal,
       name: `${cuisine} ${pick(rng, ["House", "Room", "Table", "Counter", "Kitchen"])} ${area}`,
       cuisine,
-      // An example restaurant has no diners behind it, so it has no rating —
-      // same reasoning as the hotel fallback below: an invented name is
-      // already a placeholder, but a specific star score reads as a claim
-      // about real satisfaction that nobody using this app actually gave.
+      // An example restaurant has no diners and no receipts behind it, so it
+      // gets no rating and no price level — same reasoning as the hotel
+      // fallback below: an invented name is already a placeholder, but a
+      // specific star score or "$$" reads as a claim nobody actually made.
       rating: null,
-      priceLevel: 1 + Math.floor(rng() * 4),
+      priceLevel: null,
       distanceKm: round(0.2 + rng() * 1.8, 1),
       openingHours:
         meal === "breakfast"
@@ -320,11 +320,13 @@ function buildHotel(
     nights,
     pricePerNight,
     totalCost: pricePerNight * nights,
-    rating: round(4 + rng() * 0.8, 1),
-    amenities: ["Wi-Fi", "Breakfast", "24h reception"].slice(
-      0,
-      2 + Math.floor(rng() * 2)
-    ),
+    // Same reasoning as the rating/amenities fix everywhere else a real
+    // venue is missing: an example listing has no guests and no amenities
+    // list behind it. This was the one remaining place in the codebase that
+    // still fabricated these for a *new* trip — found during the Stage 1
+    // final data-integrity audit, not just stale in already-stored rows.
+    rating: null,
+    amenities: [],
     lat: coords.lat,
     lng: coords.lng,
     isPrimary: true,
@@ -605,9 +607,11 @@ function buildRestaurantsFromVenues(
       // field is a popularity index, not a guest score, and this function
       // was inventing a plausible-looking star rating for a real, named
       // restaurant — publishing a review nobody wrote, same bug, just never
-      // caught because nothing in the UI renders it yet.
+      // caught because nothing in the UI renders it yet. `priceLevel` had
+      // the identical bug (a random 1–3, unrelated to anything OpenTripMap
+      // actually returns) — found in the Stage 1 provenance audit.
       rating: null,
-      priceLevel: 1 + Math.floor(rng() * 3),
+      priceLevel: null,
       distanceKm: round(venue.rating > 0 ? 0.4 + rng() * 1.6 : 0.8, 1),
       openingHours:
         meal === "breakfast"

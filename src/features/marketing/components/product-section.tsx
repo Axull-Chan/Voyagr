@@ -1,6 +1,5 @@
 import { Reveal, RevealItem } from "@/components/shared/reveal"
 import { HeroBackground } from "@/features/marketing/components/hero-background"
-import { HeroFloatingElements } from "@/features/marketing/components/hero-floating-elements"
 import { HeroMockupCard } from "@/features/marketing/components/hero-mockup-card"
 import { ProductHeadline } from "@/features/marketing/components/product-headline"
 
@@ -14,6 +13,11 @@ import { ProductHeadline } from "@/features/marketing/components/product-headlin
  * itself twice in a row. Its job now is the pace change from atmosphere to
  * concrete product, which is why the itinerary card sits beside the copy at
  * full size instead of under a stack of pitch.
+ *
+ * No floating flags here on purpose: the motif reads as a deliberate accent
+ * exactly because it only happens once on the page (see FeatureFloatingElements,
+ * further down) — repeating it at every section would make it wallpaper.
+ * `HeroBackground`'s ambient wash isn't the same thing and stays.
  */
 export function ProductSection() {
   return (
@@ -23,7 +27,6 @@ export function ProductSection() {
         className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_50%_0%,color-mix(in_oklch,var(--primary),transparent_88%),transparent_60%)]"
       />
       <HeroBackground />
-      <HeroFloatingElements />
       {/* `mode="scroll"`, not `"mount"`: this is below the fold now, so a
           mount-triggered entrance would play through while the reader is
           still up in the film and be over before they arrive. */}
@@ -36,14 +39,12 @@ export function ProductSection() {
       >
         <div>
           <RevealItem>
-            <p className="text-xs font-medium tracking-[0.18em] text-muted-foreground uppercase">
-              What you get
-            </p>
+            <p className="text-eyebrow text-muted-foreground">What you get</p>
           </RevealItem>
           <div className="mt-4">
             <ProductHeadline />
           </div>
-          <RevealItem className="mt-5 max-w-md text-base text-muted-foreground sm:text-lg">
+          <RevealItem className="text-supporting mt-5 max-w-md text-muted-foreground">
             A destination and a few preferences is all it takes. Voyagr fills
             in the mornings, the meals and the money — then keeps the whole
             thing in step when plans move.

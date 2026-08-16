@@ -20,7 +20,9 @@ export default function AuthLayout({
         </span>
         Voyagr
       </Link>
-      <div className="w-full max-w-sm">{children}</div>
+      {/* The brand link above is chrome, not content, so it stays outside
+          the landmark — this had no <main> at all before. */}
+      <main className="w-full max-w-sm">{children}</main>
     </div>
   )
 }

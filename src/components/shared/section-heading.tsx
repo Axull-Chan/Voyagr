@@ -13,11 +13,9 @@ export function SectionHeading({
 }: SectionHeadingProps) {
   return (
     <div className={cn("mx-auto max-w-xl text-center", className)}>
-      <h2 className="text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
-        {title}
-      </h2>
+      <h2 className="text-headline text-foreground">{title}</h2>
       {description && (
-        <p className="mt-3 text-base text-muted-foreground">{description}</p>
+        <p className="text-supporting mt-3 text-muted-foreground">{description}</p>
       )}
     </div>
   )

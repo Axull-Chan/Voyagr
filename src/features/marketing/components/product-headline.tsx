@@ -17,7 +17,7 @@ import { slideUp } from "@/lib/motion"
  */
 export function ProductHeadline() {
   return (
-    <h2 className="text-4xl font-semibold tracking-tight text-balance text-foreground sm:text-5xl">
+    <h2 className="text-display text-balance text-foreground">
       <motion.span variants={slideUp} className="block">
         Day two,
       </motion.span>

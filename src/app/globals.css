@@ -39,6 +39,9 @@
     --color-card: var(--card);
     --color-foreground: var(--foreground);
     --color-background: var(--background);
+    --color-notice: var(--notice);
+    --color-notice-foreground: var(--notice-foreground);
+    --color-notice-border: var(--notice-border);
     --radius-sm: calc(var(--radius) * 0.6);
     --radius-md: calc(var(--radius) * 0.8);
     --radius-lg: var(--radius);
@@ -76,6 +79,15 @@
     --border: oklch(0.922 0 0);
     --input: oklch(0.922 0 0);
     --ring: oklch(0.646 0.196 276.9);
+    /* One semantic addition, not a second accent: low-chroma warm amber,
+       reserved for "this is an approximation, not a verified fact" —
+       example listings, estimated prices, a forecast taken at planning time
+       rather than live. Deliberately far below --primary's chroma (0.262)
+       and --destructive's (0.245) so it never reads as urgent or competes
+       for attention; it should sit closer to muted than to alert. */
+    --notice: oklch(0.93 0.045 70);
+    --notice-foreground: oklch(0.38 0.09 55);
+    --notice-border: oklch(0.82 0.07 65);
     --chart-1: oklch(0.511 0.262 276.9);
     --chart-2: oklch(0.65 0.19 260);
     --chart-3: oklch(0.72 0.15 200);
@@ -111,6 +123,9 @@
     --border: oklch(1 0 0 / 10%);
     --input: oklch(1 0 0 / 15%);
     --ring: oklch(0.556 0.19 276.9);
+    --notice: oklch(0.27 0.045 60);
+    --notice-foreground: oklch(0.85 0.07 65);
+    --notice-border: oklch(0.4 0.07 60);
     --chart-1: oklch(0.673 0.182 276.9);
     --chart-2: oklch(0.7 0.16 260);
     --chart-3: oklch(0.75 0.13 200);
@@ -142,6 +157,65 @@
       scroll-behavior: auto;
     }
   }
+}
+
+/**
+ * Type scale — six roles, each fluid via `clamp()` rather than a fixed size
+ * plus `sm:`/`lg:` overrides.
+ *
+ * The problem this replaces: `tracking-tight` was applied as one flat
+ * −0.025em at every heading size from text-2xl through sm:text-5xl — the
+ * same number whether the text renders at 24px or 48px. Optical tracking
+ * should tighten *as* size grows (letters read too far apart at large sizes)
+ * and stay closer to zero for small/body text, per Apple's own typography
+ * guidance (WWDC 2020, "The Details of UI Typography"). A `clamp()` gives
+ * every viewport its own correct size in one declaration instead of a
+ * multi-breakpoint override, so the tracking is baked into the same rule.
+ *
+ * Six roles, matching the six places this actually shows up in the product:
+ * hero headlines, destination names, itinerary day headings, prices/stats,
+ * eyebrow metadata labels, and the supporting paragraph under a headline.
+ */
+@utility text-display {
+  font-size: clamp(2.25rem, 1.6rem + 2.6vw, 3.25rem);
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+  font-weight: 600;
+}
+@utility text-headline {
+  font-size: clamp(1.5rem, 1.3rem + 0.8vw, 2rem);
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  font-weight: 600;
+}
+@utility text-destination {
+  font-size: clamp(1.15rem, 1.05rem + 0.4vw, 1.5rem);
+  line-height: 1.2;
+  letter-spacing: -0.015em;
+  font-weight: 600;
+}
+@utility text-day-heading {
+  font-size: clamp(1rem, 0.95rem + 0.2vw, 1.15rem);
+  line-height: 1.3;
+  letter-spacing: -0.008em;
+  font-weight: 600;
+}
+@utility text-price {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.005em;
+  font-weight: 600;
+}
+@utility text-eyebrow {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+@utility text-supporting {
+  font-size: clamp(1rem, 0.95rem + 0.2vw, 1.1rem);
+  line-height: 1.6;
+  letter-spacing: 0;
+  font-weight: 400;
 }
 
 /**

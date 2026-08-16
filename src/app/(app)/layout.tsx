@@ -49,9 +49,11 @@ export default async function AppLayout({
             />
           )}
         </header>
-        <main className="flex-1">
+        {/* SidebarInset itself renders <main> (see sidebar.tsx) — this stays
+            a <div> so the page has exactly one <main> landmark, not two. */}
+        <div className="flex-1">
           <div className="mx-auto max-w-6xl px-6 py-8">{children}</div>
-        </main>
+        </div>
       </SidebarInset>
     </SidebarProvider>
   )
