@@ -37,6 +37,15 @@ export default async function AppLayout({
       <AppSidebar />
       <SidebarInset>
         <header className="sticky top-0 z-40 flex h-14 items-center gap-2 border-b border-border bg-background/80 px-4 backdrop-blur-md">
+          {/* Same technique as MarketingNavbar's own fade — a gradient tail
+              hanging below the header's box, moving with it since `sticky`
+              already gives it a containing block. This bar has no dark-hero
+              state to swap for, so it's the plain always-on version: no
+              scroll listener, no opacity toggle. */}
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-x-0 top-full h-20 bg-gradient-to-b from-background to-transparent"
+          />
           <SidebarTrigger />
           <Separator orientation="vertical" className="h-5" />
           <div className="flex-1" />

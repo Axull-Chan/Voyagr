@@ -242,7 +242,14 @@ function Sidebar({
         <div
           data-sidebar="sidebar"
           data-slot="sidebar-inner"
-          className="flex size-full flex-col bg-sidebar group-data-[variant=floating]:rounded-lg group-data-[variant=floating]:shadow-sm group-data-[variant=floating]:ring-1 group-data-[variant=floating]:ring-sidebar-border"
+          // Inset variant (the one Voyagr actually uses) gets no border at
+          // all elsewhere in this file — the rail was pure `bg-sidebar`
+          // negative space with no material edge of its own, unlike the
+          // content pane it sits beside (which already reads as raised via
+          // its own shadow). A hairline trailing-edge border, mirroring the
+          // side-aware pattern the default variant already uses two levels
+          // up, gives the rail a bounded surface instead of just a gutter.
+          className="flex size-full flex-col bg-sidebar group-data-[variant=floating]:rounded-lg group-data-[variant=floating]:shadow-sm group-data-[variant=floating]:ring-1 group-data-[variant=floating]:ring-sidebar-border group-data-[variant=inset]:group-data-[side=left]:border-r group-data-[variant=inset]:group-data-[side=right]:border-l group-data-[variant=inset]:border-sidebar-border"
         >
           {children}
         </div>

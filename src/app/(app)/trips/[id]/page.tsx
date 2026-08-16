@@ -263,7 +263,14 @@ export default async function TripDetailPage({ params }: TripDetailPageProps) {
         {hasAsideContent ? (
           <aside className="lg:sticky lg:top-20">
             <RevealItem>
-              <div className="divide-y divide-border rounded-xl border border-border bg-card/60">
+              {/* Deliberately not `bg-card` — every primary content section
+                  (map, day timeline, budget, packing) already uses that
+                  token, so this panel would just read as "another card of
+                  the same kind, slightly faded." `bg-muted`, already this
+                  codebase's recessed/secondary tone, plus a softer border
+                  gives it its own tier (a parallel structural layer, not a
+                  second content card) without a new token or any blur. */}
+              <div className="divide-y divide-border/60 rounded-xl border border-border/60 bg-muted/40">
                 <StaysPanel hotels={hotels} currency={trip.currency} />
                 <TransportPanel legs={transportation} currency={trip.currency} />
                 {trip.additional_notes ? (
