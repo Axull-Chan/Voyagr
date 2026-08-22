@@ -46,13 +46,24 @@
     --color-tertiary-foreground: var(--tertiary-foreground);
     --color-tertiary-subtle: var(--tertiary-subtle);
     --color-tertiary-subtle-foreground: var(--tertiary-subtle-foreground);
-    --radius-sm: calc(var(--radius) * 0.6);
-    --radius-md: calc(var(--radius) * 0.8);
-    --radius-lg: var(--radius);
-    --radius-xl: calc(var(--radius) * 1.4);
-    --radius-2xl: calc(var(--radius) * 1.8);
-    --radius-3xl: calc(var(--radius) * 2.2);
-    --radius-4xl: calc(var(--radius) * 2.6);
+    /* Shape scale — two bands, not a smooth ramp (DESIGN.md § Shapes).
+       `sm`–`lg` is the *operable* band at 2px: buttons, inputs, menu items,
+       tooltips, skeletons. `xl` and up is the *discrete object* band at 4px:
+       cards, the trip hero, image containers. Nothing in the product gets a
+       large radius any more, which is why 2xl/3xl/4xl collapse onto 4px
+       rather than continuing to grow — the tokens themselves enforce
+       "there is no soft-by-default corner here," so a component written
+       later can't reintroduce a 14px surface by reaching for `rounded-2xl`.
+
+       Dialog and Sheet are the deliberate exemption and do NOT read from
+       this scale — see --radius-overlay in `:root`. */
+    --radius-sm: 2px;
+    --radius-md: 2px;
+    --radius-lg: 2px;
+    --radius-xl: 4px;
+    --radius-2xl: 4px;
+    --radius-3xl: 4px;
+    --radius-4xl: 4px;
 
     /* Blue Hour palette — resolves only inside `.film-surface` (see the
        `.film-surface` block below), so these utilities are inert everywhere
@@ -109,7 +120,19 @@
     --chart-3: oklch(0.72 0.15 200);
     --chart-4: oklch(0.75 0.16 60);
     --chart-5: oklch(0.65 0.22 20);
-    --radius: 0.625rem;
+    /* Consumed only by Sonner's toast (see sonner.tsx) now that the shape
+       scale above is explicit rather than derived from this base. A toast is
+       a discrete floating object, so it takes the object radius. */
+    --radius: 4px;
+    /* Dialog and Sheet only. Deliberately NOT part of the --radius-* scale:
+       they're protected Stage 2B/2C infrastructure (drag-to-dismiss physics,
+       entrance/exit springs) and DESIGN.md scopes them out of the shape
+       system, so shrinking that scale must not reshape them as a side
+       effect. A panel that genuinely floats above the page is the one place
+       a softer corner still earns its keep. Read via an arbitrary value
+       (`rounded-[var(--radius-overlay)]`) rather than a @theme alias, so it
+       resolves as a real runtime custom property. */
+    --radius-overlay: 0.875rem;
     --sidebar: oklch(0.974 0.003 67.8);
     --sidebar-foreground: oklch(0.239 0.013 120.4);
     --sidebar-primary: oklch(0.399 0.048 205.5);

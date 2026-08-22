@@ -372,9 +372,13 @@ Depth is carried by three devices:
 
 ## Shapes
 
-Radius is small and hierarchical, not uniform: `2px` on anything you operate (buttons, inputs), `4px` on anything you look at as a discrete object (cards), `0` everywhere else, and the full pill (`9999px`) reserved for exactly one thing — the countdown badge, where the enclosed shape marks it as a different class of object (a signal, not content).
+Radius is small and hierarchical, not uniform: `2px` on anything you operate (buttons, inputs), `4px` on anything you look at as a discrete object (cards, the trip hero, image containers), and `0` everywhere else.
+
+`full` (`9999px`) is not a fourth step on that ramp — it means the shape is *genuinely circular or capsule*, where the radius isn't a style choice at all: avatars, map markers, status dots, progress tracks, the sheet's drag handle. Among things that could plausibly be either, the rule is narrow: **of the badges, only the countdown is a pill.** A status badge is content and takes the 2px operable radius; the countdown is a signal, and the enclosed shape is what marks it as a different class of object.
 
 This is a real departure from the current implementation, which defaults to a 14px radius (`rounded-xl`) on nearly everything — the single most common shape in the product today. Pulling every surface down to 0–4px is the shape-language half of "borders are earned, not default": a sharper, quieter geometry that reads as considered rather than soft-by-default.
+
+**Dialog and Sheet are exempt and keep their current 14px corners.** They're out of this system's scope (see Elevation & Depth), and they're the one place a softer, larger radius still earns its keep: a panel that genuinely floats above the page reads as a separate physical object, not a region of it. Implementations must give them a dedicated radius value rather than letting them inherit the shared scale, so that shrinking the scale can't reshape them by accident.
 
 ## Components
 

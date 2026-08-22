@@ -100,7 +100,10 @@ function DialogContent({
           // No more -translate-x/y-1/2 here — Framer Motion owns `transform`
           // on this element now (see the `x`/`y` in `style` below), and a
           // static Tailwind transform class would just get clobbered by it.
-          "fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] gap-4 rounded-xl bg-popover p-4 text-sm text-popover-foreground ring-1 ring-foreground/10 outline-none sm:max-w-sm",
+          // rounded-[var(--radius-overlay)], not rounded-xl: Dialog is
+          // exempt from the app's 0–4px shape scale (DESIGN.md § Shapes), so
+          // it reads a dedicated value that scale can't reach.
+          "fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] gap-4 rounded-[var(--radius-overlay)] bg-popover p-4 text-sm text-popover-foreground ring-1 ring-foreground/10 outline-none sm:max-w-sm",
           className
         )}
         render={(rawPopupProps, state) => (
@@ -173,7 +176,7 @@ function DialogFooter({
     <div
       data-slot="dialog-footer"
       className={cn(
-        "-mx-4 -mb-4 flex flex-col-reverse gap-2 rounded-b-xl border-t bg-muted/50 p-4 sm:flex-row sm:justify-end",
+        "-mx-4 -mb-4 flex flex-col-reverse gap-2 rounded-b-[var(--radius-overlay)] border-t bg-muted/50 p-4 sm:flex-row sm:justify-end",
         className
       )}
       {...props}
