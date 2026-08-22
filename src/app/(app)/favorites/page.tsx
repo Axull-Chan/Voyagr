@@ -2,7 +2,7 @@ import type { Metadata } from "next"
 import { Heart, MapPin } from "lucide-react"
 
 import { EmptyState } from "@/components/shared/empty-state"
-import { Reveal, RevealGroup, RevealItem } from "@/components/shared/reveal"
+import { Reveal, RevealItem } from "@/components/shared/reveal"
 import { Badge } from "@/components/ui/badge"
 import { createClient } from "@/lib/supabase/server"
 
@@ -24,28 +24,34 @@ export default async function FavoritesPage() {
         </p>
       </RevealItem>
 
+      {/* A saved place carries a name and a type — that's a list item, not a
+          comparable object, so it's a row separated by a rule rather than a
+          bordered box in a grid (DESIGN.md § Components: cards are reserved
+          for a trip in a grid of trips). The single column also lets a long
+          place name breathe instead of wrapping inside a third-width card.
+          The plain <ul> between Reveal and RevealItem is fine — Framer
+          propagates variants through context, not the DOM tree. */}
       {favorites && favorites.length > 0 ? (
-        <RevealGroup className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <ul className="divide-y divide-border border-t border-border">
           {favorites.map((favorite) => (
-            <RevealItem key={favorite.id}>
-              <div className="flex items-center gap-3 rounded-xl border border-border bg-card p-4">
-                <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/10">
-                  <MapPin aria-hidden="true" className="size-4 text-primary" />
-                </div>
-                <div>
-                  <p className="font-medium text-foreground">
-                    {favorite.name}
-                  </p>
-                  {favorite.type && (
-                    <Badge variant="outline" className="mt-1">
-                      {favorite.type}
-                    </Badge>
-                  )}
-                </div>
-              </div>
-            </RevealItem>
+            <li key={favorite.id}>
+              <RevealItem className="flex items-center gap-3 py-3">
+                <MapPin
+                  aria-hidden="true"
+                  className="size-4 shrink-0 text-primary"
+                />
+                <p className="min-w-0 flex-1 truncate font-medium text-foreground">
+                  {favorite.name}
+                </p>
+                {favorite.type && (
+                  <Badge variant="outline" className="shrink-0 capitalize">
+                    {favorite.type}
+                  </Badge>
+                )}
+              </RevealItem>
+            </li>
           ))}
-        </RevealGroup>
+        </ul>
       ) : (
         <RevealItem>
           <EmptyState

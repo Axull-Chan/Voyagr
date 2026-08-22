@@ -776,10 +776,28 @@ section in this file.
   (drag-to-dismiss physics, entrance/exit springs) — shrinking the shared
   `--radius-*` ramp to implement Shapes would silently reshape their
   corners as a side effect of a token change nobody asked to make there.
-  **Deferred**: the radius rollout needs component-scoped values (new,
-  narrowly-named custom properties applied directly to buttons/inputs/
-  TripCard) rather than a global ramp edit, so it can't touch Dialog/Sheet.
-  Not started.
+  **Resolved** in the follow-up commit, but not the way this note first
+  guessed. Adding narrow per-component properties to buttons/inputs/TripCard
+  would have left the *shared* ramp at its 14px-dominant values, so the next
+  component written with `rounded-2xl` would silently reintroduce exactly
+  the shape DESIGN.md exists to remove. The scale is the enforcement
+  mechanism, so the scale is what had to change. What made that safe was
+  noticing the existing class vocabulary already sorts itself into two
+  bands — `sm`/`md`/`lg` land on controls (button base is `rounded-lg`,
+  plus inputs, menu items, tooltips, skeleton) and `xl`/`2xl` land on
+  containers (Card, TripHero, image wrappers) — verified by grepping every
+  usage of each, not assumed. So `sm`–`lg` → 2px and `xl`+ → 4px re-scales
+  ~100 existing class names correctly without editing any of them, and
+  `2xl`/`3xl`/`4xl` collapse onto 4px rather than continuing to grow, so
+  there is no large radius left in the system to reach for. Dialog/Sheet
+  then get one dedicated `--radius-overlay` instead, which the scale can't
+  reach. **That property must live in `:root` and be read as an arbitrary
+  value (`rounded-[var(--radius-overlay)]`), not declared in `@theme
+  inline`** — per the bug directly above, an `@theme inline` entry exists
+  only at Tailwind's compile time and would resolve to nothing here.
+  Confirmed live: `--radius-lg` reads back as an empty string from
+  `getComputedStyle` while `--radius-overlay` correctly reads `0.875rem`,
+  which is the same distinction the font bug turned on.
 - **`tertiary` (Old Gold) is deliberately scarce — one job, the countdown
   badge — which meant it couldn't also cover the map's other three marker
   kinds.** `trip-map.tsx`'s `MARKER_STYLES` needs four *distinguishable*
@@ -818,12 +836,45 @@ section in this file.
   and `--chart-*` were deliberately left untouched — outside DESIGN.md's
   token scope, and `--chart-*` has zero live consumers in the codebase
   (`grep` confirmed), so retinting it would be ungrounded guessing.
-- **Not implemented / explicitly deferred**: the radius scale (see above),
-  and DESIGN.md's `card`→`row` conversions on content that shouldn't be
-  wrapped in a card at all (the favorites page's hand-rolled card row,
-  `budget-section.tsx`, `packing-section.tsx`). Both are real, scoped
-  follow-ups, not forgotten — flagged here rather than silently left
-  looking finished.
+- **`card`→`row` conversions**, done in a third commit. `budget-section.tsx`
+  and `packing-section.tsx` each dropped their outer
+  `rounded-xl border border-border bg-card p-5` wrapper for a plain
+  `border-t border-border pt-5` — a rule that divides rather than a box that
+  encloses. The favorites page went further: its grid of bordered boxes
+  became a single `<ul>` of divided rows, since a saved place carries only a
+  name and a type and was producing three columns of mostly-empty boxes.
+  Two things worth keeping from that one:
+  - **`RevealItem`/`RevealGroup` have no `render`/`as` prop** — they
+    hardcode `motion.div` and accept only `children` and `className`.
+    Reaching for Base UI's `render={<li />}` idiom there is a mistake; that
+    pattern belongs to the `useRender`-based primitives, not these. The fix
+    is a plain `<ul>`/`<li>` around a `RevealItem`, which works because
+    Framer propagates variants through React *context*, not the DOM tree —
+    so the intervening list elements are transparent to the stagger and the
+    shared primitive needs no new prop (its four other consumers stay
+    untouched).
+  - **`trips/[id]/loading.tsx` had to change in the same commit**, exactly
+    as the Phase 3C note below warns: two of its four skeleton blocks mirror
+    the budget and packing sections specifically, so leaving them as
+    enclosed boxes would have reintroduced the settle-shift the skeleton
+    exists to prevent. The other two blocks (day timeline, aside panels)
+    mirror content this pass didn't touch and were correctly left alone.
+- Verified live in the browser rather than from source: light and dark
+  mode on `/sign-up` (elevation inversion visible — the card panel is
+  lighter than the page in dark mode, darker in light mode, exactly as
+  DESIGN.md specifies), the marketing page's `text-display`/`text-headline`
+  elements post-fix, both new `bg-tertiary`/`bg-tertiary-subtle` Tailwind
+  utilities via computed-style probes (same `@theme inline` risk class as
+  the font-heading bug, checked for the same reason), and every band of the
+  new shape scale by reading computed `borderRadius` off probe elements —
+  buttons/inputs 2px, cards/hero 4px, Dialog/Sheet 14px, countdown pill.
+- **Not pixel-verified, and worth saying plainly**: everything behind the
+  auth wall — the countdown badge, the map markers, and the three
+  `card`→`row` conversions (`/favorites`, and budget/packing on
+  `/trips/[id]`). These are type-checked, lint-clean, structurally
+  reviewed, and their styling was confirmed via computed-style probes on
+  the login page, but no authenticated session existed in this pass to
+  render them with real data. Not claimed as visually confirmed.
 - Verified live in the browser rather than from source: light and dark
   mode on `/sign-up` (elevation inversion visible — the card panel is
   lighter than the page in dark mode, darker in light mode, exactly as

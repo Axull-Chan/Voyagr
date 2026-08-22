@@ -289,7 +289,11 @@ export function BudgetSection({
         </Button>
       </div>
 
-      <div className="rounded-xl border border-border bg-card p-5">
+      {/* Reference material, not a discrete object — so a hairline rule and
+          space, never a card around it (DESIGN.md § Elevation & Depth: rules
+          divide, they don't enclose). Cards are reserved for a trip in a
+          grid of trips. */}
+      <div className="border-t border-border pt-5">
         <dl className="grid grid-cols-2 gap-4 sm:grid-cols-4">
           <div>
             <dt className="text-xs text-muted-foreground">Budget</dt>

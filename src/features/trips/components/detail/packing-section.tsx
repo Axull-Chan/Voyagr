@@ -117,7 +117,10 @@ export function PackingSection({
         ) : null}
       </div>
 
-      <div className="rounded-xl border border-border bg-card p-5">
+      {/* Same treatment as the budget section: a checklist is reference
+          material you consult, not a discrete object you compare against
+          others, so it gets a rule and space rather than a card. */}
+      <div className="border-t border-border pt-5">
         {items.length > 0 ? (
           <div className="mb-5">
             <Progress value={percent} aria-label="Packing progress">
