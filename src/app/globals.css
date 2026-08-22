@@ -79,17 +79,37 @@
     /* Field Journal — see DESIGN.md. Paper-and-ink light theme: primary
        tokens use --primary-strong's AA-safe depth, never base Pine Blue
        (#587b7f measures 3.6:1 against both ends and can't carry text). */
+    /* Surface ladder — four material levels, each a real tonal step
+       (DESIGN.md § Elevation & Depth). Light mode reads as paper: the page
+       carries the least pigment, and depth increases *downward* in
+       lightness, so a card is a heavier paper stock laid on the page rather
+       than a box floating above it. Hue bends 68 → 81 and chroma rises
+       0.003 → 0.008 across the ramp so it reads as one material darkening,
+       not four unrelated greys.
+
+         page       0.974   the open canvas
+         sidebar    0.940   structural shell
+         muted      0.895   recessed regions (skeletons, tracks, wells)
+         card       0.859   raised content objects — the Neutral anchor
+
+       `popover` is deliberately *outside* this ladder: it floats, carries a
+       shadow, and so sits lighter than the page, which is how a lifted
+       surface behaves under light. */
     --background: oklch(0.974 0.003 67.8);
     --foreground: oklch(0.239 0.013 120.4);
     --card: oklch(0.859 0.008 80.7);
     --card-foreground: oklch(0.239 0.013 120.4);
-    --popover: oklch(0.859 0.008 80.7);
+    --popover: oklch(0.988 0.004 70);
     --popover-foreground: oklch(0.239 0.013 120.4);
     --primary: oklch(0.399 0.048 205.5);
     --primary-foreground: oklch(0.974 0.003 67.8);
+    /* A control fill, not a page surface — the only consumers are Button
+       and Badge. Stays on the Neutral anchor per DESIGN.md's
+       `button-secondary`, and never sits on a card, so it cannot collide
+       with `--card` sharing that value. */
     --secondary: oklch(0.859 0.008 80.7);
     --secondary-foreground: oklch(0.399 0.048 205.5);
-    --muted: oklch(0.859 0.008 80.7);
+    --muted: oklch(0.895 0.007 78);
     --muted-foreground: oklch(0.360 0.009 233.9);
     --accent: oklch(0.930 0.020 204.4);
     --accent-foreground: oklch(0.399 0.048 205.5);
@@ -133,11 +153,15 @@
        (`rounded-[var(--radius-overlay)]`) rather than a @theme alias, so it
        resolves as a real runtime custom property. */
     --radius-overlay: 0.875rem;
-    --sidebar: oklch(0.974 0.003 67.8);
+    --sidebar: oklch(0.940 0.005 74);
     --sidebar-foreground: oklch(0.239 0.013 120.4);
     --sidebar-primary: oklch(0.399 0.048 205.5);
     --sidebar-primary-foreground: oklch(0.974 0.003 67.8);
-    --sidebar-accent: oklch(0.930 0.020 204.4);
+    /* Deepened from the shared `--accent` value: the active nav item has to
+       read against the sidebar's own tone (0.940), not against the page, and
+       at the old 0.930 it would have been all but invisible once the sidebar
+       stopped being page-coloured. */
+    --sidebar-accent: oklch(0.892 0.032 204.4);
     --sidebar-accent-foreground: oklch(0.399 0.048 205.5);
     --sidebar-border: oklch(0.781 0.011 81.8);
     --sidebar-ring: oklch(0.399 0.048 205.5);
@@ -148,17 +172,32 @@
        not the light theme inverted (see DESIGN.md's "Dark mode" note under
        Colors). Card/popover/secondary/muted sit LIGHTER than the page here,
        not darker — elevation direction flips between themes on purpose. */
+    /* The same four material levels, with the step direction inverted: a
+       raised surface catches more lamplight than the leather around it, so
+       depth increases *upward* in lightness here. Hue holds at 52 (the
+       leather family) while chroma rises 0.024 → 0.032, so the ramp reads as
+       one material lifting rather than four separate browns.
+
+         page       0.180   the cover
+         sidebar    0.215   structural shell
+         muted      0.255   recessed regions
+         card       0.290   raised content objects — the Neutral Dark anchor
+         popover    0.325   floating, highest
+
+       Note popover is the *lightest* here and the lightest in light mode
+       too — it is always the most-lifted surface, which is the one rule
+       that does not flip between themes. */
     --background: oklch(0.180 0.024 52);
     --foreground: oklch(0.920 0.016 80);
     --card: oklch(0.290 0.030 52);
     --card-foreground: oklch(0.920 0.016 80);
-    --popover: oklch(0.290 0.030 52);
+    --popover: oklch(0.325 0.032 52);
     --popover-foreground: oklch(0.920 0.016 80);
     --primary: oklch(0.750 0.055 205);
     --primary-foreground: oklch(0.180 0.024 52);
     --secondary: oklch(0.290 0.030 52);
     --secondary-foreground: oklch(0.750 0.055 205);
-    --muted: oklch(0.290 0.030 52);
+    --muted: oklch(0.255 0.028 52);
     --muted-foreground: oklch(0.750 0.020 234);
     --accent: oklch(0.300 0.045 205);
     --accent-foreground: oklch(0.750 0.055 205);
@@ -174,11 +213,11 @@
     --chart-3: oklch(0.75 0.13 200);
     --chart-4: oklch(0.78 0.14 60);
     --chart-5: oklch(0.7 0.19 20);
-    --sidebar: oklch(0.180 0.024 52);
+    --sidebar: oklch(0.215 0.026 52);
     --sidebar-foreground: oklch(0.920 0.016 80);
     --sidebar-primary: oklch(0.750 0.055 205);
     --sidebar-primary-foreground: oklch(0.180 0.024 52);
-    --sidebar-accent: oklch(0.300 0.045 205);
+    --sidebar-accent: oklch(0.318 0.050 205);
     --sidebar-accent-foreground: oklch(0.750 0.055 205);
     --sidebar-border: oklch(0.360 0.028 52);
     --sidebar-ring: oklch(0.750 0.055 205);
@@ -264,6 +303,64 @@
   line-height: 1.6;
   letter-spacing: 0;
   font-weight: 400;
+}
+
+/**
+ * The remaining DESIGN.md type levels, named after the levels themselves
+ * rather than after a product role, so the vocabulary is complete and can be
+ * referenced directly from the spec.
+ *
+ * Values are taken verbatim from DESIGN.md's `typography` tokens — these are
+ * small levels (12–20px) where the fixed token value *is* the correct size at
+ * every viewport, so unlike the heading levels above they carry no `clamp()`.
+ * DESIGN.md's own note applies: the fixed px is the desktop anchor, and a
+ * fluid ramp is only warranted where the size would otherwise be wrong on a
+ * phone.
+ *
+ * Font families are read from the underlying next/font variables, never from
+ * the `@theme inline` aliases — an `@theme` alias only exists at Tailwind's
+ * compile time and silently resolves to the inherited font at runtime.
+ *
+ * Nothing is migrated onto these here; that is Stage 3B's job. This block
+ * only makes the vocabulary exist.
+ */
+@utility text-body-lead {
+  font-family: var(--font-fraunces);
+  font-size: 1.25rem;
+  line-height: 1.5;
+  font-weight: 400;
+}
+@utility text-label-md {
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  font-weight: 500;
+}
+@utility text-caption {
+  font-size: 0.75rem;
+  line-height: 1.4;
+  font-weight: 400;
+}
+@utility text-data-lg {
+  font-family: var(--font-mono);
+  font-size: 1.75rem;
+  line-height: 1.2;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+@utility text-data-md {
+  font-family: var(--font-mono);
+  font-size: 0.9375rem;
+  line-height: 1.45;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+@utility text-data-sm {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  line-height: 1.4;
+  letter-spacing: 0.02em;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
 }
 
 /**
