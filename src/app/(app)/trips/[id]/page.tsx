@@ -210,7 +210,7 @@ export default async function TripDetailPage({ params }: TripDetailPageProps) {
         <div className="min-w-0 space-y-6">
           {markers.length > 0 ? (
             <RevealItem>
-              <h2 className="mb-3 text-sm font-semibold text-foreground">
+              <h2 className="mb-3 text-destination text-foreground">
                 Everywhere you&apos;re going
               </h2>
               <LazyTripMap markers={markers} center={mapCentre} />
@@ -218,7 +218,7 @@ export default async function TripDetailPage({ params }: TripDetailPageProps) {
           ) : null}
 
           <RevealItem>
-            <h2 className="mb-3 text-sm font-semibold text-foreground">
+            <h2 className="mb-3 text-destination text-foreground">
               Day by day
             </h2>
             {days.length > 0 ? (
@@ -275,7 +275,7 @@ export default async function TripDetailPage({ params }: TripDetailPageProps) {
                 <TransportPanel legs={transportation} currency={trip.currency} />
                 {trip.additional_notes ? (
                   <div className="p-5">
-                    <h2 className="text-sm font-semibold text-foreground">Your notes</h2>
+                    <h2 className="text-day-heading text-foreground">Your notes</h2>
                     <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
                       {trip.additional_notes}
                     </p>

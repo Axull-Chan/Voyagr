@@ -137,7 +137,7 @@ export function TripHero({ trip, nights }: TripHeroProps) {
           <div className="flex items-center gap-1.5">
             <CalendarDays aria-hidden="true" className="size-4" />
             <dt className="sr-only">Dates</dt>
-            <dd>
+            <dd className="text-data-sm">
               {formatRange(trip.start_date, trip.end_date)}
               {nights > 0 ? ` · ${nights} night${nights === 1 ? "" : "s"}` : ""}
             </dd>
@@ -145,14 +145,14 @@ export function TripHero({ trip, nights }: TripHeroProps) {
           <div className="flex items-center gap-1.5">
             <Users aria-hidden="true" className="size-4" />
             <dt className="sr-only">Travellers</dt>
-            <dd>
+            <dd className="text-data-sm">
               {trip.travelers} traveller{trip.travelers === 1 ? "" : "s"}
             </dd>
           </div>
           {trip.budget ? (
             <div className="flex items-center gap-1.5">
               <dt className="sr-only">Budget</dt>
-              <dd>{formatCurrency(Number(trip.budget), trip.currency)}</dd>
+              <dd className="text-data-sm">{formatCurrency(Number(trip.budget), trip.currency)}</dd>
             </div>
           ) : null}
         </dl>

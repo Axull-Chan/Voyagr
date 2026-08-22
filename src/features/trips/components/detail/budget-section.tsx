@@ -272,7 +272,7 @@ export function BudgetSection({
   return (
     <section aria-labelledby="budget-heading">
       <div className="mb-3 flex items-center justify-between gap-3">
-        <h2 id="budget-heading" className="flex items-center gap-2 text-sm font-semibold text-foreground">
+        <h2 id="budget-heading" className="flex items-center gap-2 text-destination text-foreground">
           <Wallet aria-hidden="true" className="size-4 text-primary" />
           Budget
         </h2>
@@ -297,19 +297,19 @@ export function BudgetSection({
         <dl className="grid grid-cols-2 gap-4 sm:grid-cols-4">
           <div>
             <dt className="text-xs text-muted-foreground">Budget</dt>
-            <dd className="text-price text-lg text-foreground">
+            <dd className="text-data-md text-foreground">
               {total ? formatCurrency(total, currency) : "—"}
             </dd>
           </div>
           <div>
             <dt className="text-xs text-muted-foreground">Planned</dt>
-            <dd className="text-price text-lg text-foreground">
+            <dd className="text-data-md text-foreground">
               {formatCurrency(planned, currency)}
             </dd>
           </div>
           <div>
             <dt className="text-xs text-muted-foreground">Spent</dt>
-            <dd className="text-price text-lg text-foreground">
+            <dd className="text-data-md text-foreground">
               {formatCurrency(spent, currency)}
             </dd>
             {showConversion ? (
@@ -321,7 +321,7 @@ export function BudgetSection({
           <div>
             <dt className="text-xs text-muted-foreground">Remaining</dt>
             <dd
-              className={`text-price text-lg ${remaining < 0 ? "text-destructive" : "text-foreground"}`}
+              className={`text-data-md ${remaining < 0 ? "text-destructive" : "text-foreground"}`}
             >
               {formatCurrency(remaining, currency)}
             </dd>
@@ -355,7 +355,7 @@ export function BudgetSection({
                     <dt className="text-muted-foreground">
                       {CATEGORY_LABEL.get(row.category) ?? row.category}
                     </dt>
-                    <dd className="text-price text-foreground">
+                    <dd className="text-data-md text-foreground">
                       {formatCurrency(actualAmount, currency)}
                       <span className="ml-1 font-normal text-muted-foreground">
                         / {formatCurrency(plannedAmount, currency)}
@@ -392,13 +392,13 @@ export function BudgetSection({
                   <SwipeToDelete onDelete={() => handleDelete(expense.id)} disabled={isPending}>
                     <div className="flex items-start justify-between gap-3 py-3">
                       <div className="min-w-0">
-                        <p className="text-sm font-medium text-foreground">
+                        <p className="text-sm font-semibold text-foreground">
                           {CATEGORY_LABEL.get(expense.category) ?? expense.category}
                           {expense.description ? (
                             <span className="font-normal text-muted-foreground"> · {expense.description}</span>
                           ) : null}
                         </p>
-                        <p className="text-xs text-muted-foreground">
+                        <p className="text-data-sm text-muted-foreground">
                           {new Intl.DateTimeFormat("en-GB", {
                             day: "numeric",
                             month: "short",
@@ -407,7 +407,7 @@ export function BudgetSection({
                         </p>
                       </div>
                       <div className="flex shrink-0 items-center gap-2">
-                        <span className="text-price text-sm text-foreground">
+                        <span className="text-data-md text-foreground">
                           {formatCurrency(Number(expense.amount), expense.currency)}
                         </span>
                         <Button

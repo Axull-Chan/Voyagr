@@ -111,13 +111,19 @@ export function DayTimeline({
           <h3 className="text-day-heading text-foreground">
             Day {day.dayNumber}
           </h3>
-          <p className="text-sm text-muted-foreground">{formatDayDate(day.date)}</p>
+          <p className="text-data-sm text-muted-foreground">{formatDayDate(day.date)}</p>
         </div>
         {forecast ? <WeatherChip forecast={forecast} /> : null}
       </header>
 
+      {/* The day's narrative is Tier 3 — the reason the page exists — and
+          DESIGN.md calls it out by name: it was rendering as small muted sans,
+          visually indistinguishable from metadata. `text-body-lead` is the one
+          place serif carries body copy, and `max-w-prose` applies the 65ch
+          measure the spec asks for on text that is read rather than scanned.
+          Content, conditional rendering and spacing are unchanged. */}
       {day.summary ? (
-        <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
+        <p className="mt-3 max-w-prose text-body-lead text-foreground">
           {day.summary}
         </p>
       ) : null}
@@ -132,33 +138,33 @@ export function DayTimeline({
               <ul className="mt-2 space-y-3">
                 {items.map((activity) => (
                   <li key={activity.id} className="flex gap-3">
-                    <span className="w-12 shrink-0 pt-0.5 font-mono text-xs text-muted-foreground tabular-nums">
+                    <span className="w-12 shrink-0 pt-0.5 text-data-sm text-muted-foreground">
                       {clockTime(activity.start_time)}
                     </span>
                     <div className="min-w-0">
-                      <p className="text-sm font-medium text-foreground">
+                      <p className="text-sm font-semibold text-foreground">
                         {activity.title}
                       </p>
                       {activity.description ? (
-                        <p className="mt-0.5 text-sm leading-relaxed text-muted-foreground">
+                        <p className="mt-0.5 max-w-prose text-sm leading-relaxed text-muted-foreground">
                           {activity.description}
                         </p>
                       ) : null}
                       <p className="mt-1 flex flex-wrap gap-x-3 text-xs text-muted-foreground">
                         {activity.duration_minutes ? (
-                          <span>{formatDuration(activity.duration_minutes)}</span>
+                          <span className="text-data-sm">{formatDuration(activity.duration_minutes)}</span>
                         ) : null}
                         {activity.walking_distance_km ? (
                           // Straight-line distance between real coordinates, not a
                           // routed one — "est." for the same reason the hotel rate
                           // gets it: connected to real data, but not a measurement.
-                          <span>est. {Number(activity.walking_distance_km)} km walk</span>
+                          <span className="text-data-sm">est. {Number(activity.walking_distance_km)} km walk</span>
                         ) : null}
                         {Number(activity.estimated_cost) > 0 ? (
                           // No ticketing/pricing source is wired up — this is
                           // the plan's own cost estimate, same "est." treatment
                           // as the rest of the page gives a modelled number.
-                          <span>
+                          <span className="text-data-sm">
                             est. {formatCurrency(Number(activity.estimated_cost), currency)}
                           </span>
                         ) : (
@@ -187,7 +193,7 @@ export function DayTimeline({
           <ul className="mt-2 grid gap-2 sm:grid-cols-2">
             {day.restaurants.map((restaurant) => (
               <li key={restaurant.id} className="text-sm">
-                <span className="font-medium text-foreground">{restaurant.name}</span>
+                <span className="font-semibold text-foreground">{restaurant.name}</span>
                 <span className="block text-xs text-muted-foreground">
                   {[
                     restaurant.meal_type,
@@ -232,43 +238,43 @@ function WeatherChip({ forecast }: { forecast: DayForecast }) {
       <span
         className={
           forecast.provenance === "unavailable"
-            ? "font-medium text-notice-foreground"
-            : "font-medium text-foreground"
+            ? "font-semibold text-notice-foreground"
+            : "font-semibold text-foreground"
         }
       >
         {forecast.condition}
       </span>
       {high !== null && low !== null ? (
-        <span className="tabular-nums">
+        <span className="text-data-sm">
           {Math.round(low)}° / {Math.round(high)}°
         </span>
       ) : null}
       {forecast.precipitationChance !== null ? (
-        <span className="flex items-center gap-1">
+        <span className="flex items-center gap-1 text-data-sm">
           <CloudRain aria-hidden="true" className="size-3.5" />
           {forecast.precipitationChance}%
         </span>
       ) : null}
       {forecast.windKph !== null ? (
-        <span className="flex items-center gap-1">
+        <span className="flex items-center gap-1 text-data-sm">
           <Wind aria-hidden="true" className="size-3.5" />
           {Math.round(forecast.windKph)} km/h
         </span>
       ) : null}
       {forecast.humidity !== null ? (
-        <span className="flex items-center gap-1">
+        <span className="flex items-center gap-1 text-data-sm">
           <Droplets aria-hidden="true" className="size-3.5" />
           {forecast.humidity}%
         </span>
       ) : null}
       {forecast.sunrise ? (
-        <span className="flex items-center gap-1">
+        <span className="flex items-center gap-1 text-data-sm">
           <Sunrise aria-hidden="true" className="size-3.5" />
           {forecast.sunrise.slice(0, 5)}
         </span>
       ) : null}
       {forecast.sunset ? (
-        <span className="flex items-center gap-1">
+        <span className="flex items-center gap-1 text-data-sm">
           <Sunset aria-hidden="true" className="size-3.5" />
           {forecast.sunset.slice(0, 5)}
         </span>

@@ -30,7 +30,7 @@ export function EmptyState({
         </div>
       )}
       <div className="space-y-1">
-        <h3 className="text-sm font-medium text-foreground">{title}</h3>
+        <h3 className="text-day-heading text-foreground">{title}</h3>
         {description && (
           <p className="max-w-sm text-sm text-muted-foreground">
             {description}

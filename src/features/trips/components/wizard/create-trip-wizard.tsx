@@ -146,7 +146,7 @@ export function CreateTripWizard() {
       <Card>
         <CardContent className="space-y-6">
           <div className="space-y-1">
-            <h2 className="text-lg font-semibold text-foreground">
+            <h2 className="text-destination text-foreground">
               {step?.title}
             </h2>
             <p className="text-sm text-muted-foreground">{step?.description}</p>

@@ -94,7 +94,7 @@ export function TripCard({ trip }: { trip: Trip }) {
         <p className="truncate text-sm text-muted-foreground">
           {trip.destination}
         </p>
-        <div className="mt-auto flex items-center gap-1.5 pt-2 text-xs text-muted-foreground">
+        <div className="mt-auto flex items-center gap-1.5 pt-2 text-data-sm text-muted-foreground">
           <CalendarDays aria-hidden="true" className="size-3.5" />
           {formatDateRange(trip.start_date, trip.end_date)}
         </div>

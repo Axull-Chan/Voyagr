@@ -69,7 +69,7 @@ export default async function DashboardPage() {
   return (
     <Reveal mode="mount" className="space-y-8">
       <RevealItem>
-        <h1 className="text-2xl font-semibold text-foreground">
+        <h1 className="text-headline text-foreground">
           {firstName ? `Welcome back, ${firstName}` : "Your trips"}
         </h1>
         <p className="text-sm text-muted-foreground">
@@ -103,7 +103,7 @@ export default async function DashboardPage() {
       <RevealGroup className="grid gap-4 sm:grid-cols-2">
         <RevealItem className="flex items-center justify-between gap-3 rounded-xl border border-dashed border-border bg-muted/30 p-4">
           <div>
-            <p className="font-medium text-foreground">Plan a new trip</p>
+            <p className="font-semibold text-foreground">Plan a new trip</p>
             <p className="text-sm text-muted-foreground">
               AI builds the itinerary for you
             </p>
@@ -125,7 +125,7 @@ export default async function DashboardPage() {
             className="group flex items-center justify-between gap-3 rounded-xl border border-border bg-card p-4 transition-all duration-100 ease-out motion-reduce:transition-none hover:border-primary/40 hover:shadow-md focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none active:scale-[0.98]"
           >
             <div>
-              <p className="font-medium text-foreground">View all trips</p>
+              <p className="font-semibold text-foreground">View all trips</p>
               <p className="text-sm text-muted-foreground">
                 Browse everything you&apos;re planning
               </p>
@@ -149,7 +149,7 @@ export default async function DashboardPage() {
       ) : (
         <>
           <RevealItem className="space-y-3">
-            <h2 className="text-lg font-medium text-foreground">
+            <h2 className="text-destination text-foreground">
               Upcoming trips
             </h2>
             {upcomingTrips.length > 0 ? (
@@ -168,7 +168,7 @@ export default async function DashboardPage() {
           </RevealItem>
 
           <RevealItem className="space-y-3">
-            <h2 className="text-lg font-medium text-foreground">
+            <h2 className="text-destination text-foreground">
               Recent trips
             </h2>
             <RevealGroup className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

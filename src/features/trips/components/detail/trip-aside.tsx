@@ -14,18 +14,18 @@ export function StaysPanel({
 
   return (
     <section className="p-5">
-      <h2 className="flex items-center gap-2 text-sm font-semibold text-foreground">
+      <h2 className="flex items-center gap-2 text-day-heading text-foreground">
         <BedDouble aria-hidden="true" className="size-4 text-primary" />
         Where you&apos;re staying
       </h2>
       <ul className="mt-3 space-y-3">
         {hotels.map((hotel) => (
           <li key={hotel.id}>
-            <p className="text-sm font-medium text-foreground">{hotel.name}</p>
+            <p className="text-sm font-semibold text-foreground">{hotel.name}</p>
             {hotel.address ? (
               <p className="text-xs text-muted-foreground">{hotel.address}</p>
             ) : null}
-            <p className="mt-0.5 text-xs text-muted-foreground">
+            <p className="mt-0.5 text-data-sm text-muted-foreground">
               {[
                 hotel.nights ? `${hotel.nights} nights` : null,
                 // Marked as an estimate even for a real listing: the nightly
@@ -67,17 +67,17 @@ export function TransportPanel({
 
   return (
     <section className="p-5">
-      <h2 className="flex items-center gap-2 text-sm font-semibold text-foreground">
+      <h2 className="flex items-center gap-2 text-day-heading text-foreground">
         <Plane aria-hidden="true" className="size-4 text-primary" />
         Getting there and around
       </h2>
       <ul className="mt-3 space-y-3">
         {legs.map((leg) => (
           <li key={leg.id}>
-            <p className="text-sm font-medium text-foreground">
+            <p className="text-sm font-semibold text-foreground">
               {leg.from_location} → {leg.to_location}
             </p>
-            <p className="text-xs text-muted-foreground capitalize">
+            <p className="text-data-sm text-muted-foreground capitalize">
               {[
                 leg.mode,
                 // No flight-search or fare provider is wired up (see

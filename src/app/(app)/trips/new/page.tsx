@@ -21,7 +21,7 @@ export default function NewTripPage() {
           <ArrowLeft aria-hidden="true" className="size-4" />
           All trips
         </Link>
-        <h1 className="mt-3 text-2xl font-semibold text-foreground">
+        <h1 className="mt-3 text-headline text-foreground">
           Plan a new trip
         </h1>
         <p className="text-sm text-muted-foreground">

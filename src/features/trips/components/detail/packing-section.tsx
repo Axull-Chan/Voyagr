@@ -105,13 +105,13 @@ export function PackingSection({
       <div className="mb-3 flex items-center justify-between gap-3">
         <h2
           id="packing-heading"
-          className="flex items-center gap-2 text-sm font-semibold text-foreground"
+          className="flex items-center gap-2 text-destination text-foreground"
         >
           <Backpack aria-hidden="true" className="size-4 text-primary" />
           Packing
         </h2>
         {items.length > 0 ? (
-          <p className="text-xs text-muted-foreground">
+          <p className="text-data-sm text-muted-foreground">
             {packedCount} / {items.length} packed
           </p>
         ) : null}
@@ -128,7 +128,7 @@ export function PackingSection({
                 <ProgressIndicator />
               </ProgressTrack>
             </Progress>
-            <p className="mt-1 text-xs text-muted-foreground">{percent}% packed</p>
+            <p className="mt-1 text-data-sm text-muted-foreground">{percent}% packed</p>
           </div>
         ) : (
           <p className="mb-5 text-sm text-muted-foreground">

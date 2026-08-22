@@ -18,7 +18,7 @@ export default async function FavoritesPage() {
   return (
     <Reveal mode="mount" className="space-y-6">
       <RevealItem>
-        <h1 className="text-2xl font-semibold text-foreground">Favorites</h1>
+        <h1 className="text-headline text-foreground">Favorites</h1>
         <p className="text-sm text-muted-foreground">
           Places you&apos;ve saved from your trips.
         </p>
@@ -40,7 +40,7 @@ export default async function FavoritesPage() {
                   aria-hidden="true"
                   className="size-4 shrink-0 text-primary"
                 />
-                <p className="min-w-0 flex-1 truncate font-medium text-foreground">
+                <p className="min-w-0 flex-1 truncate font-semibold text-foreground">
                   {favorite.name}
                 </p>
                 {favorite.type && (

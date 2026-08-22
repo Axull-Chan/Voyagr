@@ -29,7 +29,7 @@ export function ErrorState({
         <AlertTriangle aria-hidden="true" className="size-6 text-destructive" />
       </div>
       <div className="space-y-1">
-        <h3 className="text-sm font-medium text-foreground">{title}</h3>
+        <h3 className="text-day-heading text-foreground">{title}</h3>
         <p className="max-w-sm text-sm text-muted-foreground">
           {description}
         </p>
