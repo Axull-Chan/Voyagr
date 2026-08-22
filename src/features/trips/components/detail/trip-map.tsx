@@ -39,12 +39,21 @@ interface TripMapProps {
 // worker pool is only built when the first one is.
 setWorkerUrl("/maplibre/maplibre-gl-worker.mjs")
 
-/** Marker colours by role, so the legend and pins can't drift apart. */
+/**
+ * Marker colours by role, so the legend and pins can't drift apart.
+ *
+ * Field Journal palette (DESIGN.md's map-marker-* components): destination
+ * reuses --primary (Pine Blue, the system's identity colour), the other
+ * three are a dedicated small set — not a second job for --tertiary, which
+ * DESIGN.md reserves for the trip countdown badge alone. These are fixed
+ * hex, not theme tokens: a map pin has to stay legible against whatever a
+ * tile provider paints under it, unrelated to page light/dark mode.
+ */
 const MARKER_STYLES: Record<MapMarker["kind"], { color: string; label: string }> = {
-  destination: { color: "#6366f1", label: "Destination" },
-  hotel: { color: "#0ea5e9", label: "Stay" },
-  restaurant: { color: "#f59e0b", label: "Food" },
-  activity: { color: "#10b981", label: "Activity" },
+  destination: { color: "#587b7f", label: "Destination" },
+  hotel: { color: "#A6567E", label: "Stay" },
+  restaurant: { color: "#BF6F33", label: "Food" },
+  activity: { color: "#3D865A", label: "Activity" },
 }
 
 /**

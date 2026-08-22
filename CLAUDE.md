@@ -720,6 +720,122 @@ kept and moved directly below the film as the product introduction.
   an already-resized tab (renders the page into a small corner, or blank at
   non-zero scroll). Fresh tab, navigate, resize once, then capture.
 
+## Field Journal — design system (DESIGN.md + foundation implementation)
+
+An out-of-sequence, user-requested pass: a Stage 3A read-only visual audit
+(diagnosing the app as generic-AI-dashboard-feeling — indigo-violet primary,
+`rounded-xl` on 37+ elements, cards wrapping everything) fed into the
+[`design-md-planner`](https://github.com/ailabs-393/design-md-planner) skill,
+which produced `DESIGN.md` at the project root — a Google-format design
+token file, lint-clean (`npx @google/design.md lint`), covering colors,
+typography, layout, elevation, shapes, and 33 components for both light and
+dark themes. The direction is **Field Journal**: paper-and-ink light theme
+(Pine Blue primary, from the user's own coolors.co palette), leather-and-
+lamplight dark theme (a from-scratch second derivation, not an inversion —
+see DESIGN.md's own "Dark mode" note under Colors). This section covers the
+*implementation* half — what changed in the codebase, and what it cost to
+get right. Read `DESIGN.md` itself for the token values and design rationale;
+this is the engineering-gotchas record, in the same spirit as every other
+section in this file.
+
+- **`@theme inline` aliases don't emit a real runtime custom property —
+  only Tailwind's own generated utility class gets the resolved value.**
+  `globals.css` had `--font-heading: var(--font-sans)` inside `@theme
+  inline`, and three files (`card.tsx`, `dialog.tsx`, `sheet.tsx`) already
+  consumed it via the Tailwind-generated `font-heading` *class*. Repointing
+  it to `var(--font-fraunces)` correctly changed those three files' titles —
+  confirmed by creating a probe element with `className = "font-heading"`
+  and reading its computed `font-family`. But the hand-written
+  `@utility text-display { font-family: var(--font-heading); ... }` blocks
+  (and siblings `text-headline`/`text-destination`/`text-day-heading`) kept
+  rendering Geist, silently. Diagnosis: `getComputedStyle(document.
+  documentElement).getPropertyValue('--font-heading')` returned an empty
+  string — the alias only exists at Tailwind's compile time, when it's
+  generating `.font-heading`'s own rule; it is never emitted as an
+  independently-referenceable `--font-heading` declaration on `:root` the
+  way a normal custom property would be. `var()` referencing a genuinely
+  undefined property with no fallback resolves to the *inherited* value for
+  an inherited property like `font-family` — which is exactly why this
+  failed silently (inheriting Geist from `<body>`) instead of throwing or
+  rendering a visible fallback font. Fix: the hand-written `@utility` blocks
+  reference `var(--font-fraunces)` directly, bypassing the alias entirely.
+  Lesson: a theme alias defined in `@theme inline` is only safe to consume
+  via the Tailwind-generated utility class it produces (`font-heading` the
+  class); hand-written CSS that wants the same font needs the underlying
+  variable (`--font-fraunces`, set by next/font's `.variable` class on
+  `<body>`), not the alias. Caught by direct `getComputedStyle` probing on a
+  live page, not by reading the CSS — this class of bug is invisible from
+  source alone since both spellings look equally valid.
+- **Dialog and Sheet's corner radius is not independent CSS — it's driven
+  by the same `--radius-xl` custom property everything else's `rounded-xl`
+  resolves through**, confirmed via `grep` before touching anything
+  (`dialog.tsx`: `rounded-xl`/`rounded-b-xl`; `sheet.tsx`:
+  `rounded-t-xl`). DESIGN.md's Shapes section calls for a real reduction
+  (0–4px hierarchy, down from today's 14px-dominant `rounded-xl`), but
+  Dialog/Sheet are explicitly protected infrastructure from Stage 2B/2C
+  (drag-to-dismiss physics, entrance/exit springs) — shrinking the shared
+  `--radius-*` ramp to implement Shapes would silently reshape their
+  corners as a side effect of a token change nobody asked to make there.
+  **Deferred**: the radius rollout needs component-scoped values (new,
+  narrowly-named custom properties applied directly to buttons/inputs/
+  TripCard) rather than a global ramp edit, so it can't touch Dialog/Sheet.
+  Not started.
+- **`tertiary` (Old Gold) is deliberately scarce — one job, the countdown
+  badge — which meant it couldn't also cover the map's other three marker
+  kinds.** `trip-map.tsx`'s `MARKER_STYLES` needs four *distinguishable*
+  colors (destination/hotel/restaurant/activity); DESIGN.md's first pass
+  only defined one (`map-marker`, using base `primary`). Reusing `tertiary`
+  for a second marker would have broken the one-job rule written into the
+  file's own Do's and Don'ts one section earlier. Fixed by extending
+  DESIGN.md with three new, purpose-derived tokens — Marker Hotel
+  (`#A6567E`, sealing-wax rose), Marker Restaurant (`#BF6F33`, ochre),
+  Marker Activity (`#3D865A`, trail green) — spaced around the hue wheel
+  and deliberately kept out of the 260–330° indigo-violet band, rather than
+  either misusing `tertiary` or reaching for another stock palette. All
+  four marker colors (including `primary` for destination) are fixed hex
+  in both themes, not `var(--primary)` etc. — a map pin has to stay legible
+  against whatever a tile provider paints under it, which has nothing to do
+  with the page's light/dark mode.
+- **Dark-mode chroma needs to be checked, not just asserted.**
+  `primary-strong-dark`'s first candidate (`oklch(0.750 0.075 205)`,
+  `#72BCC5`) technically passed every contrast pair, but its chroma (0.075)
+  was *higher* than light mode's `primary-strong` (0.048) — the opposite of
+  the "reduced chroma in dark mode" principle stated in DESIGN.md's own
+  prose. A saturated accent gets louder against a dark ground, not calmer,
+  so the value was recomputed at `C=0.055` (`#85B9BF`) and every dependent
+  contrast pair re-verified before it went in the file. Worth remembering:
+  writing the right principle in prose doesn't guarantee the numbers next
+  to it actually follow it — check the derived value against its own stated
+  rule, not just against WCAG.
+- **Implemented this pass**: `globals.css` color tokens (light + dark, all
+  of `:root`/`.dark`/sidebar-*), Fraunces loaded in `layout.tsx` and wired
+  through `--font-heading`, the four `text-*` `@utility` display/headline
+  levels, `trip-map.tsx` marker colors, and a `countdown`/`countdown-urgent`
+  Badge variant pair (`badge.tsx` + `trip-hero.tsx`) — quiet gold for "In N
+  days," bold gold for "Tomorrow"/"Today," plain `secondary` for a past
+  trip (gold reads as *imminent*; a past trip is the opposite of that, so
+  it deliberately does not get the countdown treatment at all). `--notice`
+  and `--chart-*` were deliberately left untouched — outside DESIGN.md's
+  token scope, and `--chart-*` has zero live consumers in the codebase
+  (`grep` confirmed), so retinting it would be ungrounded guessing.
+- **Not implemented / explicitly deferred**: the radius scale (see above),
+  and DESIGN.md's `card`→`row` conversions on content that shouldn't be
+  wrapped in a card at all (the favorites page's hand-rolled card row,
+  `budget-section.tsx`, `packing-section.tsx`). Both are real, scoped
+  follow-ups, not forgotten — flagged here rather than silently left
+  looking finished.
+- Verified live in the browser rather than from source: light and dark
+  mode on `/sign-up` (elevation inversion visible — the card panel is
+  lighter than the page in dark mode, darker in light mode, exactly as
+  DESIGN.md specifies), the marketing page's `text-display`/`text-headline`
+  elements post-fix, and both new `bg-tertiary`/`bg-tertiary-subtle`
+  Tailwind utilities via computed-style probes (same `@theme inline` risk
+  class as the font-heading bug, checked for the same reason). The
+  countdown badge and map markers are code- and type-verified, exact hex
+  match to the derivation, but not pixel-verified live — both need an
+  authenticated trip with a real start date/places, which this pass didn't
+  create; said explicitly rather than implied from the code being correct.
+
 ## Phase 3B — real data, the map, and honest provenance
 
 ### MapLibre's worker cannot be bundled — this is why the basemap was blank

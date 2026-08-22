@@ -41,6 +41,18 @@ function countdownLabel(days: number | null): string | null {
 }
 
 /**
+ * Gold escalates as the trip nears — quiet for "In N days", bold for
+ * Tomorrow/Today. A past trip deliberately gets neither: gold reads as
+ * *imminent*, which a finished trip is the opposite of.
+ */
+function countdownVariant(
+  days: number | null
+): "countdown" | "countdown-urgent" | "secondary" {
+  if (days === null || days < 0) return "secondary"
+  return days <= 1 ? "countdown-urgent" : "countdown"
+}
+
+/**
  * The destination hero.
  *
  * The photo is hotlinked straight from Unsplash and credited inline, which
@@ -49,7 +61,8 @@ function countdownLabel(days: number | null): string | null {
  * deliberate instead of broken.
  */
 export function TripHero({ trip, nights }: TripHeroProps) {
-  const countdown = countdownLabel(daysUntil(trip.start_date))
+  const days = daysUntil(trip.start_date)
+  const countdown = countdownLabel(days)
 
   return (
     <section className="relative isolate overflow-hidden rounded-2xl border border-border">
@@ -101,7 +114,9 @@ export function TripHero({ trip, nights }: TripHeroProps) {
 
       <div className="absolute inset-x-0 bottom-0 space-y-3 p-5 sm:p-7">
         <div className="flex flex-wrap items-center gap-2">
-          {countdown ? <Badge>{countdown}</Badge> : null}
+          {countdown ? (
+            <Badge variant={countdownVariant(days)}>{countdown}</Badge>
+          ) : null}
           {trip.status !== "ready" ? (
             <Badge variant="secondary" className="capitalize">
               {trip.status}
