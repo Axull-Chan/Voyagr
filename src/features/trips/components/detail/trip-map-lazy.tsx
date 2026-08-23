@@ -28,7 +28,7 @@ const TripMap = dynamic(
 function MapPlaceholder({ label }: { label: string }) {
   return (
     <div
-      className="flex h-72 w-full items-center justify-center rounded-xl border border-border bg-muted/30 sm:h-96"
+      className="flex h-64 w-full items-center justify-center rounded-xl border border-border bg-muted/30 sm:h-72"
       // Announced politely rather than assertively: it is a progress note,
       // not something that should interrupt what a screen reader is saying.
       role="status"

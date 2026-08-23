@@ -192,7 +192,7 @@ export function TripMap({ markers, center, className }: TripMapProps) {
         ref={containerRef}
         role="application"
         aria-label={`Map of ${markers.length} places on this trip`}
-        className="h-72 w-full overflow-hidden rounded-xl border border-border sm:h-96"
+        className="h-64 w-full overflow-hidden rounded-xl border border-border sm:h-72"
       />
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
         <ul className="flex flex-wrap gap-x-3 gap-y-1">

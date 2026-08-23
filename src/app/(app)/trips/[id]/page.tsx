@@ -180,10 +180,29 @@ export default async function TripDetailPage({ params }: TripDetailPageProps) {
 
   const hasAsideContent =
     hotels.length > 0 || transportation.length > 0 || Boolean(trip.additional_notes)
+  const hasMap = markers.length > 0
+  const hasRail = hasMap || hasAsideContent
 
+  /**
+   * Composition (Stage 3D).
+   *
+   * The page used to be one uniform `space-y-6` stack — map, day plan, budget,
+   * packing — every block full width and every gap identical, with the *map*
+   * arriving before the itinerary. That made the largest, loudest object on the
+   * page the one the reader did not come for.
+   *
+   * It now reads in three movements: the hero, then the day plan holding the
+   * whole main column with its supporting reference beside it in the rail, then
+   * the planning tools in a denser band underneath. Spacing carries the
+   * hierarchy — the narrative gets room, the tools compress.
+   *
+   * DOM order is also the mobile order, so no `order-*` juggling is needed:
+   * below `lg` the reader gets hero → day plan → map → stays/transport →
+   * budget → packing, which is narrative-first by construction.
+   */
   return (
-    <Reveal mode="mount" className="space-y-6">
-      <RevealItem>
+    <Reveal mode="mount">
+      <RevealItem className="mb-4">
         <Button
           variant="ghost"
           size="sm"
@@ -196,29 +215,21 @@ export default async function TripDetailPage({ params }: TripDetailPageProps) {
         </Button>
       </RevealItem>
 
-      <RevealItem>
+      <RevealItem className="mb-8 sm:mb-10">
         <TripHero trip={trip} nights={nights} />
       </RevealItem>
 
       <div
         className={
-          hasAsideContent
-            ? "grid gap-6 lg:grid-cols-[1fr_20rem] lg:items-start"
-            : "grid gap-6"
+          hasRail
+            ? "grid gap-8 lg:grid-cols-[1fr_20rem] lg:items-start lg:gap-10"
+            : "grid"
         }
       >
-        <div className="min-w-0 space-y-6">
-          {markers.length > 0 ? (
-            <RevealItem>
-              <h2 className="mb-3 text-destination text-foreground">
-                Everywhere you&apos;re going
-              </h2>
-              <LazyTripMap markers={markers} center={mapCentre} />
-            </RevealItem>
-          ) : null}
-
+        {/* The spine. Nothing else shares this column. */}
+        <div className="min-w-0">
           <RevealItem>
-            <h2 className="mb-3 text-destination text-foreground">
+            <h2 className="mb-4 text-destination text-foreground">
               Day by day
             </h2>
             {days.length > 0 ? (
@@ -242,49 +253,69 @@ export default async function TripDetailPage({ params }: TripDetailPageProps) {
               </div>
             )}
           </RevealItem>
-
-          <RevealItem>
-            <BudgetSection
-              tripId={trip.id}
-              budget={budget}
-              expenses={expenses}
-              currency={trip.currency}
-              total={trip.budget ? Number(trip.budget) : null}
-              rates={rates.data}
-              homeCurrency={homeCurrency}
-            />
-          </RevealItem>
-
-          <RevealItem>
-            <PackingSection tripId={trip.id} items={packing} />
-          </RevealItem>
         </div>
 
-        {hasAsideContent ? (
-          <aside className="lg:sticky lg:top-20">
-            <RevealItem>
-              {/* Deliberately not `bg-card` — every primary content section
-                  (map, day timeline, budget, packing) already uses that
-                  token, so this panel would just read as "another card of
-                  the same kind, slightly faded." `bg-muted`, already this
-                  codebase's recessed/secondary tone, plus a softer border
-                  gives it its own tier (a parallel structural layer, not a
-                  second content card) without a new token or any blur. */}
-              <div className="divide-y divide-border/60 rounded-xl border border-border/60 bg-muted/40">
-                <StaysPanel hotels={hotels} currency={trip.currency} />
-                <TransportPanel legs={transportation} currency={trip.currency} />
-                {trip.additional_notes ? (
-                  <div className="p-5">
-                    <h2 className="text-day-heading text-foreground">Your notes</h2>
-                    <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                      {trip.additional_notes}
-                    </p>
-                  </div>
-                ) : null}
-              </div>
-            </RevealItem>
+        {hasRail ? (
+          // Everything about *where*, beside the column about *when*. Sticky so
+          // the map stays available while the reader moves down the days.
+          <aside className="space-y-6 lg:sticky lg:top-20">
+            {hasMap ? (
+              <RevealItem>
+                <h2 className="mb-2 text-day-heading text-foreground">
+                  Everywhere you&apos;re going
+                </h2>
+                <LazyTripMap markers={markers} center={mapCentre} />
+              </RevealItem>
+            ) : null}
+
+            {hasAsideContent ? (
+              <RevealItem>
+                {/* Deliberately not `bg-card` — every primary content section
+                    (map, day timeline, budget, packing) already uses that
+                    token, so this panel would just read as "another card of
+                    the same kind, slightly faded." `bg-muted`, already this
+                    codebase's recessed/secondary tone, plus a softer border
+                    gives it its own tier (a parallel structural layer, not a
+                    second content card) without a new token or any blur. */}
+                <div className="divide-y divide-border/60 rounded-xl border border-border/60 bg-muted/40">
+                  <StaysPanel hotels={hotels} currency={trip.currency} />
+                  <TransportPanel legs={transportation} currency={trip.currency} />
+                  {trip.additional_notes ? (
+                    <div className="p-5">
+                      <h2 className="text-day-heading text-foreground">Your notes</h2>
+                      <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                        {trip.additional_notes}
+                      </p>
+                    </div>
+                  ) : null}
+                </div>
+              </RevealItem>
+            ) : null}
           </aside>
         ) : null}
+      </div>
+
+      {/* Planning tools. Below the whole grid rather than inside the narrative
+          column, and paired side by side once there is room, so they read as a
+          band of instruments rather than two more page-width sections
+          competing with the itinerary. Separated by space, not another rule —
+          each section already carries its own. */}
+      <div className="mt-14 grid gap-10 sm:mt-16 lg:grid-cols-2">
+        <RevealItem>
+          <BudgetSection
+            tripId={trip.id}
+            budget={budget}
+            expenses={expenses}
+            currency={trip.currency}
+            total={trip.budget ? Number(trip.budget) : null}
+            rates={rates.data}
+            homeCurrency={homeCurrency}
+          />
+        </RevealItem>
+
+        <RevealItem>
+          <PackingSection tripId={trip.id} items={packing} />
+        </RevealItem>
       </div>
     </Reveal>
   )

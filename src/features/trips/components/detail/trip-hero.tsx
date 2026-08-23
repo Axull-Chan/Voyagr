@@ -65,7 +65,12 @@ export function TripHero({ trip, nights }: TripHeroProps) {
   const countdown = countdownLabel(days)
 
   return (
-    <section className="relative isolate overflow-hidden rounded-2xl border border-border">
+    // No border: the photograph is the object, and an enclosing rule around it
+    // is the same generic containment 3C removed from TripCard. Stays inside
+    // the content column rather than going full-bleed — DESIGN.md leaves that
+    // question open (Open Question 2), so this takes the smaller decision and
+    // improves the existing composition instead of inventing a new one.
+    <section className="relative isolate overflow-hidden rounded-2xl">
       {trip.cover_image_url ? (
         <Image
           src={trip.cover_image_url}
@@ -73,14 +78,14 @@ export function TripHero({ trip, nights }: TripHeroProps) {
           width={1600}
           height={600}
           priority
-          className="h-56 w-full object-cover sm:h-72"
+          className="h-64 w-full object-cover sm:h-80 lg:h-96"
           // Unsplash serves from its own CDN; sizing here keeps CLS at zero.
           sizes="(min-width: 1024px) 900px, 100vw"
         />
       ) : (
         <div
           aria-hidden="true"
-          className="h-56 w-full bg-[radial-gradient(circle_at_30%_20%,color-mix(in_oklch,var(--primary),transparent_70%),transparent_60%),linear-gradient(to_bottom_right,var(--muted),var(--background))] sm:h-72"
+          className="h-64 w-full bg-[radial-gradient(circle_at_30%_20%,color-mix(in_oklch,var(--primary),transparent_70%),transparent_60%),linear-gradient(to_bottom_right,var(--muted),var(--background))] sm:h-80 lg:h-96"
         />
       )}
 
@@ -90,7 +95,7 @@ export function TripHero({ trip, nights }: TripHeroProps) {
           courtesy, and both halves must link back with referral parameters.
           Sits top-right so it never collides with the title block below. */}
       {trip.cover_image_url && trip.cover_image_credit_name ? (
-        <p className="absolute top-2 right-3 text-[0.65rem] text-foreground/60">
+        <p className="absolute top-2 right-3 text-caption text-foreground/60">
           Photo by{" "}
           <a
             href={trip.cover_image_credit_url ?? UNSPLASH_REFERRAL_URL}
@@ -124,7 +129,7 @@ export function TripHero({ trip, nights }: TripHeroProps) {
           ) : null}
         </div>
 
-        <h1 className="text-destination text-balance text-foreground">
+        <h1 className="text-headline text-balance text-foreground">
           {trip.title}
         </h1>
 
