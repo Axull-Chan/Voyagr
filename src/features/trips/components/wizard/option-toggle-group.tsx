@@ -135,7 +135,7 @@ export function OptionToggleGroup<T extends string>(
               // component's comment for why 0.98, not Button's 0.97.
               "group flex items-start gap-2.5 rounded-lg border px-3 py-2.5 text-left transition-all duration-100 ease-out motion-reduce:transition-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none active:scale-[0.98]",
               selected
-                ? "border-primary bg-primary/5"
+                ? "border-primary bg-accent"
                 : "border-input hover:border-foreground/25 hover:bg-muted/50"
             )}
           >
@@ -155,7 +155,7 @@ export function OptionToggleGroup<T extends string>(
                 {option.label}
               </span>
               {option.hint ? (
-                <span className="block text-xs text-muted-foreground">
+                <span className="block text-caption text-muted-foreground">
                   {option.hint}
                 </span>
               ) : null}

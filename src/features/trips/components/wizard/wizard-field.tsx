@@ -39,7 +39,7 @@ export function WizardField({
   const describedBy = [hintId, errorId].filter(Boolean).join(" ") || undefined
 
   const heading = asFieldset ? (
-    <legend className="text-sm leading-none font-medium">{label}</legend>
+    <legend className="flex items-center gap-2 text-sm leading-none font-medium">{label}</legend>
   ) : (
     <Label htmlFor={controlId}>{label}</Label>
   )
@@ -49,7 +49,7 @@ export function WizardField({
       <div className="space-y-1.5">
         {heading}
         {hint ? (
-          <p id={hintId} className="text-xs text-muted-foreground">
+          <p id={hintId} className="text-caption text-muted-foreground">
             {hint}
           </p>
         ) : null}
@@ -60,7 +60,7 @@ export function WizardField({
       {error ? (
         // `role="alert"` so the message is announced when it appears rather
         // than only being found if the user happens to navigate back to it.
-        <p id={errorId} role="alert" className="text-xs text-destructive">
+        <p id={errorId} role="alert" className="text-caption text-destructive">
           {error}
         </p>
       ) : null}

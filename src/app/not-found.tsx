@@ -6,11 +6,9 @@ import { Button } from "@/components/ui/button"
 export default function NotFound() {
   return (
     <div className="flex min-h-svh flex-col items-center justify-center gap-4 px-6 text-center">
-      <div className="flex size-14 items-center justify-center rounded-full bg-muted">
-        <Compass className="size-7 text-muted-foreground" />
-      </div>
+      <Compass aria-hidden="true" className="size-5 text-muted-foreground" />
       <div className="space-y-1">
-        <h1 className="text-lg font-semibold text-foreground">
+        <h1 className="text-day-heading text-foreground">
           Page not found
         </h1>
         <p className="text-sm text-muted-foreground">

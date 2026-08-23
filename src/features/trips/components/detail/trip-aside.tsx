@@ -23,7 +23,7 @@ export function StaysPanel({
           <li key={hotel.id}>
             <p className="text-sm font-semibold text-foreground">{hotel.name}</p>
             {hotel.address ? (
-              <p className="text-xs text-muted-foreground">{hotel.address}</p>
+              <p className="text-caption text-muted-foreground">{hotel.address}</p>
             ) : null}
             <p className="mt-0.5 text-data-sm text-muted-foreground">
               {[
@@ -45,7 +45,7 @@ export function StaysPanel({
                 specifically an approximation/provenance caveat, the exact
                 case that token exists for. */}
             {hotel.source === "mock" ? (
-              <p className="mt-1 text-xs text-notice-foreground italic">
+              <p className="mt-1 text-caption text-notice-foreground italic">
                 An example stay for budgeting — not a real listing.
               </p>
             ) : null}
@@ -95,7 +95,7 @@ export function TransportPanel({
                 .join(" · ")}
             </p>
             {leg.notes ? (
-              <p className="text-xs text-muted-foreground">{leg.notes}</p>
+              <p className="text-caption text-muted-foreground">{leg.notes}</p>
             ) : null}
           </li>
         ))}

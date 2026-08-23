@@ -20,20 +20,26 @@ export default function TripDetailLoading() {
           </div>
           <div className="space-y-3">
             <Skeleton className="h-4 w-24" />
-            {[0, 1, 2].map((i) => (
-              <div key={i} className="space-y-3 rounded-xl border border-border p-5">
-                <div className="flex justify-between gap-4">
-                  <Skeleton className="h-5 w-28" />
-                  <Skeleton className="h-8 w-48 rounded-lg" />
+            {/* The day timeline is open articles separated by rules, not
+                bordered cards — this block had been drawing cards since before
+                that layout changed, so the skeleton promised a shape the page
+                no longer delivers. */}
+            <div className="divide-y divide-border">
+              {[0, 1, 2].map((i) => (
+                <div key={i} className="space-y-3 py-6 first:pt-0">
+                  <div className="flex justify-between gap-4">
+                    <Skeleton className="h-5 w-28" />
+                    <Skeleton className="h-8 w-48 rounded-lg" />
+                  </div>
+                  <Skeleton className="h-4 w-full max-w-md" />
+                  <div className="space-y-2 pt-2">
+                    <Skeleton className="h-4 w-20" />
+                    <Skeleton className="h-4 w-full max-w-sm" />
+                    <Skeleton className="h-4 w-full max-w-xs" />
+                  </div>
                 </div>
-                <Skeleton className="h-4 w-full max-w-md" />
-                <div className="space-y-2 pt-2">
-                  <Skeleton className="h-4 w-20" />
-                  <Skeleton className="h-4 w-full max-w-sm" />
-                  <Skeleton className="h-4 w-full max-w-xs" />
-                </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
 
           <div className="space-y-3">

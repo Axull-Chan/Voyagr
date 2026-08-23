@@ -46,11 +46,15 @@ export function TripCard({ trip }: { trip: Trip }) {
   return (
     <Link
       href={`/trips/${trip.id}`}
-      // Same Stage 2A press timing as Button; 0.98 rather than 0.97 since a
-      // card-sized surface reads a firmer squeeze as heavy-handed. The hover
-      // border/shadow is unchanged from Stage 1 — already the subtle
-      // elevation cue this stage asks for.
-      className="group flex flex-col overflow-hidden rounded-xl border border-border bg-card transition-all duration-100 ease-out motion-reduce:transition-none hover:border-primary/40 hover:shadow-md focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none active:scale-[0.98]"
+      // Stage 3C: the card is now carried by its tonal step alone — no border,
+      // no hover shadow (DESIGN.md § Components forbids both on a card, and
+      // border+fill+radius+shadow together is the dashboard signature this
+      // system exists to remove). Hover is a tone shift, which is the only
+      // hover vocabulary DESIGN.md's motion table allows.
+      //
+      // Stage 2A press timing is untouched: 0.98 rather than Button's 0.97,
+      // since a card-sized surface reads a firmer squeeze as heavy-handed.
+      className="group flex flex-col overflow-hidden rounded-xl bg-card transition-all duration-100 ease-out motion-reduce:transition-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none active:scale-[0.98]"
     >
       <div className="relative aspect-4/3 bg-muted">
         {trip.cover_image_url ? (
@@ -64,21 +68,21 @@ export function TripCard({ trip }: { trip: Trip }) {
         ) : (
           <div
             aria-hidden="true"
-            className="flex h-full items-center justify-center bg-gradient-to-br from-primary/15 to-primary/5"
+            className="flex h-full items-center justify-center bg-muted"
           >
             <MapPin aria-hidden="true" className="size-6 text-primary/60" />
           </div>
         )}
 
         <Badge
-          variant="outline"
-          className="absolute top-2 left-2 bg-background/85 backdrop-blur-sm"
+          variant="status"
+          className="absolute top-2 left-2 bg-background/85 px-1.5 backdrop-blur-sm"
         >
           {statusLabel[trip.status] ?? trip.status}
         </Badge>
 
         {trip.cover_image_url && trip.cover_image_credit_name ? (
-          <p className="absolute right-2 bottom-2 rounded-sm bg-background/70 px-1.5 py-0.5 text-[0.6rem] text-foreground/70 backdrop-blur-sm">
+          <p className="absolute right-2 bottom-2 rounded-sm bg-background/70 px-1.5 py-0.5 text-caption text-foreground/70 backdrop-blur-sm">
             Photo: {trip.cover_image_credit_name}
           </p>
         ) : null}

@@ -18,11 +18,9 @@ export default function GlobalError({
 
   return (
     <div className="flex min-h-svh flex-col items-center justify-center gap-4 px-6 text-center">
-      <div className="flex size-14 items-center justify-center rounded-full bg-destructive/10">
-        <AlertTriangle className="size-7 text-destructive" />
-      </div>
+      <AlertTriangle aria-hidden="true" className="size-5 text-destructive" />
       <div className="space-y-1">
-        <h1 className="text-lg font-semibold text-foreground">
+        <h1 className="text-day-heading text-foreground">
           Something went wrong
         </h1>
         <p className="text-sm text-muted-foreground">

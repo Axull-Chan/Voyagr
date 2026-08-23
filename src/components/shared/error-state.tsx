@@ -19,16 +19,17 @@ export function ErrorState({
   className,
 }: ErrorStateProps) {
   return (
+    // Same treatment as EmptyState: no enclosing card, no tinted disc. The
+    // warning icon stays — an error genuinely needs a signal, and `destructive`
+    // on the glyph itself carries it without a decorative container.
     <div
       className={cn(
-        "flex flex-col items-center justify-center gap-3 rounded-xl border border-border bg-card px-6 py-16 text-center",
+        "flex flex-col items-center justify-center gap-4 px-6 py-20 text-center",
         className
       )}
     >
-      <div className="flex size-12 items-center justify-center rounded-full bg-destructive/10">
-        <AlertTriangle aria-hidden="true" className="size-6 text-destructive" />
-      </div>
-      <div className="space-y-1">
+      <AlertTriangle aria-hidden="true" className="size-5 text-destructive" />
+      <div className="space-y-1.5">
         <h3 className="text-day-heading text-foreground">{title}</h3>
         <p className="max-w-sm text-sm text-muted-foreground">
           {description}

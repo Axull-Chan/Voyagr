@@ -175,7 +175,7 @@ export function TripMap({ markers, center, className }: TripMapProps) {
     return (
       <div
         className={cn(
-          "flex min-h-64 items-center justify-center rounded-xl border border-dashed border-border bg-muted/30 p-6 text-center",
+          "flex min-h-64 items-center justify-center rounded-xl border border-border bg-muted/30 p-6 text-center",
           className
         )}
       >

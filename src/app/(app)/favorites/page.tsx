@@ -44,7 +44,7 @@ export default async function FavoritesPage() {
                   {favorite.name}
                 </p>
                 {favorite.type && (
-                  <Badge variant="outline" className="shrink-0 capitalize">
+                  <Badge variant="status" className="shrink-0">
                     {favorite.type}
                   </Badge>
                 )}

@@ -22,6 +22,13 @@ const badgeVariants = cva(
         ghost:
           "hover:bg-muted hover:text-muted-foreground dark:hover:bg-muted/50",
         link: "text-primary underline-offset-4 hover:underline",
+        // DESIGN.md's `badge-status`: page ground, secondary text, quiet.
+        // A status label is metadata, not a chip to be noticed — so it carries
+        // no fill and no border of its own and leans entirely on `label-caps`.
+        // `font-semibold` is explicit so tailwind-merge resolves it against the
+        // base's `font-medium` deterministically rather than leaving two
+        // font-weight rules to CSS order.
+        status: "bg-transparent text-eyebrow font-semibold text-muted-foreground",
         countdown:
           "rounded-full bg-tertiary-subtle text-tertiary-subtle-foreground",
         "countdown-urgent": "rounded-full bg-tertiary text-tertiary-foreground",

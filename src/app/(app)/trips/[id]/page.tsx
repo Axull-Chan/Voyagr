@@ -233,7 +233,7 @@ export default async function TripDetailPage({ params }: TripDetailPageProps) {
                 ))}
               </div>
             ) : (
-              <div className="rounded-xl border border-dashed border-border bg-muted/30 p-8 text-center">
+              <div className="border-t border-border py-10 text-center">
                 <p className="text-sm text-muted-foreground">
                   {trip.status === "draft"
                     ? "This trip is still a draft — its itinerary hasn't been generated yet."
