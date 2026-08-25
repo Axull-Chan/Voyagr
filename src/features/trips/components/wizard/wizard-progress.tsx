@@ -23,14 +23,9 @@ export function WizardProgress({ steps, currentIndex }: WizardProgressProps) {
 
   return (
     <div className="space-y-3">
-      <div className="flex items-baseline justify-between">
-        <p className="text-sm font-medium text-foreground">
-          Step {currentIndex + 1} of {steps.length}
-        </p>
-        <p className="text-sm text-muted-foreground">
-          {steps[currentIndex]?.title}
-        </p>
-      </div>
+      <p className="text-eyebrow text-muted-foreground">
+        Step {currentIndex + 1} of {steps.length}
+      </p>
 
       {/* The bar is decorative: the same information is already in the text
           above and in the list below, so exposing it again would just make a
@@ -57,9 +52,9 @@ export function WizardProgress({ steps, currentIndex }: WizardProgressProps) {
             >
               <span
                 className={cn(
-                  "flex size-5 shrink-0 items-center justify-center rounded-full text-[0.65rem] font-semibold transition-colors",
+                  "flex size-5 shrink-0 items-center justify-center rounded-full text-caption font-semibold transition-colors",
                   isDone && "bg-primary text-primary-foreground",
-                  isCurrent && "bg-primary/15 text-primary ring-1 ring-primary",
+                  isCurrent && "bg-accent text-accent-foreground ring-1 ring-primary",
                   !isDone && !isCurrent && "bg-muted text-muted-foreground"
                 )}
               >
@@ -71,7 +66,7 @@ export function WizardProgress({ steps, currentIndex }: WizardProgressProps) {
               </span>
               <span
                 className={cn(
-                  "truncate text-xs transition-colors",
+                  "truncate text-caption transition-colors",
                   isCurrent ? "text-foreground" : "text-muted-foreground"
                 )}
               >

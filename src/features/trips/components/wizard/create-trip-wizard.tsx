@@ -10,7 +10,6 @@ import { AlertCircle, ArrowLeft, ArrowRight, Check, Loader2, Sparkles } from "lu
 import { cn } from "@/lib/utils"
 import { addDays } from "@/lib/trips/trip-domain"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
 import { createTripAction } from "@/features/trips/actions/trip.actions"
 import {
   createTripSchema,
@@ -140,19 +139,23 @@ export function CreateTripWizard() {
       }
 
   return (
-    <div className="space-y-6">
+    // No Card. A form that *is* the page does not need a box drawn around it,
+    // and "generic centered shadcn card" is precisely the composition this
+    // stage exists to remove. Structure comes from a rule under the progress
+    // header and another above the navigation — borders dividing, not
+    // enclosing.
+    <div>
       <WizardProgress steps={WIZARD_STEPS} currentIndex={stepIndex} />
 
-      <Card>
-        <CardContent className="space-y-6">
-          <div className="space-y-1">
-            <h2 className="text-destination text-foreground">
-              {step?.title}
-            </h2>
-            <p className="text-sm text-muted-foreground">{step?.description}</p>
-          </div>
+      <div className="mt-8 border-t border-border pt-8">
+        <div className="space-y-1.5">
+          <h2 className="text-destination text-foreground">{step?.title}</h2>
+          <p className="max-w-prose text-sm text-muted-foreground">
+            {step?.description}
+          </p>
+        </div>
 
-          <form onSubmit={onSubmit} noValidate>
+        <form onSubmit={onSubmit} noValidate className="mt-7">
             {/* `mode="wait"` so the outgoing step finishes before the next
                 arrives — overlapping them makes the card height jump. */}
             <AnimatePresence mode="wait" initial={false}>
@@ -188,27 +191,20 @@ export function CreateTripWizard() {
               </p>
             ) : null}
 
-            <div className="mt-7 flex items-center justify-between gap-3">
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={goBack}
-                disabled={stepIndex === 0 || isPending}
-              >
-                <ArrowLeft aria-hidden="true" />
-                Back
-              </Button>
-
-              <div className="flex items-center gap-3">
-                <span
-                  aria-live="polite"
-                  className={cn(
-                    "text-xs text-muted-foreground transition-opacity",
-                    draftStatus === "saved" ? "opacity-100" : "opacity-0"
-                  )}
+            {/* Back and Next sit at opposite edges so both fall under a
+                thumb on a phone, and the draft note moves out of that row
+                entirely rather than competing for width between them. */}
+            <div className="mt-8 border-t border-border pt-5">
+              <div className="flex items-center justify-between gap-3">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={goBack}
+                  disabled={stepIndex === 0 || isPending}
                 >
-                  Draft saved
-                </span>
+                  <ArrowLeft aria-hidden="true" />
+                  Back
+                </Button>
 
                 {isLastStep ? (
                   <Button type="submit" disabled={isPending}>
@@ -234,10 +230,19 @@ export function CreateTripWizard() {
                   </Button>
                 )}
               </div>
+
+              <p
+                aria-live="polite"
+                className={cn(
+                  "mt-3 text-caption text-muted-foreground transition-opacity",
+                  draftStatus === "saved" ? "opacity-100" : "opacity-0"
+                )}
+              >
+                Draft saved
+              </p>
             </div>
-          </form>
-        </CardContent>
-      </Card>
+        </form>
+      </div>
 
       {restored && stepIndex === 0 ? (
         <p className="flex items-center gap-1.5 text-xs text-muted-foreground">

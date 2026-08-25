@@ -57,9 +57,13 @@ export function TripRow({ trip }: { trip: TripSummary }) {
 
         <div className="min-w-0 flex-1">
           <p className="truncate font-semibold text-foreground">{trip.title}</p>
-          <p className="flex min-w-0 items-baseline gap-2 text-caption text-muted-foreground">
-            <span className="truncate">{trip.destination}</span>
-            <span className="shrink-0 text-data-sm">
+          {/* Wraps rather than collides: on a narrow screen a long destination
+              pushes the date range onto its own line instead of squeezing it,
+              and neither is truncated away. Both stay visible at every width —
+              this row is the only place these trips are listed. */}
+          <p className="flex min-w-0 flex-wrap items-baseline gap-x-2 text-caption text-muted-foreground">
+            <span className="min-w-0 truncate">{trip.destination}</span>
+            <span className="text-data-sm">
               {formatDateRange(trip.start_date, trip.end_date)}
             </span>
           </p>
