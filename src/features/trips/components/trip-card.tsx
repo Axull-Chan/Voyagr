@@ -3,9 +3,10 @@ import Link from "next/link"
 import { CalendarDays, MapPin } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
+import { cn } from "@/lib/utils"
 import type { Tables } from "@/types/database.types"
 
-type Trip = Pick<
+export type TripSummary = Pick<
   Tables<"trips">,
   | "id"
   | "title"
@@ -24,7 +25,9 @@ const statusLabel: Record<string, string> = {
   archived: "Archived",
 }
 
-function formatDateRange(start: string | null, end: string | null) {
+/** Shared with `TripRow` so the index and the cards can never format a trip's
+ *  dates differently from each other. */
+export function formatDateRange(start: string | null, end: string | null) {
   if (!start) return "Dates not set"
   const formatter = new Intl.DateTimeFormat("en-US", {
     month: "short",
@@ -42,7 +45,21 @@ function formatDateRange(start: string | null, end: string | null) {
  * already an `<a>`, and a nested anchor is invalid HTML. The full, licence-
  * compliant linked credit lives one click away on the trip's own hero.
  */
-export function TripCard({ trip }: { trip: Trip }) {
+export function TripCard({
+  trip,
+  featured = false,
+}: {
+  trip: TripSummary
+  /**
+   * The lead trip on a page — the one the reader is meant to look at first.
+   *
+   * Deliberately one boolean rather than a variant system: it changes scale,
+   * image ratio and layout, and nothing else. The visual language is identical
+   * to an ordinary card, which is the point — dominance here comes from
+   * composition, not from a second card design.
+   */
+  featured?: boolean
+}) {
   return (
     <Link
       href={`/trips/${trip.id}`}
@@ -54,15 +71,29 @@ export function TripCard({ trip }: { trip: Trip }) {
       //
       // Stage 2A press timing is untouched: 0.98 rather than Button's 0.97,
       // since a card-sized surface reads a firmer squeeze as heavy-handed.
-      className="group flex flex-col overflow-hidden rounded-xl bg-card transition-all duration-100 ease-out motion-reduce:transition-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none active:scale-[0.98]"
+      className={cn(
+        "group flex overflow-hidden rounded-xl bg-card transition-all duration-100 ease-out motion-reduce:transition-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none active:scale-[0.98]",
+        featured ? "flex-col sm:h-72 sm:flex-row" : "flex-col"
+      )}
     >
-      <div className="relative aspect-4/3 bg-muted">
+      <div
+        className={cn(
+          "relative bg-muted",
+          featured
+            ? "aspect-video sm:aspect-auto sm:h-full sm:w-1/2 sm:shrink-0"
+            : "aspect-4/3"
+        )}
+      >
         {trip.cover_image_url ? (
           <Image
             src={trip.cover_image_url}
             alt={trip.destination}
             fill
-            sizes="(min-width: 1024px) 340px, (min-width: 640px) 45vw, 90vw"
+            sizes={
+              featured
+                ? "(min-width: 640px) 50vw, 100vw"
+                : "(min-width: 1024px) 340px, (min-width: 640px) 45vw, 90vw"
+            }
             className="object-cover"
           />
         ) : (
@@ -88,9 +119,17 @@ export function TripCard({ trip }: { trip: Trip }) {
         ) : null}
       </div>
 
-      <div className="flex flex-1 flex-col gap-2 p-4">
+      <div
+        className={cn(
+          "flex flex-1 flex-col gap-2",
+          featured ? "justify-center p-6" : "p-4"
+        )}
+      >
         <p
-          className="text-destination truncate text-foreground"
+          className={cn(
+            "truncate text-foreground",
+            featured ? "text-headline" : "text-destination"
+          )}
           title={trip.title}
         >
           {trip.title}

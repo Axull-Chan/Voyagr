@@ -3,9 +3,10 @@ import Link from "next/link"
 import { Plane, Plus } from "lucide-react"
 
 import { EmptyState } from "@/components/shared/empty-state"
-import { Reveal, RevealGroup, RevealItem } from "@/components/shared/reveal"
+import { Reveal, RevealItem } from "@/components/shared/reveal"
 import { Button } from "@/components/ui/button"
 import { TripCard } from "@/features/trips/components/trip-card"
+import { TripRow } from "@/features/trips/components/trip-row"
 import { createClient } from "@/lib/supabase/server"
 
 export const metadata: Metadata = { title: "My Trips" }
@@ -19,9 +20,49 @@ export default async function TripsPage() {
     )
     .order("created_at", { ascending: false })
 
+  const all = trips ?? []
+  const today = new Date().toISOString().slice(0, 10)
+
+  /**
+   * Grouping and ordering are display concerns only — the query above is
+   * unchanged, and both buckets come from `start_date`/`end_date`, which these
+   * rows already carry.
+   *
+   * "Past" requires positive evidence that a trip is over: it has ended, or it
+   * started before today and has no end date. Everything else — including a
+   * trip with no dates at all — stays under Upcoming, because the absence of a
+   * date is not evidence of having happened. Undated trips sort last within it,
+   * since they have no departure to be near.
+   */
+  const isPast = (t: (typeof all)[number]) =>
+    t.end_date
+      ? t.end_date < today
+      : Boolean(t.start_date && t.start_date < today)
+
+  const upcoming = all
+    .filter((t) => !isPast(t))
+    .sort((a, b) => {
+      if (!a.start_date) return 1
+      if (!b.start_date) return -1
+      return a.start_date < b.start_date ? -1 : 1
+    })
+
+  const past = all
+    .filter(isPast)
+    .sort((a, b) =>
+      (a.end_date ?? a.start_date ?? "") > (b.end_date ?? b.start_date ?? "")
+        ? -1
+        : 1
+    )
+
+  // The lead is the nearest trip that actually has a departure date. An undated
+  // trip is never promoted — nothing about it says "this one is next".
+  const lead = upcoming[0]?.start_date ? upcoming[0] : undefined
+  const restUpcoming = lead ? upcoming.slice(1) : upcoming
+
   return (
-    <Reveal mode="mount" className="space-y-6">
-      <RevealItem className="flex flex-wrap items-start justify-between gap-4">
+    <Reveal mode="mount">
+      <RevealItem className="mb-8 flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-headline text-foreground">My trips</h1>
           <p className="text-sm text-muted-foreground">
@@ -34,15 +75,7 @@ export default async function TripsPage() {
         </Button>
       </RevealItem>
 
-      {trips && trips.length > 0 ? (
-        <RevealGroup className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {trips.map((trip) => (
-            <RevealItem key={trip.id}>
-              <TripCard trip={trip} />
-            </RevealItem>
-          ))}
-        </RevealGroup>
-      ) : (
+      {all.length === 0 ? (
         <RevealItem>
           <EmptyState
             icon={Plane}
@@ -60,6 +93,39 @@ export default async function TripsPage() {
             }
           />
         </RevealItem>
+      ) : (
+        <>
+          {lead ? (
+            <RevealItem className="mb-10">
+              <h2 className="text-eyebrow mb-3 text-muted-foreground">Next</h2>
+              <TripCard trip={lead} featured />
+            </RevealItem>
+          ) : null}
+
+          {restUpcoming.length > 0 ? (
+            <RevealItem className="mb-10">
+              <h2 className="text-eyebrow mb-2 text-muted-foreground">
+                {lead ? "Also upcoming" : "Upcoming"}
+              </h2>
+              <ul className="divide-y divide-border border-t border-border">
+                {restUpcoming.map((trip) => (
+                  <TripRow key={trip.id} trip={trip} />
+                ))}
+              </ul>
+            </RevealItem>
+          ) : null}
+
+          {past.length > 0 ? (
+            <RevealItem>
+              <h2 className="text-eyebrow mb-2 text-muted-foreground">Past</h2>
+              <ul className="divide-y divide-border border-t border-border">
+                {past.map((trip) => (
+                  <TripRow key={trip.id} trip={trip} />
+                ))}
+              </ul>
+            </RevealItem>
+          ) : null}
+        </>
       )}
     </Reveal>
   )

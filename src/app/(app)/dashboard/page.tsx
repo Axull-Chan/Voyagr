@@ -1,20 +1,12 @@
 import type { Metadata } from "next"
 import Link from "next/link"
-import {
-  ArrowRight,
-  CalendarClock,
-  CalendarDays,
-  Globe2,
-  Luggage,
-  Plane,
-  Plus,
-} from "lucide-react"
+import { ArrowRight, Plane, Plus } from "lucide-react"
 
 import { EmptyState } from "@/components/shared/empty-state"
-import { Reveal, RevealGroup, RevealItem } from "@/components/shared/reveal"
+import { Reveal, RevealItem } from "@/components/shared/reveal"
 import { Button } from "@/components/ui/button"
-import { StatCard } from "@/features/trips/components/stat-card"
 import { TripCard } from "@/features/trips/components/trip-card"
+import { TripRow } from "@/features/trips/components/trip-row"
 import { createClient } from "@/lib/supabase/server"
 
 export const metadata: Metadata = { title: "Dashboard" }
@@ -45,15 +37,16 @@ export default async function DashboardPage() {
   const firstName = profile?.full_name?.split(" ")[0]
   const today = new Date().toISOString().slice(0, 10)
 
-  const upcomingTrips = trips
+  // Nearest departure first. `recentTrips` (the three most recently *created*)
+  // used to render alongside this and overlapped it heavily, so the same trip
+  // commonly appeared twice on one page — see DESIGN.md's "same information in
+  // two places" anti-pattern. The recency grid is gone; /trips is the complete
+  // list and is one click away in the sidebar.
+  const upcoming = trips
     .filter((trip) => trip.start_date && trip.start_date >= today)
     .sort((a, b) => (a.start_date! < b.start_date! ? -1 : 1))
-    .slice(0, 3)
-  const recentTrips = trips.slice(0, 3)
+  const [nextTrip, ...laterTrips] = upcoming
 
-  const upcomingCount = trips.filter(
-    (trip) => trip.start_date && trip.start_date >= today
-  ).length
   const destinationCount = new Set(trips.map((trip) => trip.destination)).size
   const totalDays = trips.reduce((sum, trip) => {
     if (!trip.start_date || !trip.end_date) return sum
@@ -66,77 +59,36 @@ export default async function DashboardPage() {
     return sum + Math.max(days, 0)
   }, 0)
 
+  // Overview figures, kept but demoted: a quiet measured line, not four boxes.
+  const overview = [
+    { label: "Trips", value: trips.length },
+    { label: "Upcoming", value: upcoming.length },
+    { label: "Destinations", value: destinationCount },
+    { label: "Days planned", value: totalDays },
+  ]
+
   return (
-    <Reveal mode="mount" className="space-y-8">
-      <RevealItem>
-        <h1 className="text-headline text-foreground">
-          {firstName ? `Welcome back, ${firstName}` : "Your trips"}
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          Everything you&apos;re planning, in one place.
-        </p>
+    <Reveal mode="mount">
+      {/* The action lives in the page header rather than in a bordered box.
+          "View all trips" is gone entirely — the sidebar already links there,
+          and a card whose only job is to duplicate navigation is exactly the
+          filler DESIGN.md calls out. */}
+      <RevealItem className="mb-8 flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h1 className="text-headline text-foreground">
+            {firstName ? `Welcome back, ${firstName}` : "Your trips"}
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            {nextTrip
+              ? "Here's what's coming up."
+              : "Everything you're planning, in one place."}
+          </p>
+        </div>
+        <Button size="sm" nativeButton={false} render={<Link href="/trips/new" />}>
+          <Plus aria-hidden="true" />
+          New trip
+        </Button>
       </RevealItem>
-
-      <RevealGroup className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <RevealItem>
-          <StatCard icon={Luggage} label="Total trips" value={trips.length} />
-        </RevealItem>
-        <RevealItem>
-          <StatCard
-            icon={CalendarClock}
-            label="Upcoming"
-            value={upcomingCount}
-          />
-        </RevealItem>
-        <RevealItem>
-          <StatCard
-            icon={Globe2}
-            label="Destinations"
-            value={destinationCount}
-          />
-        </RevealItem>
-        <RevealItem>
-          <StatCard icon={CalendarDays} label="Days planned" value={totalDays} />
-        </RevealItem>
-      </RevealGroup>
-
-      <RevealGroup className="grid gap-4 sm:grid-cols-2">
-        <RevealItem className="flex items-center justify-between gap-3 rounded-xl border border-dashed border-border bg-muted/30 p-4">
-          <div>
-            <p className="font-semibold text-foreground">Plan a new trip</p>
-            <p className="text-sm text-muted-foreground">
-              AI builds the itinerary for you
-            </p>
-          </div>
-          <Button size="sm" nativeButton={false} render={<Link href="/trips/new" />}>
-            <Plus aria-hidden="true" />
-            New trip
-          </Button>
-        </RevealItem>
-        <RevealItem
-          className="rounded-xl"
-        >
-          <Link
-            href="/trips"
-            // Same interactive-card pattern as TripCard (hover:border-primary/40
-            // hover:shadow-md) but was missed by Stage 2A's press-timing pass —
-            // brought in line here: matching duration-100 ease-out
-            // motion-reduce:transition-none and active:scale-[0.98].
-            className="group flex items-center justify-between gap-3 rounded-xl border border-border bg-card p-4 transition-all duration-100 ease-out motion-reduce:transition-none hover:border-primary/40 hover:shadow-md focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none active:scale-[0.98]"
-          >
-            <div>
-              <p className="font-semibold text-foreground">View all trips</p>
-              <p className="text-sm text-muted-foreground">
-                Browse everything you&apos;re planning
-              </p>
-            </div>
-            <ArrowRight
-              aria-hidden="true"
-              className="size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5"
-            />
-          </Link>
-        </RevealItem>
-      </RevealGroup>
 
       {trips.length === 0 ? (
         <RevealItem>
@@ -144,40 +96,68 @@ export default async function DashboardPage() {
             icon={Plane}
             title="No trips yet"
             description="Create your first trip and let AI build the itinerary for you."
+            action={
+              <Button
+                nativeButton={false}
+                render={<Link href="/trips/new" />}
+                className="mt-1"
+              >
+                <Plus aria-hidden="true" />
+                Plan your first trip
+              </Button>
+            }
           />
         </RevealItem>
       ) : (
         <>
-          <RevealItem className="space-y-3">
-            <h2 className="text-destination text-foreground">
-              Upcoming trips
-            </h2>
-            {upcomingTrips.length > 0 ? (
-              <RevealGroup className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {upcomingTrips.map((trip) => (
-                  <RevealItem key={trip.id}>
-                    <TripCard trip={trip} />
-                  </RevealItem>
-                ))}
-              </RevealGroup>
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                No upcoming trips right now.
-              </p>
-            )}
+          {nextTrip ? (
+            <RevealItem className="mb-10">
+              <h2 className="text-eyebrow mb-3 text-muted-foreground">
+                Next trip
+              </h2>
+              <TripCard trip={nextTrip} featured />
+            </RevealItem>
+          ) : null}
+
+          {/* Quiet measured line. Numbers in mono so they read as data, labels
+              beneath them as apparatus — no surface, no boxes. */}
+          <RevealItem className="mb-10 border-y border-border py-4">
+            <dl className="flex flex-wrap gap-x-10 gap-y-4">
+              {overview.map((item) => (
+                <div key={item.label}>
+                  <dd className="text-data-md text-foreground">{item.value}</dd>
+                  <dt className="text-caption text-muted-foreground">
+                    {item.label}
+                  </dt>
+                </div>
+              ))}
+            </dl>
           </RevealItem>
 
-          <RevealItem className="space-y-3">
-            <h2 className="text-destination text-foreground">
-              Recent trips
-            </h2>
-            <RevealGroup className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {recentTrips.map((trip) => (
-                <RevealItem key={trip.id}>
-                  <TripCard trip={trip} />
-                </RevealItem>
-              ))}
-            </RevealGroup>
+          {laterTrips.length > 0 ? (
+            <RevealItem className="mb-8">
+              <h2 className="text-eyebrow mb-2 text-muted-foreground">
+                Also coming up
+              </h2>
+              <ul className="divide-y divide-border border-t border-border">
+                {laterTrips.slice(0, 4).map((trip) => (
+                  <TripRow key={trip.id} trip={trip} />
+                ))}
+              </ul>
+            </RevealItem>
+          ) : null}
+
+          <RevealItem>
+            <Link
+              href="/trips"
+              className="group inline-flex items-center gap-1.5 rounded-sm text-label-md text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+            >
+              All trips
+              <ArrowRight
+                aria-hidden="true"
+                className="size-3.5 transition-transform group-hover:translate-x-0.5"
+              />
+            </Link>
           </RevealItem>
         </>
       )}
