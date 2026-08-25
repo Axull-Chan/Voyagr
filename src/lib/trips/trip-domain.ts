@@ -153,3 +153,37 @@ export function formatCurrency(amount: number, code: string): string {
     return `${currencySymbol(code)}${Math.round(amount).toLocaleString()}`
   }
 }
+
+/**
+ * Whole days until departure; negative once the trip has started.
+ *
+ * Shared by the trip hero and the trip card so a trip can never be described
+ * as leaving "Tomorrow" in one place and something else in another.
+ */
+export function daysUntil(startDate: string | null): number | null {
+  if (!startDate) return null
+  const start = Date.parse(`${startDate}T00:00:00Z`)
+  if (Number.isNaN(start)) return null
+  const today = Date.parse(`${new Date().toISOString().slice(0, 10)}T00:00:00Z`)
+  return Math.round((start - today) / 86_400_000)
+}
+
+export function countdownLabel(days: number | null): string | null {
+  if (days === null) return null
+  if (days > 1) return `In ${days} days`
+  if (days === 1) return "Tomorrow"
+  if (days === 0) return "Today"
+  return "Past trip"
+}
+
+/**
+ * Gold escalates as the trip nears — quiet for "In N days", bold for
+ * Tomorrow/Today. A past trip deliberately gets neither: gold reads as
+ * *imminent*, which a finished trip is the opposite of.
+ */
+export function countdownVariant(
+  days: number | null
+): "countdown" | "countdown-urgent" | "secondary" {
+  if (days === null || days < 0) return "secondary"
+  return days <= 1 ? "countdown-urgent" : "countdown"
+}

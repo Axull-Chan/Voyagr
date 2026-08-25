@@ -4,6 +4,11 @@ import { CalendarDays, MapPin } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
+import {
+  countdownLabel,
+  countdownVariant,
+  daysUntil,
+} from "@/lib/trips/trip-domain"
 import type { Tables } from "@/types/database.types"
 
 export type TripSummary = Pick<
@@ -60,6 +65,12 @@ export function TripCard({
    */
   featured?: boolean
 }) {
+  const days = daysUntil(trip.start_date)
+  // Only trips still ahead get a countdown here. A past trip is already
+  // grouped under "Past", and gold means *imminent* — the one thing a
+  // finished trip is not.
+  const countdown = days !== null && days >= 0 ? countdownLabel(days) : null
+
   return (
     <Link
       href={`/trips/${trip.id}`}
@@ -105,12 +116,26 @@ export function TripCard({
           </div>
         )}
 
-        <Badge
-          variant="status"
-          className="absolute top-2 left-2 bg-background/85 px-1.5 backdrop-blur-sm"
-        >
-          {statusLabel[trip.status] ?? trip.status}
-        </Badge>
+        {/* The countdown is the point of a trip card — how soon is this? —
+            so it sits over the photo exactly as it does on the trip hero.
+            "Ready" is the ordinary state and is no longer badged: it was the
+            loudest element on the card while saying nothing, and TripRow
+            already suppressed it. Only genuinely unusual states show. */}
+        {countdown || trip.status !== "ready" ? (
+          <div className="absolute top-2 left-2 flex flex-wrap items-center gap-1.5">
+            {countdown ? (
+              <Badge variant={countdownVariant(days)}>{countdown}</Badge>
+            ) : null}
+            {trip.status !== "ready" ? (
+              <Badge
+                variant="status"
+                className="bg-background/85 px-1.5 backdrop-blur-sm"
+              >
+                {statusLabel[trip.status] ?? trip.status}
+              </Badge>
+            ) : null}
+          </div>
+        ) : null}
 
         {trip.cover_image_url && trip.cover_image_credit_name ? (
           <p className="absolute right-2 bottom-2 rounded-sm bg-background/70 px-1.5 py-0.5 text-caption text-foreground/70 backdrop-blur-sm">
@@ -137,7 +162,12 @@ export function TripCard({
         <p className="truncate text-sm text-muted-foreground">
           {trip.destination}
         </p>
-        <div className="mt-auto flex items-center gap-1.5 pt-2 text-data-sm text-muted-foreground">
+        <div
+          className={cn(
+            "flex items-center gap-1.5 text-data-sm text-muted-foreground",
+            featured ? "mt-1" : "mt-auto pt-2"
+          )}
+        >
           <CalendarDays aria-hidden="true" className="size-3.5" />
           {formatDateRange(trip.start_date, trip.end_date)}
         </div>

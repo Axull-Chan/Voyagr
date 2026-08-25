@@ -3,7 +3,12 @@ import { CalendarDays, MapPin, Users } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { UNSPLASH_REFERRAL_URL } from "@/integrations/unsplash/images"
-import { formatCurrency } from "@/lib/trips/trip-domain"
+import {
+  countdownLabel,
+  countdownVariant,
+  daysUntil,
+  formatCurrency,
+} from "@/lib/trips/trip-domain"
 import type { TripRow } from "@/features/trips/queries/trip-detail"
 
 interface TripHeroProps {
@@ -11,15 +16,11 @@ interface TripHeroProps {
   nights: number
 }
 
-/** Whole days until departure; negative once the trip has started. */
-function daysUntil(startDate: string | null): number | null {
-  if (!startDate) return null
-  const start = Date.parse(`${startDate}T00:00:00Z`)
-  if (Number.isNaN(start)) return null
-  const today = Date.parse(`${new Date().toISOString().slice(0, 10)}T00:00:00Z`)
-  return Math.round((start - today) / 86_400_000)
-}
-
+/**
+ * The hero's own long-form range, which carries the year — deliberately not
+ * the card's short `formatDateRange`, since a page you are standing on should
+ * name the year and a card in a list does not need to.
+ */
 function formatRange(start: string | null, end: string | null): string {
   if (!start) return "Dates not set"
   const fmt = new Intl.DateTimeFormat("en-GB", {
@@ -30,26 +31,6 @@ function formatRange(start: string | null, end: string | null): string {
   const from = fmt.format(new Date(`${start}T00:00:00Z`))
   if (!end) return from
   return `${from} – ${fmt.format(new Date(`${end}T00:00:00Z`))}`
-}
-
-function countdownLabel(days: number | null): string | null {
-  if (days === null) return null
-  if (days > 1) return `In ${days} days`
-  if (days === 1) return "Tomorrow"
-  if (days === 0) return "Today"
-  return "Past trip"
-}
-
-/**
- * Gold escalates as the trip nears — quiet for "In N days", bold for
- * Tomorrow/Today. A past trip deliberately gets neither: gold reads as
- * *imminent*, which a finished trip is the opposite of.
- */
-function countdownVariant(
-  days: number | null
-): "countdown" | "countdown-urgent" | "secondary" {
-  if (days === null || days < 0) return "secondary"
-  return days <= 1 ? "countdown-urgent" : "countdown"
 }
 
 /**
