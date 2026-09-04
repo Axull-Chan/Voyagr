@@ -12,7 +12,11 @@ export const metadata: Metadata = {
 
 export default function NewTripPage() {
   return (
-    <Reveal mode="mount" className="mx-auto w-full max-w-2xl space-y-6">
+    // space-y-8, not -6: a form this narrow already reads as a deliberately
+    // editorial, single-column page rather than a dashboard tool — matching
+    // that requires the same "narrative gets room" treatment the day
+    // summary and trip hero use, not a tighter, denser gap.
+    <Reveal mode="mount" className="mx-auto w-full max-w-2xl space-y-8">
       <RevealItem>
         <Link
           href="/trips"

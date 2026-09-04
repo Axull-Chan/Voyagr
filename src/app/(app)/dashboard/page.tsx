@@ -60,15 +60,29 @@ export default async function DashboardPage() {
   }, 0)
 
   // Overview figures, kept but demoted: a quiet measured line, not four boxes.
+  // Rendered once and placed differently below — beside the featured card
+  // when there is one, otherwise as its own full-width band — rather than
+  // duplicating the four `<dd>/<dt>` pairs in both branches.
   const overview = [
     { label: "Trips", value: trips.length },
     { label: "Upcoming", value: upcoming.length },
     { label: "Destinations", value: destinationCount },
     { label: "Days planned", value: totalDays },
   ]
+  const overviewItems = overview.map((item) => (
+    <div key={item.label}>
+      <dd className="text-data-md text-foreground">{item.value}</dd>
+      <dt className="text-caption text-muted-foreground">{item.label}</dt>
+    </div>
+  ))
 
   return (
-    <Reveal mode="mount">
+    // pb-16: a page this short otherwise ends right at its last row's bottom
+    // border — a hard stop rather than a settled one. Trip Detail and other
+    // longer pages already end with enough of their own trailing content
+    // that this isn't needed there, so it's set here rather than in the
+    // shared (app) shell, which every page inherits.
+    <Reveal mode="mount" className="pb-16">
       {/* The action lives in the page header rather than in a bordered box.
           "View all trips" is gone entirely — the sidebar already links there,
           and a card whose only job is to duplicate navigation is exactly the
@@ -115,24 +129,33 @@ export default async function DashboardPage() {
               <h2 className="text-eyebrow mb-3 text-muted-foreground">
                 Next trip
               </h2>
-              <TripCard trip={nextTrip} featured />
+              {/* The featured card here was structurally identical to Trips'
+                  own opener — same heading, same card, nothing beside it — so
+                  the two pages read as the same screen at a glance. Rather
+                  than invent a second card treatment, this reuses the one
+                  asymmetric device DESIGN.md already establishes (Trip
+                  Detail's `1fr / rail` split): the overview figures move
+                  beside the card instead of into their own full-width band
+                  below it, which is a real difference at the exact point the
+                  pages used to collide, and is unique to Dashboard — Trips
+                  has no such figures to show. */}
+              <div className="grid gap-6 lg:grid-cols-[1fr_16rem] lg:items-start">
+                <TripCard trip={nextTrip} featured />
+                <dl className="flex flex-wrap gap-x-10 gap-y-4 border-y border-border py-4 lg:flex-col lg:flex-nowrap lg:gap-y-5 lg:border-none lg:py-1">
+                  {overviewItems}
+                </dl>
+              </div>
             </RevealItem>
-          ) : null}
-
-          {/* Quiet measured line. Numbers in mono so they read as data, labels
-              beneath them as apparatus — no surface, no boxes. */}
-          <RevealItem className="mb-10 border-y border-border py-4">
-            <dl className="flex flex-wrap gap-x-10 gap-y-4">
-              {overview.map((item) => (
-                <div key={item.label}>
-                  <dd className="text-data-md text-foreground">{item.value}</dd>
-                  <dt className="text-caption text-muted-foreground">
-                    {item.label}
-                  </dt>
-                </div>
-              ))}
-            </dl>
-          </RevealItem>
+          ) : (
+            // No upcoming trip to sit beside — every trip is in the past.
+            // The figures still matter on their own, so they keep the
+            // original full-width quiet band rather than disappearing.
+            <RevealItem className="mb-10 border-y border-border py-4">
+              <dl className="flex flex-wrap gap-x-10 gap-y-4">
+                {overviewItems}
+              </dl>
+            </RevealItem>
+          )}
 
           {laterTrips.length > 0 ? (
             <RevealItem className="mb-8">

@@ -61,7 +61,10 @@ export default async function TripsPage() {
   const restUpcoming = lead ? upcoming.slice(1) : upcoming
 
   return (
-    <Reveal mode="mount">
+    // Same reasoning as the dashboard: a short trip list currently ends
+    // abruptly right at its last row, well short of the viewport. This gives
+    // it a deliberate close instead.
+    <Reveal mode="mount" className="pb-16">
       <RevealItem className="mb-8 flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-headline text-foreground">My trips</h1>

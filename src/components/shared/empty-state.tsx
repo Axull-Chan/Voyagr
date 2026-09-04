@@ -19,6 +19,11 @@ interface EmptyStateProps {
  * one, so it sits on the page ground with generous vertical room and lets the
  * heading do the work.
  *
+ * "Generous" is a real number, not a description: the Stage 4A audit found
+ * this reading as a page that had simply run out of content — a hard stop
+ * near the top rather than a deliberate, calm pause. `py-32` gives it enough
+ * room to read as the latter.
+ *
  * The icon is kept because callers pass a genuinely meaningful one (a plane
  * for trips, a heart for favourites), but it is now small, quiet and optically
  * aligned above the text rather than enshrined in a tinted disc.
@@ -33,7 +38,7 @@ export function EmptyState({
   return (
     <div
       className={cn(
-        "flex flex-col items-center justify-center gap-4 px-6 py-20 text-center",
+        "flex flex-col items-center justify-center gap-4 px-6 py-32 text-center",
         className
       )}
     >
