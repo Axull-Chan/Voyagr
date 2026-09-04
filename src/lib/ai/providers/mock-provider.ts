@@ -162,29 +162,36 @@ function buildActivities(
   profile: DestinationProfile,
   interests: Interest[],
   count: number,
-  costPerActivity: number
+  costPerActivity: number,
+  // Trip-wide, not day-wide — passed in by the caller and shared across every
+  // day's call. This used to be created fresh inside this function, so its
+  // memory reset every morning: a 5-day trip could read the exact same
+  // sentence on all five days, since day 2 had no idea day 1 had already used
+  // it. `usedSummaryAreas` two screens up in the caller solves the identical
+  // problem for day summaries; this mirrors it for activity descriptions.
+  usedDescriptions: Set<string>
 ): GeneratedActivity[] {
   // Every template the traveller's interests unlock, flattened once so a slot
   // can be filtered without rebuilding the list per activity.
   const candidates = interests.flatMap((interest) =>
     ACTIVITY_TEMPLATES[interest].map((template) => ({ interest, template }))
   )
-  const usedTitles = new Set<string>()
   const usedPlaces = new Set<string>()
 
   return Array.from({ length: count }, (_, index) => {
     const slot = TIME_SLOTS[index % TIME_SLOTS.length] ?? "morning"
 
     // Only templates that suit this time of day, and not one already used
-    // today — otherwise a day reads "Rooftop view over X" twice, once at 09:30.
+    // anywhere else on the trip — otherwise two different days both read
+    // "Rooftop view over X", just on different mornings.
     const fitsSlot = candidates.filter(
       ({ template }) => !template.slots || template.slots.includes(slot)
     )
     const unused = fitsSlot.filter(
-      ({ template }) => !usedTitles.has(template.description)
+      ({ template }) => !usedDescriptions.has(template.description)
     )
     const { template } = pick(rng, unused.length > 0 ? unused : fitsSlot)
-    usedTitles.add(template.description)
+    usedDescriptions.add(template.description)
 
     // Draw from the pool the title actually reads well with — "Food walk
     // through <neighbourhood>", "Morning at <landmark>" — rather than one
@@ -672,6 +679,9 @@ class MockAiProvider implements AiProvider {
       usedSummaryAreas.add(area)
       return area
     }
+    // Same reasoning, one level down: without this, buildActivities forgot
+    // what it had used the moment each day's call returned.
+    const usedActivityDescriptions = new Set<string>()
 
     // Real venues when they were gathered, the example catalogue otherwise.
     const sourced = request.sourced ?? null
@@ -689,7 +699,14 @@ class MockAiProvider implements AiProvider {
             perDay,
             costPerActivity
           )
-        : buildActivities(rng, profile, interests, perDay, costPerActivity)
+        : buildActivities(
+            rng,
+            profile,
+            interests,
+            perDay,
+            costPerActivity,
+            usedActivityDescriptions
+          )
 
       const mealCount = 2 + (index % 2)
       const restaurants = restaurantRotation.available
