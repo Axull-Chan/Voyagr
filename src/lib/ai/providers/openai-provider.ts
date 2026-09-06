@@ -1,13 +1,26 @@
 import { AiGenerationError, type AiProvider, type GenerateOptions } from "@/lib/ai/provider"
+import {
+  assignItemRefIds,
+  buildChatPrompt,
+  resolveChatOperations,
+  type ItemRefs,
+  type ModelChatResponse,
+} from "@/lib/ai/providers/chat-edit-shared"
 import { mockAiProvider } from "@/lib/ai/providers/mock-provider"
 import {
   assembleItinerary,
   buildPrompt,
   hasGroundingData,
   selectCandidates,
+  type Candidates,
   type ModelItinerary,
 } from "@/lib/ai/providers/venue-grounded"
-import type { GeneratedItinerary, ItineraryRequest } from "@/lib/ai/types"
+import type {
+  ChatEditRequest,
+  ChatEditResult,
+  GeneratedItinerary,
+  ItineraryRequest,
+} from "@/lib/ai/types"
 import { MEAL_TYPES, TIME_SLOTS, TRANSPORT_MODES, tripDurationDays } from "@/lib/trips/trip-domain"
 import { isIntegrationError } from "@/integrations/core/errors"
 import { createStructuredResponse, isOpenAiConfigured } from "@/integrations/openai/responses"
@@ -152,6 +165,88 @@ function buildSchema(
   } as const
 }
 
+/**
+ * Schema for one chat-edit turn (Phase 9). Same dialect rules as `buildSchema`
+ * above (`type: [x, "null"]`, `additionalProperties: false`) — every field is
+ * nullable because only a subset applies to any given `kind`, and strict mode
+ * has no per-variant required set the way a `oneOf` would. `venueRef`/
+ * `itemRef` enums use the same short synthetic tokens `selectCandidates`/
+ * `assignItemRefIds` already produce, never a real id.
+ */
+function buildChatSchema(dayCount: number, candidates: Candidates, itemRefs: ItemRefs) {
+  const venueRefs = [...candidates.attractionsById.keys(), ...candidates.restaurantsById.keys()]
+  const itemRefIds = [...itemRefs.activitiesByRef.keys(), ...itemRefs.restaurantsByRef.keys()]
+
+  return {
+    type: "object",
+    additionalProperties: false,
+    required: ["reply", "operations"],
+    properties: {
+      reply: { type: "string" },
+      operations: {
+        type: "array",
+        maxItems: 6,
+        items: {
+          type: "object",
+          additionalProperties: false,
+          required: [
+            "kind",
+            "dayNumber",
+            "timeSlot",
+            "mealType",
+            "venueRef",
+            "itemRef",
+            "toDayNumber",
+            "toTimeSlot",
+            "title",
+            "description",
+            "startTime",
+            "durationMinutes",
+            "estimatedCost",
+            "summary",
+          ],
+          properties: {
+            kind: {
+              type: "string",
+              enum: [
+                "add_activity",
+                "remove_activity",
+                "move_activity",
+                "add_restaurant",
+                "remove_restaurant",
+                "reword_day_summary",
+                "none",
+              ],
+            },
+            dayNumber: { type: ["integer", "null"], minimum: 1, maximum: dayCount },
+            timeSlot: { type: ["string", "null"], enum: [...TIME_SLOTS, null] },
+            mealType: { type: ["string", "null"], enum: [...MEAL_TYPES, null] },
+            venueRef:
+              venueRefs.length > 0
+                ? { type: ["string", "null"], enum: [...venueRefs, null] }
+                : { type: ["string", "null"] },
+            itemRef:
+              itemRefIds.length > 0
+                ? { type: ["string", "null"], enum: [...itemRefIds, null] }
+                : { type: ["string", "null"] },
+            toDayNumber: { type: ["integer", "null"], minimum: 1, maximum: dayCount },
+            toTimeSlot: { type: ["string", "null"], enum: [...TIME_SLOTS, null] },
+            title: { type: ["string", "null"] },
+            description: { type: ["string", "null"] },
+            startTime: {
+              type: ["string", "null"],
+              pattern: "^([01][0-9]|2[0-3]):[0-5][0-9]$",
+            },
+            durationMinutes: { type: ["integer", "null"], minimum: 15, maximum: 480 },
+            estimatedCost: { type: ["number", "null"], minimum: 0 },
+            summary: { type: ["string", "null"] },
+          },
+        },
+      },
+    },
+  } as const
+}
+
 export class OpenAiProvider implements AiProvider {
   readonly id = "openai" as const
   readonly label = "OpenAI"
@@ -221,6 +316,50 @@ export class OpenAiProvider implements AiProvider {
       candidates,
       providerId: this.id,
     })
+  }
+
+  async proposeItineraryEdit(
+    request: ChatEditRequest,
+    options?: GenerateOptions
+  ): Promise<ChatEditResult> {
+    // Unlike generateItinerary, an empty/missing sourced context does not
+    // fall back to the mock — remove/move/reword operations need no
+    // grounding at all, so an empty candidate pool just means the prompt
+    // instructs the model to skip add operations this turn.
+    const candidates: Candidates = request.sourced
+      ? selectCandidates(request.sourced)
+      : { attractionsById: new Map(), restaurantsById: new Map(), hotelsById: new Map() }
+    const itemRefs = assignItemRefIds(request.itinerary)
+    const dayCount = request.itinerary.days.length
+
+    const schema = buildChatSchema(dayCount, candidates, itemRefs)
+    const { system, user } = buildChatPrompt(request, candidates, itemRefs)
+
+    let model: ModelChatResponse
+    try {
+      const result = await createStructuredResponse<ModelChatResponse>({
+        system,
+        user,
+        schemaName: "voyagr_chat_edit",
+        schema,
+        signal: options?.signal,
+      })
+      model = result.data
+    } catch (error) {
+      if (isIntegrationError(error)) {
+        throw new AiGenerationError(
+          this.id,
+          error.kind === "rate_limited"
+            ? "OpenAI is rate-limiting us right now — try again in a moment."
+            : "We couldn't reach OpenAI to look at your itinerary.",
+          error
+        )
+      }
+      throw error
+    }
+
+    const { reply, operations, warnings } = resolveChatOperations(model, candidates, itemRefs, dayCount)
+    return { reply, operations, providerId: this.id, warnings }
   }
 }
 

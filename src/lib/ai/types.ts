@@ -224,3 +224,123 @@ export interface GeneratedItinerary {
   /** Non-fatal notes, e.g. "budget was tight, trimmed paid activities". */
   warnings: string[]
 }
+
+// ---------------------------------------------------------------------------
+// Chat-based itinerary editing (Phase 9)
+//
+// A separate, smaller contract from the one above: this operates on an
+// itinerary that already exists, one small edit at a time, rather than
+// producing a whole trip. The same non-negotiable rule still applies —
+// nothing here lets a provider state a fact about a venue it wasn't given.
+// ---------------------------------------------------------------------------
+
+/** What the model is shown about an already-scheduled activity — enough to
+ * reason about it in prose. A move/remove references it by id; a genuinely
+ * new venue's name/coordinates always come from a fresh `SourcedVenue`,
+ * never from one of these. */
+export interface ChatItineraryActivity {
+  id: string
+  dayNumber: number
+  timeSlot: TimeSlot | null
+  title: string
+  locationName: string | null
+  startTime: string | null
+  durationMinutes: number | null
+  estimatedCost: number | null
+  category: string | null
+}
+
+export interface ChatItineraryRestaurant {
+  id: string
+  dayNumber: number
+  mealType: MealType | null
+  name: string
+  cuisine: string | null
+}
+
+export interface ChatItineraryDay {
+  dayNumber: number
+  date: string | null
+  summary: string | null
+}
+
+/** "Current itinerary state," handed to a provider as context. Built fresh on
+ * every turn — never cached across turns, so a follow-up message always sees
+ * whatever the previous turn actually wrote to the database. */
+export interface ChatItinerarySnapshot {
+  tripId: string
+  destination: string
+  currency: string
+  days: ChatItineraryDay[]
+  activities: ChatItineraryActivity[]
+  restaurants: ChatItineraryRestaurant[]
+}
+
+/**
+ * The closed set of edits a chat turn may propose. Already fully resolved
+ * against real data by the time this leaves the AI layer — no synthetic
+ * reference id from the model's own response ever crosses this boundary
+ * (see `providers/chat-edit-shared.ts`'s resolution step). `label` on the
+ * ones that target an existing item is a small deliberate denormalisation —
+ * the display name, resolved once — so the review UI never needs a second
+ * lookup to render "Remove: Old Town Walking Tour."
+ */
+export type ChatOperation =
+  | {
+      kind: "add_activity"
+      dayNumber: number
+      timeSlot: TimeSlot
+      title: string
+      description: string
+      locationName: string
+      lat: number
+      lng: number
+      startTime: string
+      durationMinutes: number
+      estimatedCost: number
+      category: string
+    }
+  | { kind: "remove_activity"; activityId: string; label: string }
+  | {
+      kind: "move_activity"
+      activityId: string
+      label: string
+      toDayNumber: number
+      toTimeSlot: TimeSlot
+    }
+  | {
+      kind: "add_restaurant"
+      dayNumber: number
+      mealType: MealType
+      name: string
+      cuisine: string
+      lat: number
+      lng: number
+    }
+  | { kind: "remove_restaurant"; restaurantId: string; label: string }
+  | { kind: "reword_day_summary"; dayNumber: number; summary: string }
+
+export interface ChatEditRequest {
+  tripId: string
+  message: string
+  /** Recent turns, oldest first, excluding `message` itself. Folded into the
+   * prompt as plain transcript text rather than a real multi-turn API
+   * request — this app's structured-output integrations only ever send one
+   * turn per call, and a short text-folded history is enough context for one
+   * edit without new infrastructure in either integration. */
+  history: { role: "user" | "assistant"; content: string }[]
+  itinerary: ChatItinerarySnapshot
+  /** Fresh candidates near the destination, same shape generation uses.
+   * `weatherByDate` is always `{}` here — nothing about a single edit needs
+   * weather, and reusing `SourcedContext` rather than a parallel type is what
+   * lets `hasGroundingData`/`selectCandidates` work on it unmodified. Null
+   * when no coordinate on the trip could be used to source fresh venues. */
+  sourced: SourcedContext | null
+}
+
+export interface ChatEditResult {
+  reply: string
+  operations: ChatOperation[]
+  providerId: string
+  warnings: string[]
+}

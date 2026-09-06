@@ -46,7 +46,12 @@ committed before the next begins — don't skip ahead without the user's go-ahea
 - [x] **Phase 8 — Packing checklist.** Check/uncheck, add/edit/delete, and
   category grouping over the already-generated `packing_lists` rows — same
   pass as Phase 7, see below.
-- [ ] Phase 9 — AI travel assistant (chat-based itinerary editing)
+- [x] **Phase 9 — AI travel assistant (chat-based itinerary editing).** A
+  slide-over chat on the trip detail page proposes add/remove/move-activity,
+  add/remove-restaurant and reword-day-summary edits, reviewed and applied
+  explicitly rather than written automatically — see "Phase 9 — chat-based
+  itinerary editing" below. **Not live-browser-verified** — the user chose to
+  skip that step this pass; only `type-check`/`lint`/`build` gates ran.
 - [ ] Phase 10 — Trip management (rename/duplicate/archive/export)
 - [ ] Phase 11 — PDF export
 - [ ] Phase 12 — Premium features
@@ -1250,3 +1255,99 @@ email = '...'`.
 - Motion: shared variants in `src/lib/motion.ts`, `prefers-reduced-motion`
   handled globally via `<MotionConfig reducedMotion="user">` in
   `src/components/motion-provider.tsx`.
+
+## Phase 9 — chat-based itinerary editing
+
+Every phase up to this one only ever *generated* an itinerary once, at trip
+creation — there was no way to change a day's plan afterward short of
+regenerating the whole trip. This adds a slide-over chat
+(`src/features/trips/components/detail/trip-chat.tsx`, a floating trigger +
+`Sheet`) where a message proposes a small, reviewable edit — add/remove/move
+an activity, add/remove a restaurant, reword a day's summary — which the
+user explicitly applies or discards. Planned via a dedicated Plan-agent pass
+before any code was written, given how many architectural forks a "chat that
+edits data" feature opens; the plan is in the session history, not
+duplicated here.
+
+- **One schema-constrained response per turn, not an agentic tool loop.**
+  This app's Gemini/OpenAI integrations (`integrations/gemini/generate.ts`,
+  `integrations/openai/responses.ts`) have only ever made one-shot structured-
+  output calls; a chat-editing feature could easily have reached for
+  multi-step tool-calling instead, but that would have been new
+  infrastructure this project doesn't need for v1. A turn sends the current
+  itinerary snapshot + recent history (folded into the prompt as plain text,
+  not a real multi-turn API request) and gets back `{reply, operations[]}` in
+  one call — same shape discipline as generation's `{title, summary, days,
+  ...}`. `AiProvider` gained one method, `proposeItineraryEdit`, implemented
+  by all three providers (gemini live, mock deterministic, openai unused-but-
+  parallel, same as generateItinerary's three-provider pattern).
+- **The Phase 4 enum bug, applied pre-emptively to a second id type.**
+  `venue-grounded.ts`'s `selectCandidates` exists because Gemini reliably
+  400s once a JSON-schema enum contains two or more real, opaque ids
+  together (see "Phase 4" below) — fixed there by assigning short synthetic
+  tokens instead of sending real OpenTripMap xids. A remove/move operation
+  needs the model to reference an *existing* activity or restaurant by id,
+  and those are real Postgres UUIDs — the same shape of bug waiting to
+  happen, just never tested against Gemini directly. Rather than discover
+  that the hard way, `chat-edit-shared.ts`'s `assignItemRefIds` applies the
+  identical fix pre-emptively: existing items get short tokens (`act1`,
+  `res1`, …) for the model to reference, resolved back to real ids
+  server-side, exactly like venue refs already are.
+- **Everything the model can't know is still resolved from real data, not
+  asked of the model** — the same non-negotiable rule Phase 3B/4 established,
+  just applied to a smaller surface. `add_activity`/`add_restaurant`
+  operations only let the model pick *which* offered venue (by ref id) and
+  write the title/description prose; name, coordinates, category and cuisine
+  are all filled in from the real `SourcedVenue` afterward, in
+  `resolveChatOperations` — never sent back through the schema as a field the
+  model fills in itself.
+- **The mock provider declines rather than inventing, diverging from its own
+  `generateItinerary`.** `buildHotel`/`buildActivities` in `mock-provider.ts`
+  fall back to catalogue-invented content when no real venues exist, because
+  generation has to produce a complete trip either way. A chat turn has no
+  such pressure — declining one add-request ("I don't have any real places
+  nearby to suggest for that") costs nothing, and this feature's whole
+  premise (never state a fact about a venue the model wasn't given) has no
+  carve-out for the mock path either. `proposeMockEdit` is plain keyword
+  matching (day-number/weekday detection, remove/add/move intent, word-
+  overlap scoring against real venues/existing items) — a deterministic
+  dev/offline stand-in, not a substitute for actually understanding the
+  message, so it declines honestly whenever nothing scores rather than
+  guessing.
+- **Persistence: every turn is saved immediately; "discard" is client-only.**
+  New table `trip_chat_messages` (migration
+  `20260905120000_add_trip_chat_messages.sql`) logs both sides of the
+  conversation the moment they happen, including a not-yet-applied
+  assistant proposal — writing the chat log is not the same as mutating the
+  itinerary, so the confirm-before-apply rule doesn't block it. A discarded
+  proposal is just a row whose `applied_at` stays null forever; the DB has
+  no delete path for it at all, matching the same "one policy per CRUD verb,
+  but not every verb needs a caller" shape as `trip_notes`.
+- **Applying an edit re-reads `proposed_operations` from the message row
+  itself, never trusts a client-resent payload.** `applyChatOperationsAction`
+  takes only `{tripId, messageId}` — the server is the one source of truth
+  for what was actually proposed, re-validated against the current DB state
+  (a day or item that no longer exists is *skipped with a reason*, not a
+  hard failure — the array is capped at 6 operations and applied
+  sequentially, same no-transaction limitation `itinerary-writer.ts` already
+  documents for the Supabase client).
+- **Restaurant "cheaper"/"better" requests can only ever be answered
+  honestly as "a different option."** `rating`/`priceLevel` are null for
+  every provider by design since Phase 4 — nothing in this app has ever
+  sourced real restaurant pricing. The system prompt says this outright
+  rather than letting a chat reply quietly imply a comparison nobody can back.
+- Not touched: `sheet.tsx`/`dialog.tsx` internals, the Stage 3D trip detail
+  composition (the chat panel mounts as an additive sibling, outside
+  `Reveal`/`RevealItem` since it's persistent chrome, not scroll content),
+  `venue-grounded.ts`'s existing exports/callers, and `mock-provider.ts`'s
+  existing `generateItinerary` behaviour.
+- **Not live-browser-verified.** `type-check`, `lint`, and `build` all pass
+  clean, and the migration's RLS was checked with `get_advisors` (no new
+  findings — the standing "unused index" INFO notices fire identically for
+  every existing trip-scoped index, not just the new one). But the actual
+  end-to-end flow — sending a message against live Gemini, applying a
+  proposal, confirming it renders in `DayTimeline` and survives a reload —
+  was never exercised in a browser this pass: the session's Browser pane
+  never picked up an authenticated cookie (checked on a brand-new tab too),
+  and the user chose to skip live testing rather than debug that further.
+  Worth doing before trusting this beyond "it compiles."

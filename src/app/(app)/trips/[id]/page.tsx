@@ -10,15 +10,20 @@ import { getRates } from "@/services/currency-service"
 import { getTripWeather } from "@/services/weather-service"
 import type { MapMarker } from "@/services/map-service"
 import { getTripDetail } from "@/features/trips/queries/trip-detail"
+import { getTripChatHistory } from "@/features/trips/queries/trip-chat"
 import {
   DayTimeline,
   type DayForecast,
 } from "@/features/trips/components/detail/day-timeline"
 import { TripHero } from "@/features/trips/components/detail/trip-hero"
 import { LazyTripMap } from "@/features/trips/components/detail/trip-map-lazy"
-import { StaysPanel, TransportPanel } from "@/features/trips/components/detail/trip-aside"
+import {
+  StaysPanel,
+  TransportPanel,
+} from "@/features/trips/components/detail/trip-aside"
 import { BudgetSection } from "@/features/trips/components/detail/budget-section"
 import { PackingSection } from "@/features/trips/components/detail/packing-section"
+import { TripChat } from "@/features/trips/components/detail/trip-chat"
 
 interface TripDetailPageProps {
   params: Promise<{ id: string }>
@@ -47,8 +52,10 @@ export async function generateMetadata({
  */
 export default async function TripDetailPage({ params }: TripDetailPageProps) {
   const { id } = await params
-  const { trip, days, hotels, transportation, budget, expenses, packing } =
-    await getTripDetail(id)
+  const [
+    { trip, days, hotels, transportation, budget, expenses, packing },
+    chatHistory,
+  ] = await Promise.all([getTripDetail(id), getTripChatHistory(id)])
 
   // The traveller's own currency, for converting a foreign budget back.
   const supabase = await createClient()
@@ -64,12 +71,19 @@ export default async function TripDetailPage({ params }: TripDetailPageProps) {
   // which cost a real (if usually fast) external round trip for currencies
   // nothing on the page would ever use.
   const quoteCurrencies = [
-    ...new Set([homeCurrency, ...expenses.map((e) => e.currency)].filter((c): c is string => Boolean(c))),
+    ...new Set(
+      [homeCurrency, ...expenses.map((e) => e.currency)].filter(
+        (c): c is string => Boolean(c)
+      )
+    ),
   ].filter((c) => c !== trip.currency)
   const rates =
     quoteCurrencies.length > 0
       ? await getRates(trip.currency, quoteCurrencies)
-      : { data: { base: trip.currency, rates: {}, asOf: "" }, source: "live" as const }
+      : {
+          data: { base: trip.currency, rates: {}, asOf: "" },
+          source: "live" as const,
+        }
 
   const nights = Math.max(
     tripDurationDays(trip.start_date ?? "", trip.end_date ?? "") - 1,
@@ -162,7 +176,8 @@ export default async function TripDetailPage({ params }: TripDetailPageProps) {
     if (!stored) return null
     return {
       condition: stored.condition,
-      tempHighC: stored.temp_high_c === null ? null : Number(stored.temp_high_c),
+      tempHighC:
+        stored.temp_high_c === null ? null : Number(stored.temp_high_c),
       tempLowC: stored.temp_low_c === null ? null : Number(stored.temp_low_c),
       precipitationChance: stored.precipitation_chance,
       windKph: stored.wind_kph === null ? null : Number(stored.wind_kph),
@@ -179,7 +194,9 @@ export default async function TripDetailPage({ params }: TripDetailPageProps) {
   }
 
   const hasAsideContent =
-    hotels.length > 0 || transportation.length > 0 || Boolean(trip.additional_notes)
+    hotels.length > 0 ||
+    transportation.length > 0 ||
+    Boolean(trip.additional_notes)
   const hasMap = markers.length > 0
   const hasRail = hasMap || hasAsideContent
 
@@ -201,122 +218,136 @@ export default async function TripDetailPage({ params }: TripDetailPageProps) {
    * budget → packing, which is narrative-first by construction.
    */
   return (
-    <Reveal mode="mount">
-      <RevealItem className="mb-4">
-        <Button
-          variant="ghost"
-          size="sm"
-          nativeButton={false}
-          render={<Link href="/trips" />}
-          className="-ml-2"
+    <>
+      <Reveal mode="mount">
+        <RevealItem className="mb-4">
+          <Button
+            variant="ghost"
+            size="sm"
+            nativeButton={false}
+            render={<Link href="/trips" />}
+            className="-ml-2"
+          >
+            <ArrowLeft aria-hidden="true" />
+            All trips
+          </Button>
+        </RevealItem>
+
+        <RevealItem className="mb-8 sm:mb-10">
+          <TripHero trip={trip} nights={nights} />
+        </RevealItem>
+
+        <div
+          className={
+            hasRail
+              ? "grid gap-8 lg:grid-cols-[1fr_20rem] lg:items-start lg:gap-10"
+              : "grid"
+          }
         >
-          <ArrowLeft aria-hidden="true" />
-          All trips
-        </Button>
-      </RevealItem>
+          {/* The spine. Nothing else shares this column. */}
+          <div className="min-w-0">
+            <RevealItem>
+              <h2 className="text-destination text-foreground mb-4">
+                Day by day
+              </h2>
+              {days.length > 0 ? (
+                <div className="divide-border divide-y">
+                  {days.map((day) => (
+                    <DayTimeline
+                      key={day.id}
+                      day={day}
+                      currency={trip.currency}
+                      forecast={forecastFor(day)}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <div className="border-border border-t py-10 text-center">
+                  <p className="text-muted-foreground text-sm">
+                    {trip.status === "draft"
+                      ? "This trip is still a draft — its itinerary hasn't been generated yet."
+                      : "No itinerary yet."}
+                  </p>
+                </div>
+              )}
+            </RevealItem>
+          </div>
 
-      <RevealItem className="mb-8 sm:mb-10">
-        <TripHero trip={trip} nights={nights} />
-      </RevealItem>
+          {hasRail ? (
+            // Everything about *where*, beside the column about *when*. Sticky so
+            // the map stays available while the reader moves down the days.
+            <aside className="space-y-6 lg:sticky lg:top-20">
+              {hasMap ? (
+                <RevealItem>
+                  <h2 className="text-day-heading text-foreground mb-2">
+                    Everywhere you&apos;re going
+                  </h2>
+                  <LazyTripMap markers={markers} center={mapCentre} />
+                </RevealItem>
+              ) : null}
 
-      <div
-        className={
-          hasRail
-            ? "grid gap-8 lg:grid-cols-[1fr_20rem] lg:items-start lg:gap-10"
-            : "grid"
-        }
-      >
-        {/* The spine. Nothing else shares this column. */}
-        <div className="min-w-0">
-          <RevealItem>
-            <h2 className="mb-4 text-destination text-foreground">
-              Day by day
-            </h2>
-            {days.length > 0 ? (
-              <div className="divide-y divide-border">
-                {days.map((day) => (
-                  <DayTimeline
-                    key={day.id}
-                    day={day}
-                    currency={trip.currency}
-                    forecast={forecastFor(day)}
-                  />
-                ))}
-              </div>
-            ) : (
-              <div className="border-t border-border py-10 text-center">
-                <p className="text-sm text-muted-foreground">
-                  {trip.status === "draft"
-                    ? "This trip is still a draft — its itinerary hasn't been generated yet."
-                    : "No itinerary yet."}
-                </p>
-              </div>
-            )}
-          </RevealItem>
-        </div>
-
-        {hasRail ? (
-          // Everything about *where*, beside the column about *when*. Sticky so
-          // the map stays available while the reader moves down the days.
-          <aside className="space-y-6 lg:sticky lg:top-20">
-            {hasMap ? (
-              <RevealItem>
-                <h2 className="mb-2 text-day-heading text-foreground">
-                  Everywhere you&apos;re going
-                </h2>
-                <LazyTripMap markers={markers} center={mapCentre} />
-              </RevealItem>
-            ) : null}
-
-            {hasAsideContent ? (
-              <RevealItem>
-                {/* Deliberately not `bg-card` — every primary content section
+              {hasAsideContent ? (
+                <RevealItem>
+                  {/* Deliberately not `bg-card` — every primary content section
                     (map, day timeline, budget, packing) already uses that
                     token, so this panel would just read as "another card of
                     the same kind, slightly faded." `bg-muted`, already this
                     codebase's recessed/secondary tone, plus a softer border
                     gives it its own tier (a parallel structural layer, not a
                     second content card) without a new token or any blur. */}
-                <div className="divide-y divide-border/60 rounded-xl border border-border/60 bg-muted/40">
-                  <StaysPanel hotels={hotels} currency={trip.currency} />
-                  <TransportPanel legs={transportation} currency={trip.currency} />
-                  {trip.additional_notes ? (
-                    <div className="p-5">
-                      <h2 className="text-day-heading text-foreground">Your notes</h2>
-                      <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                        {trip.additional_notes}
-                      </p>
-                    </div>
-                  ) : null}
-                </div>
-              </RevealItem>
-            ) : null}
-          </aside>
-        ) : null}
-      </div>
+                  <div className="divide-border/60 border-border/60 bg-muted/40 divide-y rounded-xl border">
+                    <StaysPanel hotels={hotels} currency={trip.currency} />
+                    <TransportPanel
+                      legs={transportation}
+                      currency={trip.currency}
+                    />
+                    {trip.additional_notes ? (
+                      <div className="p-5">
+                        <h2 className="text-day-heading text-foreground">
+                          Your notes
+                        </h2>
+                        <p className="text-muted-foreground mt-2 text-sm leading-relaxed">
+                          {trip.additional_notes}
+                        </p>
+                      </div>
+                    ) : null}
+                  </div>
+                </RevealItem>
+              ) : null}
+            </aside>
+          ) : null}
+        </div>
 
-      {/* Planning tools. Below the whole grid rather than inside the narrative
+        {/* Planning tools. Below the whole grid rather than inside the narrative
           column, and paired side by side once there is room, so they read as a
           band of instruments rather than two more page-width sections
           competing with the itinerary. Separated by space, not another rule —
           each section already carries its own. */}
-      <div className="mt-14 grid gap-10 sm:mt-16 lg:grid-cols-2">
-        <RevealItem>
-          <BudgetSection
-            tripId={trip.id}
-            budget={budget}
-            expenses={expenses}
-            currency={trip.currency}
-            total={trip.budget ? Number(trip.budget) : null}
-            rates={rates.data}
-            homeCurrency={homeCurrency}
-          />
-        </RevealItem>
+        <div className="mt-14 grid gap-10 sm:mt-16 lg:grid-cols-2">
+          <RevealItem>
+            <BudgetSection
+              tripId={trip.id}
+              budget={budget}
+              expenses={expenses}
+              currency={trip.currency}
+              total={trip.budget ? Number(trip.budget) : null}
+              rates={rates.data}
+              homeCurrency={homeCurrency}
+            />
+          </RevealItem>
 
-        <RevealItem>
-          <PackingSection tripId={trip.id} items={packing} />
-        </RevealItem>
-      </div>
-    </Reveal>
+          <RevealItem>
+            <PackingSection tripId={trip.id} items={packing} />
+          </RevealItem>
+        </div>
+      </Reveal>
+
+      <TripChat
+        tripId={trip.id}
+        currency={trip.currency}
+        initialMessages={chatHistory}
+        hasItinerary={days.length > 0}
+      />
+    </>
   )
 }

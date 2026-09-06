@@ -5,6 +5,11 @@ import {
 } from "@/lib/ai/provider"
 import { ACCOMMODATION_NOUN, accommodationMultiplier } from "@/lib/ai/pricing"
 import type {
+  ChatEditRequest,
+  ChatEditResult,
+  ChatItineraryActivity,
+  ChatItineraryRestaurant,
+  ChatOperation,
   GeneratedActivity,
   GeneratedBudgetLine,
   GeneratedDay,
@@ -633,6 +638,253 @@ function buildRestaurantsFromVenues(
   return out
 }
 
+// ---------------------------------------------------------------------------
+// Chat-based itinerary editing (Phase 9) — mock path.
+//
+// Deliberately simple keyword matching, not language understanding: this is
+// a deterministic dev/offline stand-in for a real model, not a substitute for
+// one. A narrower "I didn't catch that" beats a confident wrong guess here,
+// since there's no real reasoning behind the match to fall back on.
+// ---------------------------------------------------------------------------
+
+const WEEKDAYS = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"]
+
+const STOPWORDS = new Set([
+  "the", "a", "an", "to", "for", "on", "in", "at", "of", "and", "with",
+  "from", "day", "my", "our", "please", "can", "you", "add", "remove",
+  "cut", "delete", "move", "shift", "some", "that", "this", "want",
+])
+
+function messageWords(message: string): string[] {
+  return message
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .split(/\s+/)
+    .filter((w) => w.length > 2 && !STOPWORDS.has(w))
+}
+
+function overlapScore(words: string[], text: string): number {
+  const textWords = new Set(text.toLowerCase().replace(/[^a-z0-9\s]/g, " ").split(/\s+/))
+  return words.reduce((score, w) => score + (textWords.has(w) ? 1 : 0), 0)
+}
+
+/** Every distinct day the message names, via "day N" or a weekday matched
+ * against that day's actual date — in first-mentioned order. */
+function detectDayNumbers(message: string, days: { dayNumber: number; date: string | null }[]): number[] {
+  const found: number[] = []
+  const lower = message.toLowerCase()
+
+  for (const match of lower.matchAll(/\bday\s*(\d+)\b/g)) {
+    const n = Number(match[1])
+    if (days.some((d) => d.dayNumber === n) && !found.includes(n)) found.push(n)
+  }
+
+  for (const day of days) {
+    if (!day.date || found.includes(day.dayNumber)) continue
+    const weekday = WEEKDAYS[new Date(`${day.date}T00:00:00Z`).getUTCDay()]
+    if (weekday && lower.includes(weekday)) found.push(day.dayNumber)
+  }
+
+  return found
+}
+
+function detectTimeSlot(message: string): TimeSlot | null {
+  const lower = message.toLowerCase()
+  if (/\bmorning\b/.test(lower)) return "morning"
+  if (/\bafternoon\b/.test(lower)) return "afternoon"
+  if (/\bevening|\bnight\b/.test(lower)) return "evening"
+  return null
+}
+
+function detectMealType(message: string): MealType | null {
+  const lower = message.toLowerCase()
+  if (/\bbreakfast\b/.test(lower)) return "breakfast"
+  if (/\blunch\b/.test(lower)) return "lunch"
+  if (/\bdinner\b/.test(lower)) return "dinner"
+  return null
+}
+
+/** Picks the best-scoring activity/restaurant on the given days (or every
+ * day, when none were named), for a remove or move request. */
+function findBestMatchingItem(
+  words: string[],
+  activities: ChatItineraryActivity[],
+  restaurants: ChatItineraryRestaurant[],
+  onDays: number[] | null
+):
+  | { type: "activity"; item: ChatItineraryActivity; score: number }
+  | { type: "restaurant"; item: ChatItineraryRestaurant; score: number }
+  | null {
+  const scoped = <T extends { dayNumber: number }>(items: T[]) =>
+    onDays && onDays.length > 0 ? items.filter((i) => onDays.includes(i.dayNumber)) : items
+
+  const candidates = [
+    ...scoped(activities).map((item) => ({
+      type: "activity" as const,
+      item,
+      score: overlapScore(words, `${item.title} ${item.locationName ?? ""}`),
+    })),
+    ...scoped(restaurants).map((item) => ({
+      type: "restaurant" as const,
+      item,
+      score: overlapScore(words, `${item.name} ${item.cuisine ?? ""}`),
+    })),
+  ]
+
+  const best = candidates.reduce<(typeof candidates)[number] | null>(
+    (top, c) => (c.score > 0 && (!top || c.score > top.score) ? c : top),
+    null
+  )
+  return best
+}
+
+/** Picks the best-scoring real venue for an add request — never falls back
+ * to `mock-catalog.ts`'s invented landmarks, unlike `generateItinerary`'s own
+ * fallback. A chat turn declining one add-request is low-cost; inventing a
+ * venue for a feature whose whole point is "never state a fact the model
+ * wasn't given" is not a trade worth making just for the mock path. */
+function findBestVenue(words: string[], venues: SourcedVenue[]): SourcedVenue | null {
+  let best: { venue: SourcedVenue; score: number } | null = null
+  for (const venue of venues) {
+    const score = overlapScore(words, `${venue.name} ${venue.kinds.join(" ")}`)
+    if (score > 0 && (!best || score > best.score)) best = { venue, score }
+  }
+  return best?.venue ?? null
+}
+
+function proposeMockEdit(request: ChatEditRequest): { reply: string; operations: ChatOperation[] } {
+  const { itinerary, sourced } = request
+  const words = messageWords(request.message)
+  const dayNumbers = detectDayNumbers(request.message, itinerary.days)
+  const lower = request.message.toLowerCase()
+
+  const wantsRemove = /\b(remove|cut|delete|skip|cancel|drop)\b/.test(lower)
+  const wantsMove = /\b(move|shift|reschedule)\b/.test(lower)
+  const wantsAdd = !wantsRemove && !wantsMove && /\b(add|include|squeeze in|throw in)\b/.test(lower)
+
+  if (wantsMove) {
+    if (dayNumbers.length < 2) {
+      return {
+        reply:
+          "Tell me which two days — for example, \"move the museum visit from day 2 to day 3.\"",
+        operations: [],
+      }
+    }
+    const [fromDay, toDay] = dayNumbers
+    const match = findBestMatchingItem(words, itinerary.activities, [], [fromDay as number])
+    if (!match || match.type !== "activity") {
+      return {
+        reply: `I couldn't tell which activity on day ${fromDay} you mean — try naming it directly.`,
+        operations: [],
+      }
+    }
+    const toTimeSlot = detectTimeSlot(request.message) ?? match.item.timeSlot ?? "morning"
+    return {
+      reply: `Moved "${match.item.title}" from day ${fromDay} to day ${toDay}.`,
+      operations: [
+        {
+          kind: "move_activity",
+          activityId: match.item.id,
+          label: match.item.title,
+          toDayNumber: toDay as number,
+          toTimeSlot,
+        },
+      ],
+    }
+  }
+
+  if (wantsRemove) {
+    const match = findBestMatchingItem(
+      words,
+      itinerary.activities,
+      itinerary.restaurants,
+      dayNumbers.length > 0 ? dayNumbers : null
+    )
+    if (!match) {
+      return {
+        reply: "I couldn't tell which part of the plan you mean — try naming the activity or restaurant directly.",
+        operations: [],
+      }
+    }
+    if (match.type === "activity") {
+      return {
+        reply: `Removed "${match.item.title}" from day ${match.item.dayNumber}.`,
+        operations: [{ kind: "remove_activity", activityId: match.item.id, label: match.item.title }],
+      }
+    }
+    return {
+      reply: `Removed "${match.item.name}" from day ${match.item.dayNumber}.`,
+      operations: [{ kind: "remove_restaurant", restaurantId: match.item.id, label: match.item.name }],
+    }
+  }
+
+  if (wantsAdd) {
+    const dayNumber = dayNumbers[0] ?? itinerary.days[0]?.dayNumber ?? 1
+    const mealType = detectMealType(request.message)
+    const restaurants = sourced?.restaurants ?? []
+    const attractions = sourced?.attractions ?? []
+
+    if (mealType) {
+      const venue = findBestVenue(words, restaurants)
+      if (!venue) {
+        return {
+          reply: "I don't have any real restaurants nearby to suggest for that — try a different request.",
+          operations: [],
+        }
+      }
+      return {
+        reply: `Added "${venue.name}" for ${mealType} on day ${dayNumber}.`,
+        operations: [
+          {
+            kind: "add_restaurant",
+            dayNumber,
+            mealType,
+            name: venue.name,
+            cuisine: venue.kinds.includes("cafes") ? "Café" : "Local",
+            lat: venue.latitude,
+            lng: venue.longitude,
+          },
+        ],
+      }
+    }
+
+    const venue = findBestVenue(words, attractions)
+    if (!venue) {
+      return {
+        reply: "I don't have any real places nearby to suggest for that — try being more specific.",
+        operations: [],
+      }
+    }
+    const { verb, note } = frameVenue(venue)
+    const timeSlot = detectTimeSlot(request.message) ?? "morning"
+    return {
+      reply: `Added "${venue.name}" on day ${dayNumber}, ${timeSlot}.`,
+      operations: [
+        {
+          kind: "add_activity",
+          dayNumber,
+          timeSlot,
+          title: `${verb} ${venue.name}`,
+          description: note,
+          locationName: venue.name,
+          lat: venue.latitude,
+          lng: venue.longitude,
+          startTime: SLOT_START[timeSlot],
+          durationMinutes: 90,
+          estimatedCost: 0,
+          category: venue.kinds[0] ?? "interesting_places",
+        },
+      ],
+    }
+  }
+
+  return {
+    reply:
+      "I can add, remove, or move an activity or restaurant, or reschedule between two days — try something like \"remove the hike on day 3\" or \"add a museum on day 2 morning.\"",
+    operations: [],
+  }
+}
+
 class MockAiProvider implements AiProvider {
   readonly id = "mock" as const
   readonly label = "Mock planner"
@@ -796,6 +1048,24 @@ class MockAiProvider implements AiProvider {
       providerId: this.id,
       warnings,
     }
+  }
+
+  async proposeItineraryEdit(
+    request: ChatEditRequest,
+    options?: GenerateOptions
+  ): Promise<ChatEditResult> {
+    // Same interruptible-pause pattern generateItinerary uses, so callers
+    // exercise identical loading/cancellation paths against every provider.
+    await new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(resolve, 400)
+      options?.signal?.addEventListener("abort", () => {
+        clearTimeout(timer)
+        reject(new AiGenerationError(this.id, "Generation was cancelled."))
+      })
+    })
+
+    const { reply, operations } = proposeMockEdit(request)
+    return { reply, operations, providerId: this.id, warnings: [] }
   }
 }
 

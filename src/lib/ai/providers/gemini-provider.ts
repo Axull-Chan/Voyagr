@@ -1,13 +1,26 @@
 import { AiGenerationError, type AiProvider, type GenerateOptions } from "@/lib/ai/provider"
+import {
+  assignItemRefIds,
+  buildChatPrompt,
+  resolveChatOperations,
+  type ItemRefs,
+  type ModelChatResponse,
+} from "@/lib/ai/providers/chat-edit-shared"
 import { mockAiProvider } from "@/lib/ai/providers/mock-provider"
 import {
   assembleItinerary,
   buildPrompt,
   hasGroundingData,
   selectCandidates,
+  type Candidates,
   type ModelItinerary,
 } from "@/lib/ai/providers/venue-grounded"
-import type { GeneratedItinerary, ItineraryRequest } from "@/lib/ai/types"
+import type {
+  ChatEditRequest,
+  ChatEditResult,
+  GeneratedItinerary,
+  ItineraryRequest,
+} from "@/lib/ai/types"
 import { MEAL_TYPES, TIME_SLOTS, TRANSPORT_MODES, tripDurationDays } from "@/lib/trips/trip-domain"
 import { isIntegrationError } from "@/integrations/core/errors"
 import { createStructuredResponse, isGeminiConfigured } from "@/integrations/gemini/generate"
@@ -146,6 +159,88 @@ function buildSchema(
   } as const
 }
 
+/**
+ * Schema for one chat-edit turn (Phase 9). Same dialect rules as `buildSchema`
+ * above (`nullable: true`, no `additionalProperties`) — every field is
+ * `nullable` because only a subset applies to any given `kind`, and Gemini's
+ * schema (unlike JSON Schema's `oneOf`) has no per-variant required set.
+ * `venueRef`/`itemRef` enums are built from the same short synthetic tokens
+ * `selectCandidates`/`assignItemRefIds` already produce — never a real id,
+ * for the reason documented on `assignItemRefIds`.
+ */
+function buildChatSchema(dayCount: number, candidates: Candidates, itemRefs: ItemRefs) {
+  const venueRefs = [...candidates.attractionsById.keys(), ...candidates.restaurantsById.keys()]
+  const itemRefIds = [...itemRefs.activitiesByRef.keys(), ...itemRefs.restaurantsByRef.keys()]
+
+  return {
+    type: "object",
+    required: ["reply", "operations"],
+    properties: {
+      reply: { type: "string" },
+      operations: {
+        type: "array",
+        maxItems: 6,
+        items: {
+          type: "object",
+          required: [
+            "kind",
+            "dayNumber",
+            "timeSlot",
+            "mealType",
+            "venueRef",
+            "itemRef",
+            "toDayNumber",
+            "toTimeSlot",
+            "title",
+            "description",
+            "startTime",
+            "durationMinutes",
+            "estimatedCost",
+            "summary",
+          ],
+          properties: {
+            kind: {
+              type: "string",
+              enum: [
+                "add_activity",
+                "remove_activity",
+                "move_activity",
+                "add_restaurant",
+                "remove_restaurant",
+                "reword_day_summary",
+                "none",
+              ],
+            },
+            dayNumber: { type: "integer", nullable: true, minimum: 1, maximum: dayCount },
+            timeSlot: { type: "string", nullable: true, enum: [...TIME_SLOTS] },
+            mealType: { type: "string", nullable: true, enum: [...MEAL_TYPES] },
+            venueRef:
+              venueRefs.length > 0
+                ? { type: "string", nullable: true, enum: venueRefs }
+                : { type: "string", nullable: true },
+            itemRef:
+              itemRefIds.length > 0
+                ? { type: "string", nullable: true, enum: itemRefIds }
+                : { type: "string", nullable: true },
+            toDayNumber: { type: "integer", nullable: true, minimum: 1, maximum: dayCount },
+            toTimeSlot: { type: "string", nullable: true, enum: [...TIME_SLOTS] },
+            title: { type: "string", nullable: true },
+            description: { type: "string", nullable: true },
+            startTime: {
+              type: "string",
+              nullable: true,
+              pattern: "^([01][0-9]|2[0-3]):[0-5][0-9]$",
+            },
+            durationMinutes: { type: "integer", nullable: true, minimum: 15, maximum: 480 },
+            estimatedCost: { type: "number", nullable: true, minimum: 0 },
+            summary: { type: "string", nullable: true },
+          },
+        },
+      },
+    },
+  } as const
+}
+
 export class GeminiProvider implements AiProvider {
   readonly id = "gemini" as const
   readonly label = "Gemini"
@@ -208,6 +303,50 @@ export class GeminiProvider implements AiProvider {
       candidates,
       providerId: this.id,
     })
+  }
+
+  async proposeItineraryEdit(
+    request: ChatEditRequest,
+    options?: GenerateOptions
+  ): Promise<ChatEditResult> {
+    // Unlike generateItinerary, an empty/missing sourced context does not
+    // fall back to the mock — remove/move/reword operations need no
+    // grounding at all, so an empty candidate pool just means the prompt
+    // instructs the model to skip add operations this turn, not that the
+    // whole feature is unavailable.
+    const candidates: Candidates = request.sourced
+      ? selectCandidates(request.sourced)
+      : { attractionsById: new Map(), restaurantsById: new Map(), hotelsById: new Map() }
+    const itemRefs = assignItemRefIds(request.itinerary)
+    const dayCount = request.itinerary.days.length
+
+    const schema = buildChatSchema(dayCount, candidates, itemRefs)
+    const { system, user } = buildChatPrompt(request, candidates, itemRefs)
+
+    let model: ModelChatResponse
+    try {
+      const result = await createStructuredResponse<ModelChatResponse>({
+        system,
+        user,
+        schema,
+        signal: options?.signal,
+      })
+      model = result.data
+    } catch (error) {
+      if (isIntegrationError(error)) {
+        throw new AiGenerationError(
+          this.id,
+          error.kind === "rate_limited"
+            ? "Gemini is rate-limiting us right now — try again in a moment."
+            : "We couldn't reach Gemini to look at your itinerary.",
+          error
+        )
+      }
+      throw error
+    }
+
+    const { reply, operations, warnings } = resolveChatOperations(model, candidates, itemRefs, dayCount)
+    return { reply, operations, providerId: this.id, warnings }
   }
 }
 

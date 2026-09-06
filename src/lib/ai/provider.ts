@@ -1,4 +1,9 @@
-import type { GeneratedItinerary, ItineraryRequest } from "@/lib/ai/types"
+import type {
+  ChatEditRequest,
+  ChatEditResult,
+  GeneratedItinerary,
+  ItineraryRequest,
+} from "@/lib/ai/types"
 
 /**
  * Every provider the app could plausibly use. Listing them here rather than
@@ -37,6 +42,16 @@ export interface AiProvider {
     request: ItineraryRequest,
     options?: GenerateOptions
   ): Promise<GeneratedItinerary>
+  /**
+   * Proposes a single edit from one chat message against an itinerary that
+   * already exists. Never writes anything itself — the caller persists the
+   * proposal and only applies it once the user approves (see
+   * `features/trips/actions/chat.actions.ts`).
+   */
+  proposeItineraryEdit(
+    request: ChatEditRequest,
+    options?: GenerateOptions
+  ): Promise<ChatEditResult>
 }
 
 /**
