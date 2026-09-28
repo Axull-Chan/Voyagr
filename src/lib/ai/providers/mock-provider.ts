@@ -655,16 +655,35 @@ const STOPWORDS = new Set([
   "cut", "delete", "move", "shift", "some", "that", "this", "want",
 ])
 
+/** Strips a simple trailing plural so "museum" scores against a venue kind
+ * like "museums" (OpenTripMap's kinds are plural category slugs — found by
+ * direct testing: "add a museum" scored zero against a real museum venue
+ * until this normalised both sides). Deliberately naive — just enough to
+ * stop an exact-match plural mismatch from producing a false decline,
+ * nothing closer to real stemming. */
+function singularize(word: string): string {
+  if (word.length > 4 && word.endsWith("ies")) return `${word.slice(0, -3)}y`
+  if (word.length > 3 && word.endsWith("s") && !word.endsWith("ss")) return word.slice(0, -1)
+  return word
+}
+
 function messageWords(message: string): string[] {
   return message
     .toLowerCase()
     .replace(/[^a-z0-9\s]/g, " ")
     .split(/\s+/)
     .filter((w) => w.length > 2 && !STOPWORDS.has(w))
+    .map(singularize)
 }
 
 function overlapScore(words: string[], text: string): number {
-  const textWords = new Set(text.toLowerCase().replace(/[^a-z0-9\s]/g, " ").split(/\s+/))
+  const textWords = new Set(
+    text
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, " ")
+      .split(/\s+/)
+      .map(singularize)
+  )
   return words.reduce((score, w) => score + (textWords.has(w) ? 1 : 0), 0)
 }
 
