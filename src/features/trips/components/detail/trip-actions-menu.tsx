@@ -7,6 +7,7 @@ import {
   ArchiveRestore,
   Copy,
   Download,
+  FileText,
   MoreHorizontal,
   Pencil,
 } from "lucide-react"
@@ -117,6 +118,11 @@ export function TripActionsMenu({
     window.location.assign(`/trips/${tripId}/export`)
   }
 
+  function downloadPdf() {
+    // Same mechanism as the JSON export; the PDF is built on request.
+    window.location.assign(`/trips/${tripId}/export/pdf`)
+  }
+
   return (
     <>
       <DropdownMenu>
@@ -136,6 +142,9 @@ export function TripActionsMenu({
               <Copy aria-hidden="true" /> Duplicate
             </DropdownMenuItem>
           )}
+          <DropdownMenuItem onClick={downloadPdf}>
+            <FileText aria-hidden="true" /> Download PDF
+          </DropdownMenuItem>
           <DropdownMenuItem onClick={exportTrip}>
             <Download aria-hidden="true" /> Export as JSON
           </DropdownMenuItem>

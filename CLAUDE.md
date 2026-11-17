@@ -56,7 +56,9 @@ committed before the next begins — don't skip ahead without the user's go-ahea
   complete; the `duplicate_trip` migration is applied and tested against the
   live database, but nothing has been exercised in a browser** — see "Phase 10
   — trip management" below. Left unchecked until the UI has been clicked through.
-- [ ] Phase 11 — PDF export
+- [ ] Phase 11 — PDF export. **Built and verified in isolation, not yet
+  exercised end to end with a signed-in user** — see "Phase 11 — PDF export"
+  below. Left unchecked until a real trip has been downloaded from the live site.
 - [ ] Phase 12 — Premium features
 - [ ] Phase 13 — Production polish
 
@@ -1459,11 +1461,12 @@ Brought the project current after a long gap. `npm audit --omit=dev` went from
 
 - `npm test` runs Vitest (`vitest.config.mts`; `@` aliased to `src/`). Tests
   sit beside the code as `*.test.ts` and cover only pure logic — date and money
-  maths (`trip-domain`), the validation schemas, the export shape and filename
-  sanitiser (`trip-export`), and `resolveChatOperations`/`assignItemRefIds` in
+  maths (`trip-domain`), currency conversion, the validation schemas, the export
+  shape and filename sanitiser (`trip-export`), the PDF's text sanitiser and
+  content model, a render smoke test of the PDF document, and `resolveChatOperations`/`assignItemRefIds` in
   the AI layer, which is where "the model may pick but never state a fact" is
   actually enforced. No network, no database, no env vars needed.
-- Added in the Nov 2026 refresh, so the suite is small by design: 79 tests, ~1s.
+- Added in the Nov 2026 refresh (79 tests), grown to 128 with the PDF work, ~2s.
   The three most load-bearing rules were mutation-checked (each deliberately
   broken once, each caught by the intended test, then reverted). It does **not**
   cover server actions, anything needing Supabase, or any component — those
@@ -1477,4 +1480,79 @@ Brought the project current after a long gap. `npm audit --omit=dev` went from
 - Not in CI on purpose: `npm audit` (new advisories would turn unrelated PRs
   red), `format:check` (the codebase isn't Prettier-clean and it was never
   enforced).
+
+## Phase 11 — PDF export
+
+"Download PDF" in the trip's "..." menu (`trip-actions-menu.tsx`) hits
+`/trips/[id]/export/pdf` (`route.tsx`), which builds the document on request.
+Code is in `src/features/trips/pdf/`: `trip-pdf-model.ts` (pure: decides every
+word printed), `trip-pdf-document.tsx` (layout only), `pdf-text.ts` (character
+safety), plus tests and a fixture.
+
+- **Why `@react-pdf/renderer`.** A headless Chromium (puppeteer + a packaged
+  Chromium) is heavy on Vercel and slow to cold-start; a print stylesheet needs
+  no dependency but is not a file the app produces and its quality depends on the
+  reader's browser. react-pdf is pure JS, ~5 MB, supports React 19, and — checked
+  by a production build, not assumed — bundles and runs inside a Next 15 route
+  handler with **no** `serverExternalPackages` or other config. `npm audit`
+  was unchanged by adding it.
+- **Built-in fonts draw only Windows-1252, and everything else prints as the
+  WRONG glyphs, not boxes.** A probe of Hungarian, Polish, Greek, Cyrillic and
+  Japanese text came out as `Q B©[/q¬`. So every string goes through `toPdfText`
+  (keep what the fonts can draw, fold accents/typographic look-alikes, otherwise
+  one `?` per run) — applied once over the whole model tree, so a field added later
+  is covered. Today all 130 stored names are Latin-script, but OpenTripMap returns
+  a place's local name when it has no English one, so a Japanese venue will arrive
+  eventually and print as `?`. Bundling a CJK font is the fix and is a deliberate
+  later decision (several MB per script). Headings use Times (echoing the app's
+  Fraunces), body Helvetica, white page for printing.
+- **Honesty rules carry over to paper, in the model** (and are unit-tested): modelled
+  numbers say "est."; a placeholder hotel prints "An example stay for budgeting -
+  not a real listing"; weather says "forecast at time of planning" or "typical
+  weather, not a forecast", and a day with no forecast prints only its condition;
+  **no rating is ever printed** (the fixtures carry ratings specifically so the test
+  can prove they are dropped); spend that could not be converted is **counted and
+  named** in a warning, never silently left out of the total. A standing "planned
+  with AI, check before you travel" notice is on page 1. No cover photo: embedding
+  Unsplash bytes in a PDF is derivative use of a licence that requires hotlinking
+  plus a credit, so it was left out rather than guessed at.
+- **A real bug found along the way, fixed separately:** `convert()` returned `null`
+  for any conversion INTO the rate table's base currency, and the trip page builds
+  its table with the trip's currency as the base — so **every foreign-currency
+  expense counted as zero spend** on the budget page. Quotes are "units per 1 base"
+  and the table never lists its own base, so going into the base is a division;
+  that branch was missing. Fixed in its own commit with regression tests (the two
+  that cover it fail without the fix). Nothing had caught it because the original
+  budget verification only used same-currency expenses.
+- **Tooling trap: typed unicode escapes (backslash then u then four hex digits)
+  are converted to the LITERAL character before the file is written**, in this
+  environment's write path (a quoted heredoc does not prevent it). Zero-width
+  characters became invisible in source, and a literal line separator (U+2028)
+  inside a regex literal is a parse error that stopped the whole test run. Fix: build
+  special characters from numeric code points (`String.fromCodePoint`), and use
+  `\p{M}` style property escapes instead of ranges. A scan for literal control /
+  format / combining characters in the new files is cheap and found the same
+  problem hiding in Phase 10's filename slug, now fixed. Ordinary `\n`, `\r`,
+  `\t` escapes were unaffected.
+- **Vitest needs `oxc: { jsx: { runtime: "automatic" } }`** (Vite 8 transforms with
+  Oxc, and tsconfig's `jsx: "preserve"` otherwise makes `.tsx` tests fail to parse).
+  `vitest.config.mts` also now includes `.tsx` tests.
+- **Layout lesson:** `minPresenceAhead` on a day heading did not stop it being
+  stranded at the foot of a page, because the short summary alone satisfied the
+  distance. The reliable fix is structural: the heading, weather, summary and first
+  activity are one `wrap={false}` block. Found by rendering to PNG with `pdftoppm`
+  and looking — poppler is installed in the build container, so this is repeatable.
+- **Verified:** rendered a demanding 6-day fixture (page breaks, example hotel,
+  all three weather cases, a Japanese name, a USD expense that converts, a JPY
+  expense with no rate) and inspected every page; checked the figures by hand
+  (USD 21.60 at 1.08 = EUR 20.00, Spent 52.50, Remaining 1,947.50); mutation-checked
+  three rules (example label, conversion warning, sanitizer); rendered through
+  a real production Next build via a temporary probe route (since deleted) —
+  200, `application/pdf`, valid 5-page A4; confirmed the real route 307-redirects
+  to login when signed out, same as the JSON export.
+- **Not verified:** the route with a real signed-in trip and real data; the menu
+  item in a browser; that `notFound()` inside a route handler returns a clean 404
+  for someone else's trip (the JSON export relies on the same behaviour, also
+  untested); Vercel's runtime for the route. Not built: cover photo, map, CJK
+  fonts, custom fonts, choosing what to include.
 
