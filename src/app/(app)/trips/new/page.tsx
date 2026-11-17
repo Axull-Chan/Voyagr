@@ -10,6 +10,20 @@ export const metadata: Metadata = {
   description: "Tell Voyagr about your trip and get a day-by-day itinerary.",
 }
 
+/**
+ * How long this page's server actions may run, in seconds — and it must be a
+ * literal, since Next reads it statically.
+ *
+ * Creating a trip runs `createTripAction` here, which waits on a real model.
+ * A measured run took ~79 s including one retry, and the worst case is two
+ * 60 s Gemini attempts plus backoff plus the places/forecast/photo lookups
+ * (~2.5 min). Left to the platform default this was unknown: a project without
+ * Fluid Compute gets 10–15 s, which would kill every real generation and leave
+ * the trip stuck as a draft. 150 s covers the worst case while still bounding
+ * a hung request. Same value on `/trips/[id]`, where the chat runs.
+ */
+export const maxDuration = 150
+
 export default function NewTripPage() {
   return (
     // space-y-8, not -6: a form this narrow already reads as a deliberately

@@ -90,10 +90,14 @@ committed before the next begins — don't skip ahead without the user's go-ahea
   fully venue-grounded itinerary (all 10 activities backed by real venues, live
   forecast, real photo credit) — but took ~79 s including one retry. Two caveats:
   it is a *preview* model Google can change or withdraw (if generation starts
-  failing with `unavailable`, check the model first), and **no `maxDuration` is
-  set anywhere in the app**, so whether Vercel cuts off a 30-80 s trip-creation
-  request depends on the project's function timeout (Fluid Compute) — not yet
-  checked. Vercel Authentication was on for *every*
+  failing with `unavailable`, check the model first), and the platform's
+  function timeout could not be read with the available tools (the project/
+  deployment APIs trim it, and the dashboard was inaccessible), so it is now set
+  **explicitly in code**: `export const maxDuration = 150` on `/trips/new`
+  (trip creation) and `/trips/[id]` (the chat). 150 s covers the worst case of two
+  60 s Gemini attempts plus backoff and the data lookups. If a deploy ever fails
+  with a maxDuration error, the project is not on Fluid Compute and its plan
+  allows only 60 s — lower the literal to that. Vercel Authentication was on for *every*
   `.vercel.app` URL (the site wasn't public); it is now `preview`-only, so
   production is public and branch previews still require a Vercel login. Node
   is pinned by `engines.node` (22.x), not the project setting.
