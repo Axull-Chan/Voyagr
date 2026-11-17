@@ -69,10 +69,21 @@ committed before the next begins — don't skip ahead without the user's go-ahea
 - Vercel project `voyagr` (id `prj_cUfuwhMnoMC825jN1zTmNMLyuigp`, team
   `axel-valentinos-projects`), linked to this GitHub repo; production = `main`,
   other branches get preview deployments. Production URL:
-  `https://voyagr-taupe.vercel.app`. Env vars set (all environments):
-  `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`,
-  `AI_PROVIDER=mock` — no Gemini/OpenTripMap/Unsplash keys, so production
-  serves example itineraries. Vercel Authentication was on for *every*
+  `https://voyagr-taupe.vercel.app`. Env vars: `NEXT_PUBLIC_SUPABASE_URL`,
+  `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` and `AI_PROVIDER=gemini` (all
+  environments), plus `GEMINI_API_KEY`, `OPENTRIPMAP_API_KEY` and
+  `UNSPLASH_ACCESS_KEY` as Vercel *sensitive* variables (production + preview;
+  write-only, Vercel never shows them again — a sensitive variable can't target
+  `development`). Added Nov 2026, and production redeployed to pick them up
+  (env changes only reach *new* deployments). **Validation status:** the Gemini
+  key was confirmed valid (model list returned 200, `gemini-3.6-flash`
+  present); the OpenTripMap and Unsplash keys were stored **untested** because
+  the build container's proxy blocks those hosts — a wrong one degrades to the
+  labelled fallback rather than breaking. Google was returning 503 "high
+  demand" on the newer flash models during testing (and one `generateContent`
+  call on the default `gemini-3.6-flash` hung >100 s), so intermittent failed
+  generations are an external capacity issue, not a key problem; `GEMINI_MODEL`
+  can override the default model without a code change. Vercel Authentication was on for *every*
   `.vercel.app` URL (the site wasn't public); it is now `preview`-only, so
   production is public and branch previews still require a Vercel login. Node
   is pinned by `engines.node` (22.x), not the project setting.
