@@ -48,8 +48,18 @@ is missing. `.env.example` documents every variable.
 | `AI_PROVIDER` + `GEMINI_API_KEY`        | Itineraries come from the mock planner        |
 | `OPENTRIPMAP_API_KEY`                   | No real places; example venues are labelled   |
 | `UNSPLASH_ACCESS_KEY`                   | No destination photo                          |
+| `AI_LIMIT_TRIPS_*`, `AI_LIMIT_CHAT_*`   | Default daily limits apply (see below)        |
 
 Weather, currency, maps and geocoding need no key.
+
+### Usage limits
+
+The two calls that spend model quota are limited over a rolling 24 hours: 5 trip
+generations and 30 chat messages per traveller, and 250 and 500 across everyone
+(sized for the free Gemini tier). A traveller over a limit gets a plain message
+saying when they can try again. The four `AI_LIMIT_*` variables in `.env.example`
+change them without a code change. They don't apply to the mock provider, and a
+call that fails doesn't use up an allowance.
 
 ## Scripts
 

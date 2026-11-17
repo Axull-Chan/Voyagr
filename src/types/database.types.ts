@@ -79,6 +79,30 @@ export type Database = {
           },
         ]
       }
+      ai_usage: {
+        Row: {
+          created_at: string
+          id: number
+          kind: string
+          status: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: number
+          kind: string
+          status?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: number
+          kind?: string
+          status?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       budget_breakdown: {
         Row: {
           actual_amount: number
@@ -720,6 +744,25 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      confirm_ai_quota: {
+        Args: { p_usage_id: number }
+        Returns: boolean
+      }
+      consume_ai_quota: {
+        Args: {
+          p_kind: string
+          p_user_limit: number
+          p_global_limit: number
+        }
+        Returns: {
+          allowed: boolean
+          reason: string | null
+          usage_id: number | null
+          used_count: number
+          max_allowed: number
+          resets_at: string | null
+        }[]
+      }
       duplicate_trip: {
         Args: { source_trip_id: string }
         Returns: string

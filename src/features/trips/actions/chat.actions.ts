@@ -13,6 +13,10 @@ import {
 import { createClient } from "@/lib/supabase/server"
 import { sourcePlaces } from "@/services/places-service"
 import {
+  confirmAiQuota,
+  reserveAiQuota,
+} from "@/features/trips/services/ai-quota"
+import {
   getTripChatContext,
   getTripChatHistory,
 } from "@/features/trips/queries/trip-chat"
@@ -74,6 +78,11 @@ export async function sendChatMessageAction(
     return { ok: false, error: "This trip doesn't have an itinerary yet — generate one first." }
   }
 
+  // After the cheap checks above (so a malformed or pointless request never takes
+  // a slot) and before anything is saved or any provider is called.
+  const quota = await reserveAiQuota(supabase, "chat_message")
+  if (!quota.allowed) return { ok: false, error: quota.message }
+
   // Persisted before anything else can fail, same "leave what they entered
   // recoverable" philosophy as createTripAction.
   const { data: userRow, error: userInsertError } = await supabase
@@ -132,6 +141,10 @@ export async function sendChatMessageAction(
     operations = result.operations
     warnings = result.warnings
     providerId = result.providerId
+    // The provider answered, so the slot now counts. A failed turn (handled in the
+    // catch below, which still saves an apology as the reply) is never confirmed
+    // and its reservation lapses by itself.
+    await confirmAiQuota(supabase, quota.usageId)
   } catch (error) {
     // A failed generation is still a coherent, worth-persisting chat entry —
     // "you asked, here's what went wrong" — not just a toast the user might

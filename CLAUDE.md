@@ -60,7 +60,10 @@ committed before the next begins — don't skip ahead without the user's go-ahea
   exercised end to end with a signed-in user** — see "Phase 11 — PDF export"
   below. Left unchecked until a real trip has been downloaded from the live site.
 - [ ] Phase 12 — Premium features
-- [ ] Phase 13 — Production polish
+- [ ] Phase 13 — Production polish. **Started:** usage limits on the AI calls
+  (see "Usage limits" below). Not yet done: error monitoring, search/sharing
+  metadata, accessibility and performance passes, privacy/terms pages, custom
+  domain, Supabase redirect URLs and Google sign-in (those two need the user).
 
 ## Infrastructure
 
@@ -1466,7 +1469,7 @@ Brought the project current after a long gap. `npm audit --omit=dev` went from
   content model, a render smoke test of the PDF document, and `resolveChatOperations`/`assignItemRefIds` in
   the AI layer, which is where "the model may pick but never state a fact" is
   actually enforced. No network, no database, no env vars needed.
-- Added in the Nov 2026 refresh (79 tests), grown to 128 with the PDF work, ~2s.
+- Added in the Nov 2026 refresh (79 tests), grown to 161 with the PDF work and the usage limits, ~2s.
   The three most load-bearing rules were mutation-checked (each deliberately
   broken once, each caught by the intended test, then reverted). It does **not**
   cover server actions, anything needing Supabase, or any component — those
@@ -1555,4 +1558,75 @@ safety), plus tests and a fixture.
   for someone else's trip (the JSON export relies on the same behaviour, also
   untested); Vercel's runtime for the route. Not built: cover photo, map, CJK
   fonts, custom fonts, choosing what to include.
+
+## Usage limits (first slice of Phase 13)
+
+The site is public and every trip generation / chat message spends a shared,
+free-tier model quota (~1,500 requests a day), and there was **no per-user or
+global limit anywhere** — anyone with an account could use it all up. Only two
+places call a model (`createTripAction` -> `generateItinerary`,
+`sendChatMessageAction` -> `proposeItineraryEdit`), and both now reserve a slot
+first. Code: `src/lib/ai/usage-limits.ts` (pure: defaults, env overrides, wording),
+`src/features/trips/services/ai-quota.ts` (reserve/confirm), migration
+`20260917120000_add_ai_usage_limits.sql` (table + two functions).
+
+- **Enforced in Postgres, not in the app.** A counter in a serverless function's
+  memory resets on every cold start and differs between instances, so it limits
+  nothing. `consume_ai_quota` counts over a rolling 24 h, serialises concurrent
+  requests per kind with an advisory lock, and is `SECURITY DEFINER` only so the
+  *global* limit can count other users' rows; it uses `auth.uid()` and takes no
+  user id, so it cannot be pointed at someone else.
+- **Reserve then confirm — and deliberately NO refund.** A signed-in user can call
+  any function exposed to them directly with their own login, so a "refund
+  my slot" function would let them hand themselves unlimited free generations.
+  Instead a reservation counts for 3 minutes (longer than the 150 s the pages may
+  run, so in-flight requests are counted) and only becomes a full 24-hour use when
+  `confirm_ai_quota` is called **after the model succeeded**. A failed or timed-out
+  call is never confirmed, so its reservation lapses and a provider outage (Google
+  was returning 503s while this was built) does not burn anyone's allowance.
+  Nothing exposed can *reduce* a user's usage, only raise it. The table has no
+  insert/update/delete policy; clients can read only their own rows.
+- **Fails open when the limiter is broken** (function missing, database
+  unreachable), logging the error, and never fails open on a real "limit reached".
+  A broken safety mechanism must not take the product down with it — and it means
+  deploy order does not matter: this code is harmless before the migration is
+  applied (it simply isn't limiting yet).
+- **Not applied to the mock provider** (nothing to protect), and an unusable env
+  value falls back to the restrictive default, never to "no limit".
+- **Defaults and why:** 5 trips and 30 chat messages per traveller, 250 and 500
+  globally per 24 h. Each model call can be retried once (two requests), and
+  (250 + 500) x 2 = 1,500 — exactly the free-tier cap in the worst case, far under
+  it in practice. Override with `AI_LIMIT_TRIPS_PER_USER`, `AI_LIMIT_TRIPS_GLOBAL`,
+  `AI_LIMIT_CHAT_PER_USER`, `AI_LIMIT_CHAT_GLOBAL` (whole numbers, 1-100000).
+- **A traveller over a limit** gets a plain message with when to retry (rounded
+  *up*), in the wizard's error line or as a chat toast — no new UI. A global
+  refusal says it isn't their fault and shows no number.
+- **Verified:** the SQL, in rolled-back transactions (nothing was written): reserve
+  and confirm, confirm-twice is a no-op, the per-user limit with in-flight counted,
+  a lapsed reservation freeing its slot, confirmed use expiring after 24 h, the
+  global limit across two real users, kinds counting independently, one user unable
+  to confirm another's row, signed-out / bad kind / non-positive limit errors,
+  direct insert/update/delete refused (42501), own-rows-only reads, anon denied,
+  and old-row cleanup. The TypeScript with 33 tests, mutation-checked on three
+  rules (honouring a refusal, skipping the mock provider, a typo not disabling a
+  limit). The first attempt at the independence scenario was itself wrong (it
+  passed the wrong limit) and was redone properly.
+- **Applied to the live project** as migration `20261117145151_add_ai_usage_limits`
+  (Nov 2026). Afterwards: confirmed from the catalog that RLS is on, the only
+  policy is select-own, anon has no table or function access, and signed-in users
+  can read but not write the table and can run both functions; re-ran a rolled-back
+  check against the *applied* functions (all as expected, table left at 0 rows).
+- **Supabase advisors after applying:** two new WARNs, "Signed-In Users Can Execute
+  SECURITY DEFINER Function" (`consume_ai_quota`, `confirm_ai_quota`) — **expected
+  and intentional**: the app calls them with the user's own login, and they must
+  be SECURITY DEFINER (the global limit counts other users' rows; the table has no
+  write policy). They take no user id and use `auth.uid()` only. Revoking them
+  would break the limiter; the lint's other remedy (a non-exposed schema) would
+  make them uncallable from supabase-js, and a service-role key is not set up.
+  Plus two INFO "unused index" notices for the new table's indexes (it is new).
+  The pre-existing leaked-password-protection WARN is unrelated.
+- **Not verified:** a real signed-in trip generation or chat message actually
+  hitting the limit on the live site. Not built: showing "N left today" in the UI,
+  per-IP limits, and limiting signups (an attacker with many email addresses is bounded only by
+  the global ceiling, which is its purpose).
 

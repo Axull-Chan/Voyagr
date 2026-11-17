@@ -8,6 +8,10 @@ import { buildTripContext } from "@/services/itinerary-service"
 import { recordImageUse } from "@/services/image-service"
 import { persistItinerary } from "@/features/trips/services/itinerary-writer"
 import {
+  confirmAiQuota,
+  reserveAiQuota,
+} from "@/features/trips/services/ai-quota"
+import {
   createTripSchema,
   type CreateTripInput,
 } from "@/features/trips/schemas/trip.schemas"
@@ -44,6 +48,11 @@ export async function createTripAction(
   if (authError || !user) {
     return { ok: false, error: "You need to be signed in to create a trip." }
   }
+
+  // Before anything is written or any provider is called: a traveller over their
+  // limit should cost us neither a trip row nor a model request.
+  const quota = await reserveAiQuota(supabase, "trip_generation")
+  if (!quota.allowed) return { ok: false, error: quota.message }
 
   const startingCity = input.startingCity?.trim() || null
   const notes = input.notes?.trim() || null
@@ -103,6 +112,9 @@ export async function createTripAction(
     }
 
     const itinerary = await getAiProvider().generateItinerary(request)
+    // The model call succeeded, so the slot now counts. Done before persisting:
+    // the request has been spent whether or not our own write goes well.
+    await confirmAiQuota(supabase, quota.usageId)
     await persistItinerary(supabase, trip.id, itinerary)
 
     await supabase
