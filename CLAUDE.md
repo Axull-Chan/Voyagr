@@ -52,7 +52,10 @@ committed before the next begins — don't skip ahead without the user's go-ahea
   explicitly rather than written automatically — see "Phase 9 — chat-based
   itinerary editing" below. **Not live-browser-verified** — the user chose to
   skip that step this pass; only `type-check`/`lint`/`build` gates ran.
-- [ ] Phase 10 — Trip management (rename/duplicate/archive/export)
+- [ ] Phase 10 — Trip management (rename/duplicate/archive/export). **Code
+  complete; the `duplicate_trip` migration is applied and tested against the
+  live database, but nothing has been exercised in a browser** — see "Phase 10
+  — trip management" below. Left unchecked until the UI has been clicked through.
 - [ ] Phase 11 — PDF export
 - [ ] Phase 12 — Premium features
 - [ ] Phase 13 — Production polish
@@ -63,6 +66,16 @@ committed before the next begins — don't skip ahead without the user's go-ahea
   `Axull-Chan's Org`, region `ap-southeast-1`. The account has two other,
   unrelated Supabase projects — never point migrations at those.
 - Package manager: npm (no pnpm/yarn/bun installed locally).
+- Vercel project `voyagr` (id `prj_cUfuwhMnoMC825jN1zTmNMLyuigp`, team
+  `axel-valentinos-projects`), linked to this GitHub repo; production = `main`,
+  other branches get preview deployments. Production URL:
+  `https://voyagr-taupe.vercel.app`. Env vars set (all environments):
+  `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`,
+  `AI_PROVIDER=mock` — no Gemini/OpenTripMap/Unsplash keys, so production
+  serves example itineraries. Vercel Authentication was on for *every*
+  `.vercel.app` URL (the site wasn't public); it is now `preview`-only, so
+  production is public and branch previews still require a Vercel login. Node
+  is pinned by `engines.node` (22.x), not the project setting.
 
 ## Non-obvious things learned in Phase 1
 
@@ -880,17 +893,6 @@ section in this file.
   reviewed, and their styling was confirmed via computed-style probes on
   the login page, but no authenticated session existed in this pass to
   render them with real data. Not claimed as visually confirmed.
-- Verified live in the browser rather than from source: light and dark
-  mode on `/sign-up` (elevation inversion visible — the card panel is
-  lighter than the page in dark mode, darker in light mode, exactly as
-  DESIGN.md specifies), the marketing page's `text-display`/`text-headline`
-  elements post-fix, and both new `bg-tertiary`/`bg-tertiary-subtle`
-  Tailwind utilities via computed-style probes (same `@theme inline` risk
-  class as the font-heading bug, checked for the same reason). The
-  countdown badge and map markers are code- and type-verified, exact hex
-  match to the derivation, but not pixel-verified live — both need an
-  authenticated trip with a real start date/places, which this pass didn't
-  create; said explicitly rather than implied from the code being correct.
 
 ## Phase 3B — real data, the map, and honest provenance
 
@@ -1248,10 +1250,15 @@ email = '...'`.
 
 ## Design system
 
-- Base color neutral/zinc, with an indigo/violet accent layered on top of
-  the shadcn `base-nova` preset defaults (see CSS variables in
-  `src/app/globals.css`) — the preset itself ships fully grayscale.
-- Fonts: Geist Sans + Geist Mono via `next/font/google`.
+The visual language is **Field Journal**, defined in `DESIGN.md` (token values,
+rationale, components) and implemented in `src/app/globals.css` — see the
+"Field Journal — design system" section above for the engineering gotchas. The
+shadcn `base-nova` preset is only the component scaffolding underneath.
+
+- Colour: paper-and-ink light theme, leather-and-lamplight dark theme, Pine
+  Blue primary. Not the indigo/violet accent this app started with.
+- Fonts (`src/app/layout.tsx`): Geist Sans (`--font-sans`) for UI, Geist Mono
+  (`--font-mono`) for data, Fraunces (`--font-fraunces`) for headings.
 - Motion: shared variants in `src/lib/motion.ts`, `prefers-reduced-motion`
   handled globally via `<MotionConfig reducedMotion="user">` in
   `src/components/motion-provider.tsx`.
@@ -1351,3 +1358,98 @@ duplicated here.
   never picked up an authenticated cookie (checked on a brand-new tab too),
   and the user chose to skip live testing rather than debug that further.
   Worth doing before trusting this beyond "it compiles."
+
+## Phase 10 — trip management
+
+Rename, duplicate, archive/restore and export, from a "…" menu on the trip
+page (`trip-actions-menu.tsx`) plus an Archived section on `/trips`.
+
+- **Verification status, stated plainly.** `tsc`, `lint` and `npm run build`
+  pass. `20260917090000_add_duplicate_trip.sql` was applied to the live project
+  (the Supabase MCP had timed out on every call earlier in the session and
+  recovered later — the cause was never found; the user guessed a dormant
+  account). Tested with rollback-only `DO` blocks that end in a deliberate
+  `raise exception`, so nothing persisted (confirmed: no stray copies, original
+  trip unchanged): duplicating a real Lisbon trip as its owner gave identical
+  counts on days/activities/restaurants/weather/hotels/transportation/budget/
+  packing, an identical activity cost sum, packing checked 1 -> 0, favourite
+  false, spent 0. Failure paths all raise the intended code: no user 28000,
+  another user's trip P0002 (indistinguishable from missing), `generating`
+  55000, and `anon` gets 42501 (execute revoked). `get_advisors` shows nothing
+  new. **Not verified:** the menu, rename dialog, archive/restore round trip,
+  Archived section, dashboard filtering and the export download have never been
+  run in a browser, and `renameTripAction`/`setTripArchivedAction` never against
+  the database. `database.types.ts` was hand-edited to add `duplicate_trip`;
+  regenerate it when convenient.
+- **Duplicate is a Postgres function, not client calls.** A trip spans nine
+  tables and the Supabase client has no transactions, so a mid-way failure
+  would leave a half-copied trip. `duplicate_trip(uuid)` is `SECURITY INVOKER`,
+  so RLS still decides what the caller can read and insert. It copies the plan;
+  it deliberately does **not** copy expenses, chat history, packing checked
+  state, the favourite flag or actual budget amounts.
+- **`status` does two jobs** (lifecycle and `archived`), so archiving overwrites
+  what the trip was. Restore recomputes it (has days -> `ready`, none ->
+  `draft`) rather than remembering. `generating` trips can't be archived or
+  duplicated, and archive/restore is a compare-and-set on the status it read,
+  so it can't clobber a generation that starts in between.
+- **Export is JSON only** (`/trips/[id]/export`), a versioned portable shape
+  with internal ids and `user_id` stripped. Weather/hotel `source` is kept so a
+  file can't launder an example into a fact. PDF is Phase 11. The download
+  filename is a whitelist slug of the title (checked against `../`, quotes and
+  CRLF input).
+- **Not built:** delete, editing a trip's dates/destination, and importing an
+  exported file back. None were in the phase's one-line spec.
+
+## Dependency refresh (Nov 2026)
+
+Brought the project current after a long gap. `npm audit --omit=dev` went from
+24 findings (3 critical) to 3.
+
+- `next` and `eslint-config-next` pinned at **15.5.29** (the last 15.x). The
+  22 -> 29 range closed the Image Optimization RCEs (SVG/AVIF), the Server
+  Actions DoS and the ISR cache-poisoning advisories. Next 16 is available but
+  deliberately not adopted — see Phase 1's "don't upgrade without the user
+  asking".
+- `maplibre-gl` floor raised to `^6.19.0` (critical XSS sanitizer bypass fixed
+  after 6.4.0). `scripts/copy-maplibre-worker.mjs` still worked unchanged: it
+  fails the build if the worker file names move, which is the safety net here.
+- `shadcn` moved to **devDependencies**. Nothing at runtime imports it; the only
+  use is `@import "shadcn/tailwind.css"` in `globals.css`, resolved at build
+  time (Vercel installs devDependencies, so builds are unaffected). It had been
+  dragging hono, the MCP SDK, ts-morph and ~70 transitive packages into the
+  production install.
+- `engines.node` set to `22.x` plus `.nvmrc` — Vercel had defaulted to Node 26
+  while local was 22. Nothing pinned it before.
+- Everything else moved within its existing semver range (`npm update`),
+  including `@base-ui/react` 1.6 -> 1.9, `lucide-react` 1.28 -> 1.74 and
+  `@supabase/*`. `tsc`, lint and build pass; a production-server smoke test of
+  `/`, `/login`, `/sign-up` and `/blue-hour` showed no console errors, and the
+  MapLibre worker is served as `application/javascript`.
+- **Left on purpose:** `zod` 3 -> 4 (breaking; touches every schema) and the
+  `postcss` copy bundled inside Next (build-time CSS only). **Not verified:**
+  the trip-page map itself and anything behind login — those need an
+  authenticated session this pass didn't have.
+
+## Testing and CI
+
+- `npm test` runs Vitest (`vitest.config.mts`; `@` aliased to `src/`). Tests
+  sit beside the code as `*.test.ts` and cover only pure logic — date and money
+  maths (`trip-domain`), the validation schemas, the export shape and filename
+  sanitiser (`trip-export`), and `resolveChatOperations`/`assignItemRefIds` in
+  the AI layer, which is where "the model may pick but never state a fact" is
+  actually enforced. No network, no database, no env vars needed.
+- Added in the Nov 2026 refresh, so the suite is small by design: 79 tests, ~1s.
+  The three most load-bearing rules were mutation-checked (each deliberately
+  broken once, each caught by the intended test, then reverted). It does **not**
+  cover server actions, anything needing Supabase, or any component — those
+  still rely on manual verification, which is exactly why Phase 9's and Phase
+  10's UI notes say "not verified in a browser".
+- `.github/workflows/ci.yml` runs lint, type-check, tests and build on pushes to
+  `main` and on every pull request, using the Node major from `.nvmrc`. It needs
+  no secrets: the production build succeeds with no environment variables.
+- `@types/node` is on 22 to match `engines.node`; Vitest 5 refuses the older
+  `@types/node` 20 this project started with.
+- Not in CI on purpose: `npm audit` (new advisories would turn unrelated PRs
+  red), `format:check` (the codebase isn't Prettier-clean and it was never
+  enforced).
+
