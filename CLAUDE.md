@@ -53,9 +53,9 @@ committed before the next begins — don't skip ahead without the user's go-ahea
   itinerary editing" below. **Not live-browser-verified** — the user chose to
   skip that step this pass; only `type-check`/`lint`/`build` gates ran.
 - [ ] Phase 10 — Trip management (rename/duplicate/archive/export). **Code
-  complete, not verified against the database** — the `duplicate_trip`
-  migration is written but was *not applied* and nothing was exercised live;
-  see "Phase 10 — trip management" below. Left unchecked until it is.
+  complete; the `duplicate_trip` migration is applied and tested against the
+  live database, but nothing has been exercised in a browser** — see "Phase 10
+  — trip management" below. Left unchecked until the UI has been clicked through.
 - [ ] Phase 11 — PDF export
 - [ ] Phase 12 — Premium features
 - [ ] Phase 13 — Production polish
@@ -1361,17 +1361,22 @@ Rename, duplicate, archive/restore and export, from a "…" menu on the trip
 page (`trip-actions-menu.tsx`) plus an Archived section on `/trips`.
 
 - **Verification status, stated plainly.** `tsc`, `lint` and `npm run build`
-  pass. The Supabase MCP connection timed out for every call this pass
-  (`get_project` said `ACTIVE_HEALTHY`, `execute_sql`/`list_migrations` both
-  failed with "Connection terminated due to connection timeout", three tries),
-  so **`supabase/migrations/20260917090000_add_duplicate_trip.sql` has not been
-  applied and `duplicate_trip` has never been run.** Until it is applied,
-  Duplicate will fail with the generic "couldn't duplicate" toast. Nothing was
-  exercised in a browser either. To finish: apply the migration, run
-  `get_advisors` (check the function isn't flagged as callable by `anon` — it
-  is revoked from `public`/`anon` in the file), then duplicate a trip with real
-  children and diff the row counts per table. `database.types.ts` was edited by
-  hand to add `duplicate_trip` to `Functions`; regenerate it after applying.
+  pass. `20260917090000_add_duplicate_trip.sql` was applied to the live project
+  (the Supabase MCP had timed out on every call earlier in the session and
+  recovered later — the cause was never found; the user guessed a dormant
+  account). Tested with rollback-only `DO` blocks that end in a deliberate
+  `raise exception`, so nothing persisted (confirmed: no stray copies, original
+  trip unchanged): duplicating a real Lisbon trip as its owner gave identical
+  counts on days/activities/restaurants/weather/hotels/transportation/budget/
+  packing, an identical activity cost sum, packing checked 1 -> 0, favourite
+  false, spent 0. Failure paths all raise the intended code: no user 28000,
+  another user's trip P0002 (indistinguishable from missing), `generating`
+  55000, and `anon` gets 42501 (execute revoked). `get_advisors` shows nothing
+  new. **Not verified:** the menu, rename dialog, archive/restore round trip,
+  Archived section, dashboard filtering and the export download have never been
+  run in a browser, and `renameTripAction`/`setTripArchivedAction` never against
+  the database. `database.types.ts` was hand-edited to add `duplicate_trip`;
+  regenerate it when convenient.
 - **Duplicate is a Postgres function, not client calls.** A trip spans nine
   tables and the Supabase client has no transactions, so a mid-way failure
   would leave a half-copied trip. `duplicate_trip(uuid)` is `SECURITY INVOKER`,
