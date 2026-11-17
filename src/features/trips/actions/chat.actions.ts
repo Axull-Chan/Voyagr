@@ -12,6 +12,7 @@ import {
 } from "@/lib/ai"
 import { createClient } from "@/lib/supabase/server"
 import { sourcePlaces } from "@/services/places-service"
+import { reportServerError } from "@/lib/monitoring/report-server"
 import {
   confirmAiQuota,
   reserveAiQuota,
@@ -153,7 +154,7 @@ export async function sendChatMessageAction(
       error instanceof AiGenerationError
         ? error.message
         : "Something went wrong looking at your itinerary. Try again in a moment."
-    console.error("[sendChatMessageAction] proposeItineraryEdit failed", error)
+    await reportServerError(error, { context: "action:sendChatMessage" })
   }
 
   const { data: assistantRow, error: assistantInsertError } = await supabase

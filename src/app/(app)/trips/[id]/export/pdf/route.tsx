@@ -7,6 +7,7 @@ import { buildTripPdfModel } from "@/features/trips/pdf/trip-pdf-model"
 import { tripIdSchema } from "@/features/trips/schemas/trip-management.schemas"
 import { pdfFilename } from "@/features/trips/services/trip-export"
 import { getRates } from "@/services/currency-service"
+import { reportServerError } from "@/lib/monitoring/report-server"
 
 // The PDF renderer needs Node APIs, so this can never run on the Edge runtime.
 export const runtime = "nodejs"
@@ -49,7 +50,7 @@ export async function GET(
   try {
     pdf = await renderToBuffer(<TripPdfDocument model={model} />)
   } catch (error) {
-    console.error("[trip pdf] render failed", error)
+    await reportServerError(error, { context: "route:tripPdf", route: "/trips/[id]/export/pdf" })
     return NextResponse.json(
       { error: "We couldn't build that PDF. Please try again." },
       { status: 500 }

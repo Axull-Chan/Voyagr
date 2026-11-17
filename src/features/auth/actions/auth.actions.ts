@@ -4,6 +4,7 @@ import { headers } from "next/headers"
 import { redirect } from "next/navigation"
 
 import { createClient } from "@/lib/supabase/server"
+import { reportServerError } from "@/lib/monitoring/report-server"
 import {
   forgotPasswordSchema,
   loginSchema,
@@ -134,7 +135,9 @@ export async function signInWithGoogleAction(): Promise<ActionResult> {
       typeof body === "object" && body !== null && "msg" in body
         ? String((body as { msg: unknown }).msg)
         : "Google sign-in is unavailable."
-    console.error("[signInWithGoogleAction] provider rejected the request", message)
+    await reportServerError(new Error(`Google sign-in rejected: ${message}`), {
+      context: "action:signInWithGoogle",
+    })
     // No directional wording: this message renders under the fields on the
     // login form and above them on sign-up, so "below" would be wrong on one
     // of the two.

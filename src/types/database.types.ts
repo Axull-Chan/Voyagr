@@ -138,6 +138,66 @@ export type Database = {
           },
         ]
       }
+      error_events: {
+        Row: {
+          app_release: string | null
+          context: string | null
+          digest: string | null
+          fingerprint: string
+          first_seen_at: string
+          id: number
+          last_seen_at: string
+          last_user_id: string | null
+          message: string
+          name: string | null
+          occurrences: number
+          resolved_at: string | null
+          route: string | null
+          severity: string
+          source: string
+          stack: string | null
+          user_agent: string | null
+        }
+        Insert: {
+          app_release?: string | null
+          context?: string | null
+          digest?: string | null
+          fingerprint: string
+          first_seen_at?: string
+          id?: number
+          last_seen_at?: string
+          last_user_id?: string | null
+          message: string
+          name?: string | null
+          occurrences?: number
+          resolved_at?: string | null
+          route?: string | null
+          severity?: string
+          source: string
+          stack?: string | null
+          user_agent?: string | null
+        }
+        Update: {
+          app_release?: string | null
+          context?: string | null
+          digest?: string | null
+          fingerprint?: string
+          first_seen_at?: string
+          id?: number
+          last_seen_at?: string
+          last_user_id?: string | null
+          message?: string
+          name?: string | null
+          occurrences?: number
+          resolved_at?: string | null
+          route?: string | null
+          severity?: string
+          source?: string
+          stack?: string | null
+          user_agent?: string | null
+        }
+        Relationships: []
+      }
       expenses: {
         Row: {
           amount: number
@@ -766,6 +826,21 @@ export type Database = {
       duplicate_trip: {
         Args: { source_trip_id: string }
         Returns: string
+      }
+      report_error: {
+        Args: {
+          p_source: string
+          p_severity: string
+          p_context: string | null
+          p_name: string | null
+          p_message: string
+          p_stack: string | null
+          p_route: string | null
+          p_digest: string | null
+          p_release: string | null
+          p_user_agent: string | null
+        }
+        Returns: undefined
       }
     }
     Enums: {

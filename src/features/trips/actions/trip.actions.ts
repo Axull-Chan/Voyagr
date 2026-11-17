@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/server"
 import { buildTripContext } from "@/services/itinerary-service"
 import { recordImageUse } from "@/services/image-service"
 import { persistItinerary } from "@/features/trips/services/itinerary-writer"
+import { reportServerError } from "@/lib/monitoring/report-server"
 import {
   confirmAiQuota,
   reserveAiQuota,
@@ -158,7 +159,7 @@ export async function createTripAction(
         ? error.message
         : "We couldn't build your itinerary. Your trip was saved as a draft — try generating again."
 
-    console.error("[createTripAction] itinerary generation failed", error)
+    await reportServerError(error, { context: "action:createTrip" })
     return { ok: false, error: message }
   }
 }
