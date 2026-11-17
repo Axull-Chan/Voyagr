@@ -64,13 +64,22 @@ export function buildTripExport(detail: TripDetail, exportedAt = new Date()) {
  * move. `normalize("NFKD")` first so "Lisboa — São Paulo" becomes "sao-paulo"
  * rather than losing the accented letters.
  */
-export function exportFilename(title: string): string {
+function filenameSlug(title: string): string {
   const slug = title
     .normalize("NFKD")
-    .replace(/[̀-ͯ]/g, "")
+    .replace(/\p{M}/gu, "")
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 60)
-  return `${slug || "trip"}.voyagr.json`
+  return slug || "trip"
+}
+
+export function exportFilename(title: string): string {
+  return `${filenameSlug(title)}.voyagr.json`
+}
+
+/** Same whitelist slug as the JSON export, so the PDF can't be steered by a title either. */
+export function pdfFilename(title: string): string {
+  return `${filenameSlug(title)}.pdf`
 }
