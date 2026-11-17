@@ -1395,3 +1395,34 @@ page (`trip-actions-menu.tsx`) plus an Archived section on `/trips`.
   CRLF input).
 - **Not built:** delete, editing a trip's dates/destination, and importing an
   exported file back. None were in the phase's one-line spec.
+
+## Dependency refresh (Nov 2026)
+
+Brought the project current after a long gap. `npm audit --omit=dev` went from
+24 findings (3 critical) to 3.
+
+- `next` and `eslint-config-next` pinned at **15.5.29** (the last 15.x). The
+  22 -> 29 range closed the Image Optimization RCEs (SVG/AVIF), the Server
+  Actions DoS and the ISR cache-poisoning advisories. Next 16 is available but
+  deliberately not adopted — see Phase 1's "don't upgrade without the user
+  asking".
+- `maplibre-gl` floor raised to `^6.19.0` (critical XSS sanitizer bypass fixed
+  after 6.4.0). `scripts/copy-maplibre-worker.mjs` still worked unchanged: it
+  fails the build if the worker file names move, which is the safety net here.
+- `shadcn` moved to **devDependencies**. Nothing at runtime imports it; the only
+  use is `@import "shadcn/tailwind.css"` in `globals.css`, resolved at build
+  time (Vercel installs devDependencies, so builds are unaffected). It had been
+  dragging hono, the MCP SDK, ts-morph and ~70 transitive packages into the
+  production install.
+- `engines.node` set to `22.x` plus `.nvmrc` — Vercel had defaulted to Node 26
+  while local was 22. Nothing pinned it before.
+- Everything else moved within its existing semver range (`npm update`),
+  including `@base-ui/react` 1.6 -> 1.9, `lucide-react` 1.28 -> 1.74 and
+  `@supabase/*`. `tsc`, lint and build pass; a production-server smoke test of
+  `/`, `/login`, `/sign-up` and `/blue-hour` showed no console errors, and the
+  MapLibre worker is served as `application/javascript`.
+- **Left on purpose:** `zod` 3 -> 4 (breaking; touches every schema) and the
+  `postcss` copy bundled inside Next (build-time CSS only). **Not verified:**
+  the trip-page map itself and anything behind login — those need an
+  authenticated session this pass didn't have.
+
