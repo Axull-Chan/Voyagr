@@ -46,6 +46,15 @@ export function convert(
     const rate = table.rates[to]
     return rate === undefined ? null : amount * rate
   }
+  // Into the base currency. The table never lists its own base (it is implicitly
+  // 1), and each quote is "units of that currency per 1 base", so going the
+  // other way is a division. This is the case the trip page hits for every
+  // foreign-currency expense — its table is based on the *trip's* currency — and
+  // without it that expense converted to null and counted as zero spend.
+  if (table.base === to) {
+    const rate = table.rates[from]
+    return rate === undefined || rate === 0 ? null : amount / rate
+  }
   // Cross-rate via the table's base, e.g. JPY -> USD -> EUR.
   const fromRate = table.rates[from]
   const toRate = table.rates[to]
