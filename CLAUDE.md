@@ -893,17 +893,6 @@ section in this file.
   reviewed, and their styling was confirmed via computed-style probes on
   the login page, but no authenticated session existed in this pass to
   render them with real data. Not claimed as visually confirmed.
-- Verified live in the browser rather than from source: light and dark
-  mode on `/sign-up` (elevation inversion visible — the card panel is
-  lighter than the page in dark mode, darker in light mode, exactly as
-  DESIGN.md specifies), the marketing page's `text-display`/`text-headline`
-  elements post-fix, and both new `bg-tertiary`/`bg-tertiary-subtle`
-  Tailwind utilities via computed-style probes (same `@theme inline` risk
-  class as the font-heading bug, checked for the same reason). The
-  countdown badge and map markers are code- and type-verified, exact hex
-  match to the derivation, but not pixel-verified live — both need an
-  authenticated trip with a real start date/places, which this pass didn't
-  create; said explicitly rather than implied from the code being correct.
 
 ## Phase 3B — real data, the map, and honest provenance
 
@@ -1261,10 +1250,15 @@ email = '...'`.
 
 ## Design system
 
-- Base color neutral/zinc, with an indigo/violet accent layered on top of
-  the shadcn `base-nova` preset defaults (see CSS variables in
-  `src/app/globals.css`) — the preset itself ships fully grayscale.
-- Fonts: Geist Sans + Geist Mono via `next/font/google`.
+The visual language is **Field Journal**, defined in `DESIGN.md` (token values,
+rationale, components) and implemented in `src/app/globals.css` — see the
+"Field Journal — design system" section above for the engineering gotchas. The
+shadcn `base-nova` preset is only the component scaffolding underneath.
+
+- Colour: paper-and-ink light theme, leather-and-lamplight dark theme, Pine
+  Blue primary. Not the indigo/violet accent this app started with.
+- Fonts (`src/app/layout.tsx`): Geist Sans (`--font-sans`) for UI, Geist Mono
+  (`--font-mono`) for data, Fraunces (`--font-fraunces`) for headings.
 - Motion: shared variants in `src/lib/motion.ts`, `prefers-reduced-motion`
   handled globally via `<MotionConfig reducedMotion="user">` in
   `src/components/motion-provider.tsx`.
@@ -1435,4 +1429,27 @@ Brought the project current after a long gap. `npm audit --omit=dev` went from
   `postcss` copy bundled inside Next (build-time CSS only). **Not verified:**
   the trip-page map itself and anything behind login — those need an
   authenticated session this pass didn't have.
+
+## Testing and CI
+
+- `npm test` runs Vitest (`vitest.config.mts`; `@` aliased to `src/`). Tests
+  sit beside the code as `*.test.ts` and cover only pure logic — date and money
+  maths (`trip-domain`), the validation schemas, the export shape and filename
+  sanitiser (`trip-export`), and `resolveChatOperations`/`assignItemRefIds` in
+  the AI layer, which is where "the model may pick but never state a fact" is
+  actually enforced. No network, no database, no env vars needed.
+- Added in the Nov 2026 refresh, so the suite is small by design: 79 tests, ~1s.
+  The three most load-bearing rules were mutation-checked (each deliberately
+  broken once, each caught by the intended test, then reverted). It does **not**
+  cover server actions, anything needing Supabase, or any component — those
+  still rely on manual verification, which is exactly why Phase 9's and Phase
+  10's UI notes say "not verified in a browser".
+- `.github/workflows/ci.yml` runs lint, type-check, tests and build on pushes to
+  `main` and on every pull request, using the Node major from `.nvmrc`. It needs
+  no secrets: the production build succeeds with no environment variables.
+- `@types/node` is on 22 to match `engines.node`; Vitest 5 refuses the older
+  `@types/node` 20 this project started with.
+- Not in CI on purpose: `npm audit` (new advisories would turn unrelated PRs
+  red), `format:check` (the codebase isn't Prettier-clean and it was never
+  enforced).
 
