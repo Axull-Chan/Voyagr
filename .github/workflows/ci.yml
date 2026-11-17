@@ -1,0 +1,48 @@
+name: CI
+
+# The same four gates that gate every phase in CLAUDE.md, run on every push to
+# main and on every pull request. No secrets are needed: the production build
+# succeeds with no environment variables set (verified), and the unit tests
+# touch neither the network nor the database.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# A newer push to the same ref makes an in-flight run for it pointless.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      # Reads .nvmrc, so CI runs the same Node major as `engines` in
+      # package.json and as production.
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Type-check
+        run: npm run type-check
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Build
+        run: npm run build
