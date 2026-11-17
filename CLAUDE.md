@@ -66,6 +66,16 @@ committed before the next begins — don't skip ahead without the user's go-ahea
   `Axull-Chan's Org`, region `ap-southeast-1`. The account has two other,
   unrelated Supabase projects — never point migrations at those.
 - Package manager: npm (no pnpm/yarn/bun installed locally).
+- Vercel project `voyagr` (id `prj_cUfuwhMnoMC825jN1zTmNMLyuigp`, team
+  `axel-valentinos-projects`), linked to this GitHub repo; production = `main`,
+  other branches get preview deployments. Production URL:
+  `https://voyagr-taupe.vercel.app`. Env vars set (all environments):
+  `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`,
+  `AI_PROVIDER=mock` — no Gemini/OpenTripMap/Unsplash keys, so production
+  serves example itineraries. Vercel Authentication was on for *every*
+  `.vercel.app` URL (the site wasn't public); it is now `preview`-only, so
+  production is public and branch previews still require a Vercel login. Node
+  is pinned by `engines.node` (22.x), not the project setting.
 
 ## Non-obvious things learned in Phase 1
 
