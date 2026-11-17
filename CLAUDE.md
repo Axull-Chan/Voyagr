@@ -83,7 +83,17 @@ committed before the next begins — don't skip ahead without the user's go-ahea
   demand" on the newer flash models during testing (and one `generateContent`
   call on the default `gemini-3.6-flash` hung >100 s), so intermittent failed
   generations are an external capacity issue, not a key problem; `GEMINI_MODEL`
-  can override the default model without a code change. Vercel Authentication was on for *every*
+  can override the default model without a code change. **It is now set to
+  `gemini-3-flash-preview` on Vercel** (all environments): an end-to-end run of
+  the real pipeline showed the code's default `gemini-3.6-flash` timing out at
+  the app's own 60 s limit, while `gemini-3-flash-preview` produced a complete,
+  fully venue-grounded itinerary (all 10 activities backed by real venues, live
+  forecast, real photo credit) — but took ~79 s including one retry. Two caveats:
+  it is a *preview* model Google can change or withdraw (if generation starts
+  failing with `unavailable`, check the model first), and **no `maxDuration` is
+  set anywhere in the app**, so whether Vercel cuts off a 30-80 s trip-creation
+  request depends on the project's function timeout (Fluid Compute) — not yet
+  checked. Vercel Authentication was on for *every*
   `.vercel.app` URL (the site wasn't public); it is now `preview`-only, so
   production is public and branch previews still require a Vercel login. Node
   is pinned by `engines.node` (22.x), not the project setting.
