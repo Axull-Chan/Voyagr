@@ -51,6 +51,14 @@ export async function generateMetadata({
  * fetched here rather than in a client effect so the page arrives complete
  * and there is no conversion flashing in after paint.
  */
+/**
+ * How long this page's server actions may run, in seconds (a literal, read
+ * statically by Next). The trip chat's `sendChatMessageAction` makes a real
+ * Gemini call from here, with the same worst case as trip creation — see the
+ * note on `maxDuration` in `trips/new/page.tsx`.
+ */
+export const maxDuration = 150
+
 export default async function TripDetailPage({ params }: TripDetailPageProps) {
   const { id } = await params
   const [
