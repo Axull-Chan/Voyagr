@@ -1611,10 +1611,22 @@ first. Code: `src/lib/ai/usage-limits.ts` (pure: defaults, env overrides, wordin
   rules (honouring a refusal, skipping the mock provider, a typo not disabling a
   limit). The first attempt at the independence scenario was itself wrong (it
   passed the wrong limit) and was redone properly.
-- **Not verified:** a real signed-in trip generation or chat message hitting the
-  limit on the live site, and the Supabase advisors for the new `SECURITY DEFINER`
-  functions (the migration was not applied when this was written — check
-  `list_migrations`). Not built: showing "N left today" in the UI, per-IP limits,
-  and limiting signups (an attacker with many email addresses is bounded only by
+- **Applied to the live project** as migration `20261117145151_add_ai_usage_limits`
+  (Nov 2026). Afterwards: confirmed from the catalog that RLS is on, the only
+  policy is select-own, anon has no table or function access, and signed-in users
+  can read but not write the table and can run both functions; re-ran a rolled-back
+  check against the *applied* functions (all as expected, table left at 0 rows).
+- **Supabase advisors after applying:** two new WARNs, "Signed-In Users Can Execute
+  SECURITY DEFINER Function" (`consume_ai_quota`, `confirm_ai_quota`) — **expected
+  and intentional**: the app calls them with the user's own login, and they must
+  be SECURITY DEFINER (the global limit counts other users' rows; the table has no
+  write policy). They take no user id and use `auth.uid()` only. Revoking them
+  would break the limiter; the lint's other remedy (a non-exposed schema) would
+  make them uncallable from supabase-js, and a service-role key is not set up.
+  Plus two INFO "unused index" notices for the new table's indexes (it is new).
+  The pre-existing leaked-password-protection WARN is unrelated.
+- **Not verified:** a real signed-in trip generation or chat message actually
+  hitting the limit on the live site. Not built: showing "N left today" in the UI,
+  per-IP limits, and limiting signups (an attacker with many email addresses is bounded only by
   the global ceiling, which is its purpose).
 
