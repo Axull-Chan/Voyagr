@@ -20,7 +20,12 @@ export default async function TripsPage() {
     )
     .order("created_at", { ascending: false })
 
-  const all = trips ?? []
+  // Archived trips are listed in their own section rather than mixed into
+  // Upcoming/Past: a shelved trip says nothing about what is coming next, and
+  // it must not be promoted to the "Next" lead.
+  const everything = trips ?? []
+  const archived = everything.filter((t) => t.status === "archived")
+  const all = everything.filter((t) => t.status !== "archived")
   const today = new Date().toISOString().slice(0, 10)
 
   /**
@@ -78,7 +83,7 @@ export default async function TripsPage() {
         </Button>
       </RevealItem>
 
-      {all.length === 0 ? (
+      {everything.length === 0 ? (
         <RevealItem>
           <EmptyState
             icon={Plane}
@@ -119,10 +124,23 @@ export default async function TripsPage() {
           ) : null}
 
           {past.length > 0 ? (
-            <RevealItem>
+            <RevealItem className="mb-10">
               <h2 className="text-eyebrow mb-2 text-muted-foreground">Past</h2>
               <ul className="divide-y divide-border border-t border-border">
                 {past.map((trip) => (
+                  <TripRow key={trip.id} trip={trip} />
+                ))}
+              </ul>
+            </RevealItem>
+          ) : null}
+
+          {archived.length > 0 ? (
+            <RevealItem>
+              <h2 className="text-eyebrow mb-2 text-muted-foreground">
+                Archived
+              </h2>
+              <ul className="divide-y divide-border border-t border-border">
+                {archived.map((trip) => (
                   <TripRow key={trip.id} trip={trip} />
                 ))}
               </ul>

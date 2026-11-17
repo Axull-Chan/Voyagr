@@ -24,6 +24,7 @@ import {
 import { BudgetSection } from "@/features/trips/components/detail/budget-section"
 import { PackingSection } from "@/features/trips/components/detail/packing-section"
 import { TripChat } from "@/features/trips/components/detail/trip-chat"
+import { TripActionsMenu } from "@/features/trips/components/detail/trip-actions-menu"
 
 interface TripDetailPageProps {
   params: Promise<{ id: string }>
@@ -220,7 +221,7 @@ export default async function TripDetailPage({ params }: TripDetailPageProps) {
   return (
     <>
       <Reveal mode="mount">
-        <RevealItem className="mb-4">
+        <RevealItem className="mb-4 flex items-center justify-between gap-2">
           <Button
             variant="ghost"
             size="sm"
@@ -231,6 +232,11 @@ export default async function TripDetailPage({ params }: TripDetailPageProps) {
             <ArrowLeft aria-hidden="true" />
             All trips
           </Button>
+          <TripActionsMenu
+            tripId={trip.id}
+            title={trip.title}
+            status={trip.status}
+          />
         </RevealItem>
 
         <RevealItem className="mb-8 sm:mb-10">

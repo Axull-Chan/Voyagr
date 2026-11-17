@@ -30,6 +30,9 @@ export default async function DashboardPage() {
       .select(
         "id, title, destination, start_date, end_date, status, created_at, cover_image_url, cover_image_credit_name"
       )
+      // Archived trips are shelved: they stay on /trips, but the dashboard's
+      // upcoming trip and its totals describe what is still in play.
+      .neq("status", "archived")
       .order("created_at", { ascending: false }),
   ])
 

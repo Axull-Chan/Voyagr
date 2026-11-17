@@ -52,7 +52,10 @@ committed before the next begins — don't skip ahead without the user's go-ahea
   explicitly rather than written automatically — see "Phase 9 — chat-based
   itinerary editing" below. **Not live-browser-verified** — the user chose to
   skip that step this pass; only `type-check`/`lint`/`build` gates ran.
-- [ ] Phase 10 — Trip management (rename/duplicate/archive/export)
+- [ ] Phase 10 — Trip management (rename/duplicate/archive/export). **Code
+  complete, not verified against the database** — the `duplicate_trip`
+  migration is written but was *not applied* and nothing was exercised live;
+  see "Phase 10 — trip management" below. Left unchecked until it is.
 - [ ] Phase 11 — PDF export
 - [ ] Phase 12 — Premium features
 - [ ] Phase 13 — Production polish
@@ -1351,3 +1354,39 @@ duplicated here.
   never picked up an authenticated cookie (checked on a brand-new tab too),
   and the user chose to skip live testing rather than debug that further.
   Worth doing before trusting this beyond "it compiles."
+
+## Phase 10 — trip management
+
+Rename, duplicate, archive/restore and export, from a "…" menu on the trip
+page (`trip-actions-menu.tsx`) plus an Archived section on `/trips`.
+
+- **Verification status, stated plainly.** `tsc`, `lint` and `npm run build`
+  pass. The Supabase MCP connection timed out for every call this pass
+  (`get_project` said `ACTIVE_HEALTHY`, `execute_sql`/`list_migrations` both
+  failed with "Connection terminated due to connection timeout", three tries),
+  so **`supabase/migrations/20260917090000_add_duplicate_trip.sql` has not been
+  applied and `duplicate_trip` has never been run.** Until it is applied,
+  Duplicate will fail with the generic "couldn't duplicate" toast. Nothing was
+  exercised in a browser either. To finish: apply the migration, run
+  `get_advisors` (check the function isn't flagged as callable by `anon` — it
+  is revoked from `public`/`anon` in the file), then duplicate a trip with real
+  children and diff the row counts per table. `database.types.ts` was edited by
+  hand to add `duplicate_trip` to `Functions`; regenerate it after applying.
+- **Duplicate is a Postgres function, not client calls.** A trip spans nine
+  tables and the Supabase client has no transactions, so a mid-way failure
+  would leave a half-copied trip. `duplicate_trip(uuid)` is `SECURITY INVOKER`,
+  so RLS still decides what the caller can read and insert. It copies the plan;
+  it deliberately does **not** copy expenses, chat history, packing checked
+  state, the favourite flag or actual budget amounts.
+- **`status` does two jobs** (lifecycle and `archived`), so archiving overwrites
+  what the trip was. Restore recomputes it (has days -> `ready`, none ->
+  `draft`) rather than remembering. `generating` trips can't be archived or
+  duplicated, and archive/restore is a compare-and-set on the status it read,
+  so it can't clobber a generation that starts in between.
+- **Export is JSON only** (`/trips/[id]/export`), a versioned portable shape
+  with internal ids and `user_id` stripped. Weather/hotel `source` is kept so a
+  file can't launder an example into a fact. PDF is Phase 11. The download
+  filename is a whitelist slug of the title (checked against `../`, quotes and
+  CRLF input).
+- **Not built:** delete, editing a trip's dates/destination, and importing an
+  exported file back. None were in the phase's one-line spec.
