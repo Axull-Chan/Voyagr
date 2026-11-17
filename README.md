@@ -78,6 +78,17 @@ call that fails doesn't use up an allowance.
 MapLibre's tile worker into `public/maplibre/` (git-ignored, regenerated every
 time). The map's basemap stays blank without it; see CLAUDE.md for why.
 
+## Error monitoring
+
+Errors are recorded two ways. Every one is written to the server log as a single
+JSON line (`"event":"app_error"`), which Vercel keeps for an hour on the free
+plan. In Production, `NEXT_PUBLIC_ERROR_REPORTING=on` also records them durably in
+the `error_events` table, from the server (via Next's `onRequestError` hook) and
+from the browser (error boundaries plus a global listener). Repeats of one problem
+fold into a single row with a counter, so the table shows *what is broken and how
+often* rather than a log. There's no third-party service and no account to create.
+Only the project owner can read the table, through the SQL editor.
+
 ## Testing and CI
 
 `npm test` covers the app's pure logic — date and money maths, validation
