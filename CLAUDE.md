@@ -1707,11 +1707,28 @@ the root layout), migration `20260917140000_add_error_events.sql`. All ~11 scatt
   showed the matching reference, and a click-handler error and an unawaited promise rejection
   were each caught and sent with the right page, browser and all 10 arguments (the request
   was intercepted, so nothing reached the database).
-- **Not verified:** the whole path end to end against the live database (needs the migration
-  applied and the Production variable set — see the PR), and a real visitor's error on the
-  live site. Not built: alerts (nothing *tells* anyone an error happened — it has to be
-  looked at), an in-app dashboard, source maps (client stack traces are minified),
-  sampling, and release tracking beyond the 7-character commit id.
+- **Applied to the live project** as migration `20261117151840_add_error_events` (Nov 2026),
+  and `NEXT_PUBLIC_ERROR_REPORTING=on` set on Vercel for the **Production target only**. From
+  the catalog: RLS on, **no policy**, 0 rows, no privileges for `anon`/`authenticated` on the
+  table; `report_error` is `SECURITY DEFINER`, executable by both, and its argument names are
+  exactly the ten `toRpcArgs` sends (that name match is what PostgREST resolves on).
+- **Verified end to end against the live database** (needed one extra host, the project's own
+  Supabase address, added to this session's `voyagr` environment's network allowlist): the app's
+  own `reportServerError` and a browser-style RPC sent real reports through PostgREST with the
+  public key. Two server reports whose messages differed only by a digit became **one row with 2
+  occurrences**; the browser-style one landed as a separate `warning` row with its release and
+  user-agent; neither carried a user id. The test rows were deleted afterwards (table back to 0).
+- **Supabase advisors after applying:** three new findings, all **expected and intentional**:
+  INFO "RLS enabled, no policy" on `error_events` (the point: no client may touch it) and the
+  WARNs "Public/Signed-in users can execute SECURITY DEFINER function" for `report_error`
+  (it must be callable before sign-in; the abuse limits in the function are the mitigation).
+  The two older ones for the AI-limit functions remain, also intentional.
+- **Not verified:** a real visitor's error on the live site appearing in the table (the
+  production deploy had not happened when this was written), and Vercel previews/local staying
+  quiet (they do not get the variable, and a unit test pins "off by default"). Not built:
+  alerts (nothing *tells* anyone an error happened — it has to be looked at), an in-app dashboard,
+  source maps (client stack traces are minified), sampling, and release tracking beyond the
+  7-character commit id.
 
 ## Build reliability — Google Fonts can fail a build at random
 
