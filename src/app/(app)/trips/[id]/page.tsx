@@ -24,6 +24,7 @@ import {
 import { BudgetSection } from "@/features/trips/components/detail/budget-section"
 import { PackingSection } from "@/features/trips/components/detail/packing-section"
 import { TripChat } from "@/features/trips/components/detail/trip-chat"
+import { getAiQuotaHint } from "@/features/trips/services/ai-quota"
 import { TripActionsMenu } from "@/features/trips/components/detail/trip-actions-menu"
 
 interface TripDetailPageProps {
@@ -68,10 +69,15 @@ export default async function TripDetailPage({ params }: TripDetailPageProps) {
 
   // The traveller's own currency, for converting a foreign budget back.
   const supabase = await createClient()
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("preferred_currency")
-    .maybeSingle()
+  // The chat's "N messages left today" is fetched alongside, only when the chat
+  // is shown at all. `getAiQuotaHint` never throws and gives up after 1.5 s, so
+  // it can't hold the page up; null just means no caption.
+  const [{ data: profile }, chatQuota] = await Promise.all([
+    supabase.from("profiles").select("preferred_currency").maybeSingle(),
+    days.length > 0
+      ? getAiQuotaHint(supabase, "chat_message")
+      : Promise.resolve(null),
+  ])
   const homeCurrency = profile?.preferred_currency ?? null
 
   // Only what's actually needed to convert back to the trip's currency: the
@@ -361,6 +367,7 @@ export default async function TripDetailPage({ params }: TripDetailPageProps) {
         currency={trip.currency}
         initialMessages={chatHistory}
         hasItinerary={days.length > 0}
+        initialQuota={chatQuota}
       />
     </>
   )

@@ -10,6 +10,7 @@ import { AlertCircle, ArrowLeft, ArrowRight, Check, Loader2, Sparkles } from "lu
 import { cn } from "@/lib/utils"
 import { addDays } from "@/lib/trips/trip-domain"
 import { Button } from "@/components/ui/button"
+import { describeRemaining, type AiQuotaHint } from "@/lib/ai/usage-limits"
 import { createTripAction } from "@/features/trips/actions/trip.actions"
 import {
   createTripSchema,
@@ -54,7 +55,12 @@ function defaultValues(): CreateTripInput {
  * fields (see `WIZARD_STEPS[].fields`), which keeps a user from being blocked
  * by an error on a step they haven't seen yet.
  */
-export function CreateTripWizard() {
+export function CreateTripWizard({
+  quotaHint = null,
+}: {
+  /** "N trips left today", worked out by the page; null shows no caption. */
+  quotaHint?: AiQuotaHint | null
+}) {
   const router = useRouter()
   const prefersReducedMotion = useReducedMotion()
   const [stepIndex, setStepIndex] = useState(0)
@@ -117,6 +123,10 @@ export function CreateTripWizard() {
       const result = await createTripAction(values)
       if (!result.ok) {
         setSubmitError(result.error)
+        // Re-read the "N left" caption: a refusal means it was out of date.
+        // Client state (the form, the step) survives a refresh. On success the
+        // push below lands on a freshly rendered /trips/new next visit.
+        router.refresh()
         return
       }
       clearDraft()
@@ -206,8 +216,13 @@ export function CreateTripWizard() {
                   Back
                 </Button>
 
+                {/* The keys matter. Without them React reuses one <button> for
+                    both branches and flips its `type` to "submit" during the
+                    very click that pressed Next on step 3 — and the browser,
+                    reading the type afterwards, submits the form: a trip was
+                    generated (spending quota) before step 4 was ever shown. */}
                 {isLastStep ? (
-                  <Button type="submit" disabled={isPending}>
+                  <Button key="submit" type="submit" disabled={isPending}>
                     {isPending ? (
                       <>
                         <Loader2
@@ -224,22 +239,32 @@ export function CreateTripWizard() {
                     )}
                   </Button>
                 ) : (
-                  <Button type="button" onClick={goNext}>
+                  <Button key="next" type="button" onClick={goNext}>
                     Next
                     <ArrowRight aria-hidden="true" />
                   </Button>
                 )}
               </div>
 
-              <p
-                aria-live="polite"
-                className={cn(
-                  "mt-3 text-caption text-muted-foreground transition-opacity",
-                  draftStatus === "saved" ? "opacity-100" : "opacity-0"
-                )}
-              >
-                Draft saved
-              </p>
+              <div className="mt-3 flex items-baseline justify-between gap-3">
+                <p
+                  aria-live="polite"
+                  className={cn(
+                    "text-caption text-muted-foreground transition-opacity",
+                    draftStatus === "saved" ? "opacity-100" : "opacity-0"
+                  )}
+                >
+                  Draft saved
+                </p>
+                {/* Under the submit button, on the step that has one. A hint
+                    only (the server enforces the limit); absent when the
+                    server couldn't work it out or nothing is limited. */}
+                {isLastStep && quotaHint ? (
+                  <p className="ml-auto text-right text-caption text-muted-foreground">
+                    {describeRemaining("trip_generation", quotaHint)}
+                  </p>
+                ) : null}
+              </div>
             </div>
         </form>
       </div>

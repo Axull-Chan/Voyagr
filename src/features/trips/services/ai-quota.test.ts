@@ -1,7 +1,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import { confirmAiQuota, reserveAiQuota } from "@/features/trips/services/ai-quota"
+import {
+  confirmAiQuota,
+  getAiQuotaHint,
+  reserveAiQuota,
+} from "@/features/trips/services/ai-quota"
 import type { Database } from "@/types/database.types"
 
 type Client = SupabaseClient<Database>
@@ -179,5 +183,114 @@ describe("confirmAiQuota", () => {
     })
     await expect(confirmAiQuota(thrown.client, 1)).resolves.toBeUndefined()
     expect(console.error).toHaveBeenCalled()
+  })
+})
+
+describe("getAiQuotaHint", () => {
+  const ago = (ms: number) => new Date(now.getTime() - ms).toISOString()
+  const MIN = 60_000
+  const HOUR = 60 * MIN
+
+  /** A stand-in for the query builder chain: records each call, then resolves. */
+  function fakeQuery(result: () => unknown) {
+    const calls: [string, unknown[]][] = []
+    const chain: Record<string, unknown> = {}
+    for (const name of ["select", "eq", "gt", "or", "limit"]) {
+      chain[name] = (...args: unknown[]) => {
+        calls.push([name, args])
+        return chain
+      }
+    }
+    chain.then = (resolve: (v: unknown) => unknown, reject: (e: unknown) => unknown) =>
+      Promise.resolve()
+        .then(result)
+        .then(resolve, reject)
+    const from = vi.fn(() => chain)
+    return { client: { from } as unknown as Client, from, calls }
+  }
+
+  it("is null for the free mock provider, and never touches the database", async () => {
+    const { client, from } = fakeQuery(() => {
+      throw new Error("should not be called")
+    })
+    expect(
+      await getAiQuotaHint(client, "trip_generation", { providerId: "mock", now })
+    ).toBeNull()
+    expect(from).not.toHaveBeenCalled()
+  })
+
+  it("reads the caller's own rows for this kind inside the 24 h window", async () => {
+    const { client, from, calls } = fakeQuery(() => ({ data: [], error: null }))
+    await getAiQuotaHint(client, "chat_message", REAL)
+    expect(from).toHaveBeenCalledWith("ai_usage")
+    expect(calls).toContainEqual(["eq", ["kind", "chat_message"]])
+    expect(calls).toContainEqual(["gt", ["created_at", ago(24 * HOUR)]])
+  })
+
+  it("reports everything left when nothing has been used", async () => {
+    const { client } = fakeQuery(() => ({ data: [], error: null }))
+    expect(await getAiQuotaHint(client, "trip_generation", REAL)).toEqual({
+      remaining: 5,
+      max: 5,
+    })
+  })
+
+  it("subtracts confirmed uses and in-flight reservations, but not lapsed ones", async () => {
+    const { client } = fakeQuery(() => ({
+      data: [
+        { status: "ok", created_at: ago(2 * HOUR) },
+        { status: "ok", created_at: ago(20 * HOUR) },
+        { status: "started", created_at: ago(MIN) },
+        // Never confirmed and long since lapsed: must not count.
+        { status: "started", created_at: ago(HOUR) },
+      ],
+      error: null,
+    }))
+    expect(await getAiQuotaHint(client, "trip_generation", REAL)).toEqual({
+      remaining: 2,
+      max: 5,
+    })
+  })
+
+  it("never goes below zero, and uses the configured limit", async () => {
+    vi.stubEnv("AI_LIMIT_CHAT_PER_USER", "2")
+    const { client } = fakeQuery(() => ({
+      data: [
+        { status: "ok", created_at: ago(HOUR) },
+        { status: "ok", created_at: ago(2 * HOUR) },
+        { status: "ok", created_at: ago(3 * HOUR) },
+      ],
+      error: null,
+    }))
+    expect(await getAiQuotaHint(client, "chat_message", REAL)).toEqual({
+      remaining: 0,
+      max: 2,
+    })
+  })
+
+  describe("shows nothing (null) rather than breaking the page", () => {
+    it("when the database returns an error (e.g. the migration isn't applied)", async () => {
+      const { client } = fakeQuery(() => ({
+        data: null,
+        error: { message: 'relation "public.ai_usage" does not exist' },
+      }))
+      expect(await getAiQuotaHint(client, "trip_generation", REAL)).toBeNull()
+    })
+
+    it("when the call throws", async () => {
+      const { client } = fakeQuery(() => {
+        throw new Error("connection reset")
+      })
+      expect(await getAiQuotaHint(client, "trip_generation", REAL)).toBeNull()
+    })
+
+    it("when the database is slow, after the timeout", async () => {
+      const { client } = fakeQuery(() => new Promise(() => {}))
+      const started = Date.now()
+      expect(
+        await getAiQuotaHint(client, "trip_generation", { ...REAL, timeoutMs: 20 })
+      ).toBeNull()
+      expect(Date.now() - started).toBeLessThan(1000)
+    })
   })
 })

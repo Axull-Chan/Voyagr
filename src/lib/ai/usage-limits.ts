@@ -116,3 +116,58 @@ export function describeQuotaBlock(
     ? `You've used all ${block.max} of today's AI-planned trips. You can plan another ${wait}.`
     : `You've reached today's limit of ${block.max} assistant messages. You can send another ${wait}.`
 }
+
+// ---------------------------------------------------------------------------
+// "N left today" — a read-only hint
+// ---------------------------------------------------------------------------
+
+/** How long a CONFIRMED use counts. Mirrors `window_start` in `consume_ai_quota`. */
+export const AI_USAGE_WINDOW_MS = 24 * 60 * 60 * 1000
+/** How long an UNCONFIRMED reservation counts. Mirrors `started_cutoff` in `consume_ai_quota`. */
+export const AI_RESERVATION_WINDOW_MS = 3 * 60 * 1000
+
+/** The two columns of an `ai_usage` row that decide whether it counts. */
+export interface AiUsageRow {
+  status: string
+  created_at: string
+}
+
+/**
+ * Whether one row still counts toward a limit right now — the same rule
+ * `consume_ai_quota` applies, including the strict comparison on both cutoffs:
+ * a confirmed ('ok') row counts for 24 h from `created_at`, a reservation
+ * ('started') for 3 min. Anything else (an unknown status, an unparseable
+ * timestamp) counts for nothing.
+ */
+export function countsTowardLimit(row: AiUsageRow, now: Date): boolean {
+  const created = new Date(row.created_at).getTime()
+  if (Number.isNaN(created)) return false
+  const age = now.getTime() - created
+  if (row.status === "ok") return age < AI_USAGE_WINDOW_MS
+  if (row.status === "started") return age < AI_RESERVATION_WINDOW_MS
+  return false
+}
+
+export function countActiveUsage(rows: readonly AiUsageRow[], now: Date): number {
+  return rows.reduce((n, row) => n + (countsTowardLimit(row, now) ? 1 : 0), 0)
+}
+
+export function remainingAllowance(limit: number, used: number): number {
+  return Math.max(0, limit - used)
+}
+
+/**
+ * What the UI shows. This is a HINT, never enforcement: `consume_ai_quota` is the
+ * only thing that decides, and it also applies a global limit that a traveller
+ * cannot see (RLS hides other people's rows), so "5 left" can still be refused.
+ */
+export interface AiQuotaHint {
+  remaining: number
+  max: number
+}
+
+export function describeRemaining(kind: AiUsageKind, hint: AiQuotaHint): string {
+  const noun = kind === "trip_generation" ? "trips" : "messages"
+  if (hint.remaining <= 0) return `No ${noun} left today`
+  return `${hint.remaining} of ${hint.max} ${noun} left today`
+}

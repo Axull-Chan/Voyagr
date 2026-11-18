@@ -2,10 +2,16 @@ import { describe, expect, it, vi } from "vitest"
 
 import {
   AI_LIMIT_ENV,
+  AI_RESERVATION_WINDOW_MS,
+  AI_USAGE_WINDOW_MS,
   DEFAULT_AI_LIMITS,
+  countActiveUsage,
+  countsTowardLimit,
   describeQuotaBlock,
+  describeRemaining,
   formatWait,
   getAiLimits,
+  remainingAllowance,
 } from "@/lib/ai/usage-limits"
 
 const MIN = 60_000
@@ -129,5 +135,70 @@ describe("describeQuotaBlock", () => {
     expect(
       describeQuotaBlock("chat_message", { reason: "user", resetsAt: past, max: 30 }, now)
     ).toContain("in a moment")
+  })
+})
+
+describe("the 'N left today' hint", () => {
+  const now = new Date("2026-11-18T12:00:00Z")
+  const ago = (ms: number) => new Date(now.getTime() - ms).toISOString()
+
+  describe("countsTowardLimit (mirrors consume_ai_quota)", () => {
+    it("counts a confirmed use for 24 hours, and not at or past the boundary", () => {
+      expect(countsTowardLimit({ status: "ok", created_at: ago(HOUR) }, now)).toBe(true)
+      expect(countsTowardLimit({ status: "ok", created_at: ago(24 * HOUR - 1) }, now)).toBe(true)
+      expect(countsTowardLimit({ status: "ok", created_at: ago(24 * HOUR) }, now)).toBe(false)
+      expect(countsTowardLimit({ status: "ok", created_at: ago(25 * HOUR) }, now)).toBe(false)
+    })
+
+    it("counts an unconfirmed reservation for only 3 minutes", () => {
+      expect(countsTowardLimit({ status: "started", created_at: ago(MIN) }, now)).toBe(true)
+      expect(countsTowardLimit({ status: "started", created_at: ago(3 * MIN - 1) }, now)).toBe(true)
+      expect(countsTowardLimit({ status: "started", created_at: ago(3 * MIN) }, now)).toBe(false)
+      // The failure this guards: an hour-old reservation that was never confirmed
+      // (the model call failed) must not eat an allowance.
+      expect(countsTowardLimit({ status: "started", created_at: ago(HOUR) }, now)).toBe(false)
+    })
+
+    it("counts nothing it does not recognise", () => {
+      expect(countsTowardLimit({ status: "refunded", created_at: ago(MIN) }, now)).toBe(false)
+      expect(countsTowardLimit({ status: "ok", created_at: "garbage" }, now)).toBe(false)
+    })
+  })
+
+  it("keeps the windows the SQL uses", () => {
+    expect(AI_USAGE_WINDOW_MS).toBe(24 * HOUR)
+    expect(AI_RESERVATION_WINDOW_MS).toBe(3 * MIN)
+  })
+
+  it("counts only the rows that still count", () => {
+    const rows = [
+      { status: "ok", created_at: ago(HOUR) },
+      { status: "ok", created_at: ago(30 * HOUR) },
+      { status: "started", created_at: ago(MIN) },
+      { status: "started", created_at: ago(10 * MIN) },
+    ]
+    expect(countActiveUsage(rows, now)).toBe(2)
+    expect(countActiveUsage([], now)).toBe(0)
+  })
+
+  it("never reports a negative allowance", () => {
+    expect(remainingAllowance(5, 2)).toBe(3)
+    expect(remainingAllowance(5, 5)).toBe(0)
+    expect(remainingAllowance(5, 9)).toBe(0)
+  })
+
+  it("words the caption per kind, and says so plainly at zero", () => {
+    expect(describeRemaining("trip_generation", { remaining: 3, max: 5 })).toBe(
+      "3 of 5 trips left today"
+    )
+    expect(describeRemaining("chat_message", { remaining: 24, max: 30 })).toBe(
+      "24 of 30 messages left today"
+    )
+    expect(describeRemaining("trip_generation", { remaining: 0, max: 5 })).toBe(
+      "No trips left today"
+    )
+    expect(describeRemaining("chat_message", { remaining: 0, max: 30 })).toBe(
+      "No messages left today"
+    )
   })
 })

@@ -15,8 +15,10 @@ import { sourcePlaces } from "@/services/places-service"
 import { reportServerError } from "@/lib/monitoring/report-server"
 import {
   confirmAiQuota,
+  getAiQuotaHint,
   reserveAiQuota,
 } from "@/features/trips/services/ai-quota"
+import type { AiQuotaHint } from "@/lib/ai/usage-limits"
 import {
   getTripChatContext,
   getTripChatHistory,
@@ -44,8 +46,10 @@ export type SendChatMessageResult =
       reply: string
       operations: ChatOperation[]
       warnings: string[]
+      /** Fresh "N left today" for the chat header; null = show nothing. */
+      quota: AiQuotaHint | null
     }
-  | { ok: false; error: string }
+  | { ok: false; error: string; quota?: AiQuotaHint | null }
 
 /**
  * Sends one chat message and gets back a proposed edit. Never writes to
@@ -82,7 +86,14 @@ export async function sendChatMessageAction(
   // After the cheap checks above (so a malformed or pointless request never takes
   // a slot) and before anything is saved or any provider is called.
   const quota = await reserveAiQuota(supabase, "chat_message")
-  if (!quota.allowed) return { ok: false, error: quota.message }
+  if (!quota.allowed) {
+    // Refused, so the caption on screen is out of date; hand back the real number.
+    return {
+      ok: false,
+      error: quota.message,
+      quota: await getAiQuotaHint(supabase, "chat_message"),
+    }
+  }
 
   // Persisted before anything else can fail, same "leave what they entered
   // recoverable" philosophy as createTripAction.
@@ -179,6 +190,8 @@ export async function sendChatMessageAction(
     reply,
     operations,
     warnings,
+    // After the confirm above, so this turn is already counted.
+    quota: await getAiQuotaHint(supabase, "chat_message"),
   }
 }
 

@@ -15,6 +15,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet"
 import type { ChatOperation } from "@/lib/ai"
+import { describeRemaining, type AiQuotaHint } from "@/lib/ai/usage-limits"
 import { formatCurrency } from "@/lib/trips/trip-domain"
 import {
   applyChatOperationsAction,
@@ -82,13 +83,20 @@ export function TripChat({
   currency,
   initialMessages,
   hasItinerary,
+  initialQuota = null,
 }: {
   tripId: string
   currency: string
   initialMessages: TripChatMessageRow[]
   hasItinerary: boolean
+  /** "N messages left today" as of page load; null shows no caption. */
+  initialQuota?: AiQuotaHint | null
 }) {
   const [open, setOpen] = useState(false)
+  // Seeded once, like `messages`; afterwards each send returns the fresh number,
+  // so it stays right without leaning on the page refreshing. A hint only —
+  // the server enforces the limit.
+  const [quota, setQuota] = useState<AiQuotaHint | null>(initialQuota)
   const [messages, setMessages] = useState<ChatMessage[]>(() => initialMessages.map(toChatMessage))
   const [discardedIds, setDiscardedIds] = useState<Set<string>>(() => new Set())
   const [draft, setDraft] = useState("")
@@ -108,6 +116,9 @@ export function TripChat({
 
     startTransition(async () => {
       const result = await sendChatMessageAction({ tripId, message })
+      // Keep the caption in step, but only with a real number: a null here
+      // means the lookup failed, and the previous figure is better than none.
+      if (result.quota) setQuota(result.quota)
       if (!result.ok) {
         toast.error(result.error)
         setMessages((prev) => prev.filter((m) => m.id !== optimisticId))
@@ -166,6 +177,11 @@ export function TripChat({
             <SheetDescription>
               Describe a change and review it before it&apos;s applied.
             </SheetDescription>
+            {quota ? (
+              <p className="text-caption text-muted-foreground">
+                {describeRemaining("chat_message", quota)}
+              </p>
+            ) : null}
           </SheetHeader>
 
           <div className="flex-1 space-y-4 overflow-y-auto px-4">

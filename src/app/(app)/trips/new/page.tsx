@@ -3,7 +3,9 @@ import Link from "next/link"
 import { ArrowLeft } from "lucide-react"
 
 import { Reveal, RevealItem } from "@/components/shared/reveal"
+import { createClient } from "@/lib/supabase/server"
 import { CreateTripWizard } from "@/features/trips/components/wizard/create-trip-wizard"
+import { getAiQuotaHint } from "@/features/trips/services/ai-quota"
 
 export const metadata: Metadata = {
   title: "New trip",
@@ -24,7 +26,13 @@ export const metadata: Metadata = {
  */
 export const maxDuration = 150
 
-export default function NewTripPage() {
+export default async function NewTripPage() {
+  // "N trips left today". Never blocks or breaks the page: `getAiQuotaHint`
+  // returns null on any failure, a slow database (1.5 s cap) or the free mock
+  // provider, and the wizard simply shows no caption.
+  const supabase = await createClient()
+  const quotaHint = await getAiQuotaHint(supabase, "trip_generation")
+
   return (
     // space-y-8, not -6: a form this narrow already reads as a deliberately
     // editorial, single-column page rather than a dashboard tool — matching
@@ -48,7 +56,7 @@ export default function NewTripPage() {
       </RevealItem>
 
       <RevealItem>
-        <CreateTripWizard />
+        <CreateTripWizard quotaHint={quotaHint} />
       </RevealItem>
     </Reveal>
   )
