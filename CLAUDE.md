@@ -1428,8 +1428,40 @@ page (`trip-actions-menu.tsx`) plus an Archived section on `/trips`.
   file can't launder an example into a fact. PDF is Phase 11. The download
   filename is a whitelist slug of the title (checked against `../`, quotes and
   CRLF input).
-- **Not built:** delete, editing a trip's dates/destination, and importing an
-  exported file back. None were in the phase's one-line spec.
+- **Delete (added later).** "Delete" in the "..." menu opens a confirmation dialog
+  that names the trip and lists what goes (itinerary, expenses, packing list, chat
+  history; "can't be undone"), notes that Favorites are kept, and puts initial focus
+  on Cancel. `deleteTripAction` (same file as the other actions) checks the id and
+  the session, reads the trip scoped by id + `user_id`, refuses `generating`
+  (`deleteBlockedReason`, pure, in `services/trip-delete.ts` with the dialog wording),
+  then deletes with `.eq("user_id")` and `.neq("status","generating")` so a
+  generation that starts in between can't lose its trip, and `select("id")` to
+  tell "deleted" from "matched nothing". **No migration was needed:** `trips_delete_own`
+  exists (init schema, re-created with `(select auth.uid())` by the advisor-fix
+  migration) and every table that references a trip cascades — days (and their
+  activities/restaurants/weather), packing_lists, budget_breakdown, hotels,
+  transportation, trip_notes, expenses, trip_chat_messages — read from the migration
+  files, not tested against the database. The one exception is `favorites.trip_id`,
+  `on delete set null`: saved places survive the trip, which is why the dialog says so.
+  The action does NOT revalidate `/trips/:id` (a re-render of a just-deleted trip would
+  flash a 404 before the redirect to `/trips`); it revalidates `/trips` and `/dashboard`.
+  The export routes (`/trips/:id/export`, `/pdf`) go through `getTripDetail`, which
+  `notFound()`s when the row is gone, so they 404 after a delete — by reading, not by
+  request. A trip stuck in `generating` (e.g. a crashed generation) can't be deleted,
+  archived or duplicated; nothing resets it.
+  **Verified:** unit tests for the refusal rule and wording (mutation-checked: making
+  the rule never refuse fails the test); `tsc`/lint/build; the dialog rendered in
+  isolation in headless Chrome via a temporary probe page (since deleted) at 1280px and
+  375px: menu lists Delete after Archive, focus lands on Cancel, a 100+ character title
+  wraps inside the dialog, the action's error line shows in the dialog, Esc closes it and
+  returns focus to the "Trip actions" trigger, no horizontal overflow. **Not verified:**
+  `deleteTripAction` against the database (the probe's action ran signed out and
+  returned its sign-in error, which is all it exercised), the success path (toast,
+  redirect to `/trips`, the trip really gone, the child rows gone), the pending state,
+  and whether `revalidatePath` in the action re-renders the deleted trip page before
+  the redirect (reasoned about, not observed).
+- **Not built:** editing a trip's dates/destination, and importing an exported file
+  back. None were in the phase's one-line spec.
 
 ## Dependency refresh (Nov 2026)
 
@@ -1470,7 +1502,7 @@ Brought the project current after a long gap. `npm audit --omit=dev` went from
   content model, a render smoke test of the PDF document, and `resolveChatOperations`/`assignItemRefIds` in
   the AI layer, which is where "the model may pick but never state a fact" is
   actually enforced. No network, no database, no env vars needed.
-- Added in the Nov 2026 refresh (79 tests), grown to 213 with the PDF work, the usage limits and error monitoring, ~3s.
+- Added in the Nov 2026 refresh (79 tests), grown to 213 with the PDF work, the usage limits and error monitoring, and to 236 with trip deletion and the "N left today" hint, ~3s.
   The three most load-bearing rules were mutation-checked (each deliberately
   broken once, each caught by the intended test, then reverted). It does **not**
   cover server actions, anything needing Supabase, or any component — those
@@ -1626,10 +1658,45 @@ first. Code: `src/lib/ai/usage-limits.ts` (pure: defaults, env overrides, wordin
   make them uncallable from supabase-js, and a service-role key is not set up.
   Plus two INFO "unused index" notices for the new table's indexes (it is new).
   The pre-existing leaked-password-protection WARN is unrelated.
+- **"N left today" caption (added later).** "3 of 5 trips left today" under the
+  wizard's submit button (last step only) and "24 of 30 messages left today" in the chat
+  sheet header, in muted caption text, no new box. `getAiQuotaHint` (`ai-quota.ts`) reads
+  the traveller's OWN `ai_usage` rows with their own session (the select-own policy
+  permits it; no new SECURITY DEFINER function) and counts them with
+  `countActiveUsage`/`countsTowardLimit` in `usage-limits.ts`, which mirror
+  `consume_ai_quota` exactly: a confirmed row counts while younger than 24 h, an
+  unconfirmed reservation while younger than 3 min, nothing else. The query filters to
+  rows that can count (so stale never-confirmed reservations can't pad the result) and
+  the pure rule then applies. **It is a hint, never enforcement:** it cannot see the
+  global limit (RLS hides other people's rows), so "3 left" can still be refused when
+  the whole site is out. It returns null (no caption) for the mock provider, on any
+  error, and after 1.5 s, so it can never break or hold up a page. Kept current by: the
+  trip page and `/trips/new` reading it per request; `sendChatMessageAction` returning a
+  fresh `quota` (also on a refusal) which the chat stores; the wizard calling
+  `router.refresh()` after a failed submit. After a SUCCESSFUL trip the user leaves
+  `/trips/new`, so the next visit renders it fresh. The window constants are now
+  duplicated in SQL and TS — change both. **Verified:** unit tests (boundaries of both
+  windows, a lapsed reservation not counting, floor at zero, wording, mock provider,
+  error/throw/timeout all giving null; mutation-checked by widening the reservation
+  window, which failed 3 tests); the generated PostgREST URL for the query
+  (`...&or=(status.eq.ok,created_at.gt.<iso>)`) inspected through a stubbed `fetch`; both
+  captions rendered with supplied values in headless Chrome (temporary probe page, since
+  deleted) at 1280px and 375px, right-aligned under the button, no overflow. **Not
+  verified:** the query against the live database with a real session (the
+  select-own policy and the `or` filter are read from the migration/URL, not exercised),
+  and the figures after a real generation or message.
 - **Not verified:** a real signed-in trip generation or chat message actually
-  hitting the limit on the live site. Not built: showing "N left today" in the UI,
-  per-IP limits, and limiting signups (an attacker with many email addresses is bounded only by
-  the global ceiling, which is its purpose).
+  hitting the limit on the live site. Not built: per-IP limits, and limiting signups
+  (an attacker with many email addresses is bounded only by the global ceiling, which
+  is its purpose).
+- **Wizard bug found while probing the caption (fixed):** clicking Next on step 3
+  submitted the whole form — React reused one `<button>` for the `type="button"` Next and
+  the `type="submit"` Create branches and flipped its type during the click, and the
+  browser then submitted. Reproduced in headless Chrome (a server-action POST fired on
+  that click; none after adding `key="next"`/`key="submit"`). For a signed-in user this
+  would presumably have generated a trip, spending quota, before step 4 was shown (the
+  probe was signed out, so only the POST was observed, not a generation). It pre-dates
+  this work.
 
 ## Error monitoring (second slice of Phase 13)
 
