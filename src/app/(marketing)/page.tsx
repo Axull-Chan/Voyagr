@@ -1,4 +1,12 @@
+import type { Metadata } from "next"
+
 import { cn } from "@/lib/utils"
+import {
+  SITE_DESCRIPTION,
+  SITE_NAME,
+  SITE_TAGLINE,
+  pageMetadata,
+} from "@/lib/site"
 import { filmSerifFont } from "@/fonts/film-serif"
 import { MarketingNavbar } from "@/components/layout/marketing-navbar"
 import { MarketingFooter } from "@/components/layout/marketing-footer"
@@ -8,6 +16,14 @@ import { DestinationsSection } from "@/features/marketing/components/destination
 import { FeatureSection } from "@/features/marketing/components/feature-section"
 import { HowItWorksSection } from "@/features/marketing/components/how-it-works-section"
 import { PricingSection } from "@/features/marketing/components/pricing-section"
+
+const TITLE = `${SITE_NAME} — ${SITE_TAGLINE}`
+
+export const metadata: Metadata = {
+  ...pageMetadata({ title: TITLE, description: SITE_DESCRIPTION, path: "/" }),
+  // The home page's title is the full line, not "<page> · Voyagr".
+  title: { absolute: TITLE },
+}
 
 export default function LandingPage() {
   return (

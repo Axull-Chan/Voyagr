@@ -1,6 +1,7 @@
 import type { Metadata } from "next"
 
 import { cn } from "@/lib/utils"
+import { pageMetadata } from "@/lib/site"
 import { filmSerifFont } from "@/fonts/film-serif"
 import { FilmFooter, FilmHeader } from "@/features/film/components/film-chrome"
 import { FilmGallery } from "@/features/film/components/film-gallery"
@@ -8,11 +9,12 @@ import { FilmStats } from "@/features/film/components/film-stats"
 import { InquiryForm } from "@/features/film/components/inquiry-form"
 import { ScrollFilm } from "@/features/film/components/scroll-film"
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "Blue Hour — Vol. I, Tokyo",
   description:
     "A scroll-scrubbed film shot at blue hour in Tokyo, and the five-city series it was cut from. A fictional showcase for Voyagr.",
-}
+  path: "/blue-hour",
+})
 
 export default function BlueHourPage() {
   return (

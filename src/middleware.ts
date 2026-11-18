@@ -69,7 +69,9 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
+  // robots.txt, sitemap.xml and the generated share images are for crawlers:
+  // they have no session, and must stay reachable even if auth is unhealthy.
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml|opengraph-image|twitter-image|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 }

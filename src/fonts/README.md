@@ -13,3 +13,11 @@ SIL Open Font License 1.1; the licence texts are in `licenses/`.
 
 To refresh: install the package with `--no-save` in a scratch directory (never
 inside the project), copy the file out, update this table.
+
+## Open Graph card fonts (`og/`)
+
+`og/Fraunces-latin-400.woff` and `og/Fraunces-latin-600.woff` are static
+Fraunces cuts from `@fontsource/fraunces@5.3.0` (`files/fraunces-latin-{400,600}-normal.woff`,
+SIL OFL 1.1, same licence text as above). They are used only by
+`src/lib/og/brand-image.tsx`: the share image renderer (Satori) reads
+TTF/OTF/WOFF but not WOFF2, so it cannot use the variable woff2 above.
