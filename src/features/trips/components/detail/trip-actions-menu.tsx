@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useTransition } from "react"
+import { useRef, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import {
   Archive,
@@ -10,6 +10,7 @@ import {
   FileText,
   MoreHorizontal,
   Pencil,
+  Trash2,
 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -32,10 +33,15 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
+  deleteTripAction,
   duplicateTripAction,
   renameTripAction,
   setTripArchivedAction,
 } from "@/features/trips/actions/trip-management.actions"
+import {
+  deleteBlockedReason,
+  tripDeletionCopy,
+} from "@/features/trips/services/trip-delete"
 
 interface TripActionsMenuProps {
   tripId: string
@@ -44,14 +50,19 @@ interface TripActionsMenuProps {
 }
 
 /**
- * Rename, duplicate, archive/restore and export for one trip.
+ * Rename, duplicate, archive/restore, export and delete for one trip.
  *
  * Everything goes through server actions that enforce ownership themselves;
  * this component only decides what to offer and reports the outcome. Archive is
  * reversible and so asks for no confirmation — the menu flips to "Restore" and
- * the toast says what happened. A trip still being generated offers neither
- * archive nor duplicate, since both are refused server-side for the same reason
- * and a menu item that can only fail is worse than no item.
+ * the toast says what happened. A trip still being generated offers none of
+ * archive, duplicate or delete, since all three are refused server-side for the
+ * same reason and a menu item that can only fail is worse than no item.
+ *
+ * Delete is the one irreversible action, so it asks first. The dialog puts
+ * initial focus on Cancel (an accidental Enter must not destroy a trip), locks
+ * itself while the request is in flight, and stays open and disabled after
+ * success until the redirect lands, so the button can't be pressed twice.
  */
 export function TripActionsMenu({
   tripId,
@@ -63,9 +74,15 @@ export function TripActionsMenu({
   const [renameOpen, setRenameOpen] = useState(false)
   const [draftTitle, setDraftTitle] = useState(title)
   const [renameError, setRenameError] = useState<string | null>(null)
+  const [deleteOpen, setDeleteOpen] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [deleted, setDeleted] = useState(false)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const cancelDeleteRef = useRef<HTMLButtonElement>(null)
 
   const isArchived = status === "archived"
   const isGenerating = status === "generating"
+  const deletion = tripDeletionCopy(title)
 
   function openRename() {
     // Start from the saved title each time, not from an abandoned edit.
@@ -112,6 +129,33 @@ export function TripActionsMenu({
     })
   }
 
+  function openDelete() {
+    setDeleteError(null)
+    setDeleteOpen(true)
+  }
+
+  function confirmDelete() {
+    // Same rule the server enforces, checked first so the message is immediate.
+    const blocked = deleteBlockedReason(status)
+    if (blocked) {
+      setDeleteError(blocked)
+      return
+    }
+    setDeleteError(null)
+    startTransition(async () => {
+      const result = await deleteTripAction(tripId)
+      if (!result.ok) {
+        setDeleteError(result.error)
+        return
+      }
+      // Stay disabled until navigation unmounts this; `isPending` alone drops
+      // back to false the moment the action resolves.
+      setDeleted(true)
+      toast.success("Trip deleted.")
+      router.replace("/trips")
+    })
+  }
+
   function exportTrip() {
     // The route answers with `Content-Disposition: attachment`, so this saves
     // a file rather than navigating away from the page.
@@ -127,6 +171,7 @@ export function TripActionsMenu({
     <>
       <DropdownMenu>
         <DropdownMenuTrigger
+          ref={triggerRef}
           aria-label="Trip actions"
           disabled={isPending}
           className="inline-flex size-9 items-center justify-center rounded-sm text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 pointer-coarse:size-11"
@@ -161,6 +206,9 @@ export function TripActionsMenu({
                     <Archive aria-hidden="true" /> Archive
                   </>
                 )}
+              </DropdownMenuItem>
+              <DropdownMenuItem variant="destructive" onClick={openDelete}>
+                <Trash2 aria-hidden="true" /> Delete
               </DropdownMenuItem>
             </>
           )}
@@ -215,6 +263,58 @@ export function TripActionsMenu({
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={deleteOpen}
+        onOpenChange={(open) => {
+          // No dismissing (Esc, overlay, X) while the request is in flight or
+          // once it has succeeded: the outcome is already decided.
+          if (!open && (isPending || deleted)) return
+          setDeleteOpen(open)
+        }}
+      >
+        <DialogContent
+          initialFocus={cancelDeleteRef}
+          finalFocus={triggerRef}
+          showCloseButton={!isPending && !deleted}
+        >
+          <DialogHeader>
+            <DialogTitle>{deletion.title}</DialogTitle>
+            <DialogDescription className="break-words">
+              {deletion.description}
+            </DialogDescription>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            {deletion.reassurance}
+          </p>
+          {deleteError ? (
+            <p role="alert" className="text-sm text-destructive">
+              {deleteError}
+            </p>
+          ) : null}
+          <DialogFooter>
+            <Button
+              ref={cancelDeleteRef}
+              type="button"
+              variant="outline"
+              disabled={isPending || deleted}
+              onClick={() => setDeleteOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={isPending || deleted}
+              onClick={confirmDelete}
+            >
+              {isPending || deleted
+                ? deletion.pendingLabel
+                : deletion.confirmLabel}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </>
