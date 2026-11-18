@@ -83,7 +83,7 @@ export function LoginForm() {
                   <FormLabel>Password</FormLabel>
                   <Link
                     href="/forgot-password"
-                    className="text-xs text-muted-foreground hover:text-foreground"
+                    className="-my-2 inline-block rounded-sm py-2 text-xs text-muted-foreground hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
                   >
                     Forgot password?
                   </Link>

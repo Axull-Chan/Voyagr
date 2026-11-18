@@ -115,7 +115,7 @@ export function MarketingNavbar({ overHero = false }: MarketingNavbarProps) {
           ))}
         </nav>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1 sm:gap-2">
           <DropdownMenu>
             <DropdownMenuTrigger
               render={
@@ -138,6 +138,14 @@ export function MarketingNavbar({ overHero = false }: MarketingNavbarProps) {
                   {link.label}
                 </DropdownMenuItem>
               ))}
+              {/* The bar below `sm` has no room for both buttons (it ran 57px
+                  past the edge at 320px), so "Log in" lives here instead. */}
+              <DropdownMenuItem
+                className="sm:hidden"
+                render={<Link href="/login" />}
+              >
+                Log in
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
           <ThemeToggle onDark={onHero} />
@@ -145,7 +153,10 @@ export function MarketingNavbar({ overHero = false }: MarketingNavbarProps) {
             variant="ghost"
             nativeButton={false}
             render={<Link href="/login" />}
-            className={cn(onHero && "text-white hover:bg-white/10 hover:text-white")}
+            className={cn(
+              "hidden sm:inline-flex",
+              onHero && "text-white hover:bg-white/10 hover:text-white"
+            )}
           >
             Log in
           </Button>
