@@ -61,9 +61,9 @@ committed before the next begins — don't skip ahead without the user's go-ahea
   below. Left unchecked until a real trip has been downloaded from the live site.
 - [ ] Phase 12 — Premium features
 - [ ] Phase 13 — Production polish. **Started:** usage limits on the AI calls
-  (see "Usage limits" below) and error monitoring (see "Error monitoring" below).
-  Not yet done: search/sharing
-  metadata, accessibility and performance passes, privacy/terms pages, custom
+  (see "Usage limits" below), error monitoring (see "Error monitoring" below) and
+  search/sharing metadata (see "Search and sharing metadata" below).
+  Not yet done: accessibility and performance passes, privacy/terms pages, custom
   domain, Supabase redirect URLs and Google sign-in (those two need the user).
 
 ## Infrastructure
@@ -1288,7 +1288,7 @@ shadcn `base-nova` preset is only the component scaffolding underneath.
 
 - Colour: paper-and-ink light theme, leather-and-lamplight dark theme, Pine
   Blue primary. Not the indigo/violet accent this app started with.
-- Fonts (`src/app/layout.tsx`): Geist Sans (`--font-sans`) for UI, Geist Mono
+- Fonts (`src/app/layout.tsx`, self-hosted from `src/fonts/` — see "Build reliability"): Geist Sans (`--font-sans`) for UI, Geist Mono
   (`--font-mono`) for data, Fraunces (`--font-fraunces`) for headings.
 - Motion: shared variants in `src/lib/motion.ts`, `prefers-reduced-motion`
   handled globally via `<MotionConfig reducedMotion="user">` in
@@ -1428,8 +1428,40 @@ page (`trip-actions-menu.tsx`) plus an Archived section on `/trips`.
   file can't launder an example into a fact. PDF is Phase 11. The download
   filename is a whitelist slug of the title (checked against `../`, quotes and
   CRLF input).
-- **Not built:** delete, editing a trip's dates/destination, and importing an
-  exported file back. None were in the phase's one-line spec.
+- **Delete (added later).** "Delete" in the "..." menu opens a confirmation dialog
+  that names the trip and lists what goes (itinerary, expenses, packing list, chat
+  history; "can't be undone"), notes that Favorites are kept, and puts initial focus
+  on Cancel. `deleteTripAction` (same file as the other actions) checks the id and
+  the session, reads the trip scoped by id + `user_id`, refuses `generating`
+  (`deleteBlockedReason`, pure, in `services/trip-delete.ts` with the dialog wording),
+  then deletes with `.eq("user_id")` and `.neq("status","generating")` so a
+  generation that starts in between can't lose its trip, and `select("id")` to
+  tell "deleted" from "matched nothing". **No migration was needed:** `trips_delete_own`
+  exists (init schema, re-created with `(select auth.uid())` by the advisor-fix
+  migration) and every table that references a trip cascades — days (and their
+  activities/restaurants/weather), packing_lists, budget_breakdown, hotels,
+  transportation, trip_notes, expenses, trip_chat_messages — read from the migration
+  files, not tested against the database. The one exception is `favorites.trip_id`,
+  `on delete set null`: saved places survive the trip, which is why the dialog says so.
+  The action does NOT revalidate `/trips/:id` (a re-render of a just-deleted trip would
+  flash a 404 before the redirect to `/trips`); it revalidates `/trips` and `/dashboard`.
+  The export routes (`/trips/:id/export`, `/pdf`) go through `getTripDetail`, which
+  `notFound()`s when the row is gone, so they 404 after a delete — by reading, not by
+  request. A trip stuck in `generating` (e.g. a crashed generation) can't be deleted,
+  archived or duplicated; nothing resets it.
+  **Verified:** unit tests for the refusal rule and wording (mutation-checked: making
+  the rule never refuse fails the test); `tsc`/lint/build; the dialog rendered in
+  isolation in headless Chrome via a temporary probe page (since deleted) at 1280px and
+  375px: menu lists Delete after Archive, focus lands on Cancel, a 100+ character title
+  wraps inside the dialog, the action's error line shows in the dialog, Esc closes it and
+  returns focus to the "Trip actions" trigger, no horizontal overflow. **Not verified:**
+  `deleteTripAction` against the database (the probe's action ran signed out and
+  returned its sign-in error, which is all it exercised), the success path (toast,
+  redirect to `/trips`, the trip really gone, the child rows gone), the pending state,
+  and whether `revalidatePath` in the action re-renders the deleted trip page before
+  the redirect (reasoned about, not observed).
+- **Not built:** editing a trip's dates/destination, and importing an exported file
+  back. None were in the phase's one-line spec.
 
 ## Dependency refresh (Nov 2026)
 
@@ -1470,7 +1502,7 @@ Brought the project current after a long gap. `npm audit --omit=dev` went from
   content model, a render smoke test of the PDF document, and `resolveChatOperations`/`assignItemRefIds` in
   the AI layer, which is where "the model may pick but never state a fact" is
   actually enforced. No network, no database, no env vars needed.
-- Added in the Nov 2026 refresh (79 tests), grown to 213 with the PDF work, the usage limits and error monitoring, ~3s.
+- Added in the Nov 2026 refresh (79 tests), grown to 245 with the PDF work, the usage limits, error monitoring, trip deletion, the "N left today" hint and the site-metadata helpers, ~3s.
   The three most load-bearing rules were mutation-checked (each deliberately
   broken once, each caught by the intended test, then reverted). It does **not**
   cover server actions, anything needing Supabase, or any component — those
@@ -1626,10 +1658,45 @@ first. Code: `src/lib/ai/usage-limits.ts` (pure: defaults, env overrides, wordin
   make them uncallable from supabase-js, and a service-role key is not set up.
   Plus two INFO "unused index" notices for the new table's indexes (it is new).
   The pre-existing leaked-password-protection WARN is unrelated.
+- **"N left today" caption (added later).** "3 of 5 trips left today" under the
+  wizard's submit button (last step only) and "24 of 30 messages left today" in the chat
+  sheet header, in muted caption text, no new box. `getAiQuotaHint` (`ai-quota.ts`) reads
+  the traveller's OWN `ai_usage` rows with their own session (the select-own policy
+  permits it; no new SECURITY DEFINER function) and counts them with
+  `countActiveUsage`/`countsTowardLimit` in `usage-limits.ts`, which mirror
+  `consume_ai_quota` exactly: a confirmed row counts while younger than 24 h, an
+  unconfirmed reservation while younger than 3 min, nothing else. The query filters to
+  rows that can count (so stale never-confirmed reservations can't pad the result) and
+  the pure rule then applies. **It is a hint, never enforcement:** it cannot see the
+  global limit (RLS hides other people's rows), so "3 left" can still be refused when
+  the whole site is out. It returns null (no caption) for the mock provider, on any
+  error, and after 1.5 s, so it can never break or hold up a page. Kept current by: the
+  trip page and `/trips/new` reading it per request; `sendChatMessageAction` returning a
+  fresh `quota` (also on a refusal) which the chat stores; the wizard calling
+  `router.refresh()` after a failed submit. After a SUCCESSFUL trip the user leaves
+  `/trips/new`, so the next visit renders it fresh. The window constants are now
+  duplicated in SQL and TS — change both. **Verified:** unit tests (boundaries of both
+  windows, a lapsed reservation not counting, floor at zero, wording, mock provider,
+  error/throw/timeout all giving null; mutation-checked by widening the reservation
+  window, which failed 3 tests); the generated PostgREST URL for the query
+  (`...&or=(status.eq.ok,created_at.gt.<iso>)`) inspected through a stubbed `fetch`; both
+  captions rendered with supplied values in headless Chrome (temporary probe page, since
+  deleted) at 1280px and 375px, right-aligned under the button, no overflow. **Not
+  verified:** the query against the live database with a real session (the
+  select-own policy and the `or` filter are read from the migration/URL, not exercised),
+  and the figures after a real generation or message.
 - **Not verified:** a real signed-in trip generation or chat message actually
-  hitting the limit on the live site. Not built: showing "N left today" in the UI,
-  per-IP limits, and limiting signups (an attacker with many email addresses is bounded only by
-  the global ceiling, which is its purpose).
+  hitting the limit on the live site. Not built: per-IP limits, and limiting signups
+  (an attacker with many email addresses is bounded only by the global ceiling, which
+  is its purpose).
+- **Wizard bug found while probing the caption (fixed):** clicking Next on step 3
+  submitted the whole form — React reused one `<button>` for the `type="button"` Next and
+  the `type="submit"` Create branches and flipped its type during the click, and the
+  browser then submitted. Reproduced in headless Chrome (a server-action POST fired on
+  that click; none after adding `key="next"`/`key="submit"`). For a signed-in user this
+  would presumably have generated a trip, spending quota, before step 4 was shown (the
+  probe was signed out, so only the POST was observed, not a generation). It pre-dates
+  this work.
 
 ## Error monitoring (second slice of Phase 13)
 
@@ -1730,9 +1797,58 @@ the root layout), migration `20260917140000_add_error_events.sql`. All ~11 scatt
   source maps (client stack traces are minified), sampling, and release tracking beyond the
   7-character commit id.
 
-## Build reliability — Google Fonts can fail a build at random
+## Search and sharing metadata (third slice of Phase 13)
 
-Found while verifying the error-monitoring work: `npm run build` failed three times in
+What a search engine or a link preview (Slack, X, iMessage) sees. Code: `src/lib/site.ts` (pure,
+tested in `site.test.ts`), `src/app/layout.tsx`, `src/app/robots.ts`, `src/app/sitemap.ts`,
+`src/app/opengraph-image.tsx` + `twitter-image.tsx` (both render `src/lib/og/brand-image.tsx`).
+
+- **Site origin:** `https://voyagr-taupe.vercel.app`, overridable with `NEXT_PUBLIC_SITE_URL` (inlined at
+  build time, so changing it needs a redeploy; set it when the custom domain lands). An unusable value
+  (not an absolute http(s) URL) falls back to the default rather than throwing, because
+  `metadataBase: new URL(bad)` in the root layout would fail the render of every page.
+- **Per-page canonical and Open Graph come from `pageMetadata()`, not the root layout.** Next merges
+  metadata one top-level key at a time: a page that sets its own `openGraph` or `twitter` replaces the
+  layout's whole object, including the image Next attaches from the `opengraph-image` file convention
+  (first build: `/blue-hour`, `/login` and `/sign-up` had no `og:image` at all; only pages that did
+  *not* set `openGraph` had one). So `pageMetadata` names the images explicitly (`/opengraph-image`,
+  `/twitter-image`) and sets `og:url`. The root layout deliberately sets **no canonical** — it would be
+  inherited by every route and point them all at `/`. The home page uses `title: { absolute }` so it is
+  not "Voyagr — ... · Voyagr".
+- **Indexing:** the `(app)` layout and the `(auth)` layout export `robots: { index: false, follow: false }`.
+  `/login` and `/sign-up` opt back in (they are in the sitemap, and listing a `noindex` URL in a sitemap is
+  a contradictory signal); `/forgot-password` and `/reset-password` stay noindex. `robots.txt` disallows
+  `/dashboard /trips /favorites /api /auth` and deliberately **not** the auth pages: a crawler that may not
+  fetch a page never sees its `noindex`. A unit test pins that the sitemap never lists a path robots.txt
+  blocks.
+- **Sitemap** lists `/`, `/blue-hour`, `/login`, `/sign-up`, `/privacy`, `/terms` with no `lastModified`
+  (nothing tracks real edit dates; "now" would claim every page changes daily). `/privacy` and `/terms` are
+  being added separately — until they exist the sitemap lists two 404s, so check they landed.
+- **The share image** is 1200x630, Fraunces on the light-theme paper/ink/Pine Blue tokens from DESIGN.md
+  (hex values copied in; an image has no CSS variables). It is statically prerendered at build. Satori
+  (`next/og`) reads TTF/OTF/**WOFF but not WOFF2**, so it uses two static Fraunces woff files
+  (`src/fonts/og/`, from `@fontsource/fraunces@5.3.0`), not the variable woff2 the site serves. The
+  files are read with `readFile(join(process.cwd(), "<literal>"))` — the form Next documents and Vercel's
+  tracer follows. **`fetch(new URL("./x.woff", import.meta.url))` fails the build here** ("Failed to parse
+  URL from /_next/static/media/..."): in this Next version it resolves to a bare path at prerender time,
+  with or without being inlined.
+- **Middleware matcher** now skips `robots.txt`, `sitemap.xml`, `opengraph-image` and `twitter-image`:
+  crawlers have no session, and these must stay up even when auth is unhealthy.
+- **Verified:** against a production build (`next start`, with dummy Supabase env since the middleware needs
+  one at runtime): the rendered `<title>`, description, robots, canonical, `og:*` and `twitter:*` tags on
+  `/`, `/blue-hour`, `/login`, `/sign-up` and `/forgot-password` (the last is `noindex, nofollow` with the
+  layout's image); `/robots.txt` (200 `text/plain`), `/sitemap.xml` (200 `application/xml`),
+  `/opengraph-image` and `/twitter-image` (200 `image/png`, 1200x630); and the card itself by eye.
+- **Not verified:** the `noindex` on the signed-in `(app)` pages (they redirect signed-out visitors, and no
+  authenticated session was available — it is the same one-line export as `(auth)`, which was verified);
+  a real link unfurl on Slack/X/LinkedIn, or Google's Rich Results / Search Console checks (the sandbox
+  cannot reach them); the live site (nothing was deployed). Not built: per-page share images, structured
+  data (JSON-LD), a web app manifest, and favicon/icon variants.
+
+## Build reliability — Google Fonts could fail a build at random (FIXED: fonts are self-hosted)
+
+**Fixed by self-hosting** (see the last bullet). The history below is kept because the failure
+is not obvious from its symptom. Found while verifying the error-monitoring work: `npm run build` failed three times in
 a row (after passing minutes earlier on identical code) with `TypeError: Cannot read
 properties of null (reading '1')` inside `next/dist/compiled/@next/font/dist/google/
 loader.js:122`. **Cause:** Google Fonts intermittently answers the same CSS request with a
@@ -1747,12 +1863,34 @@ can fail** — on Vercel and in CI as well, not just locally. It had not bitten 
 - **Not related to any app code.** Identical code builds fine on a retry; the CSS and every
   font file download fine when run standalone, which is what ruled out the network rules
   and rate limiting (both were suspected first and wrong).
-- **Short-term:** retry the build. A failed Vercel deployment from this error is safe to
-  redeploy; production keeps serving the previous version.
-- **Durable fixes, not yet done (needs the user's call):** (1) **self-host the four font
-  families** with `next/font/local` (woff2 files committed, or via the `geist` /
-  `@fontsource*` packages) — removes the build-time network dependency entirely and makes
-  builds faster, at the cost of a visual-regression check on the type; or (2) upgrade to a
-  Next release whose loader understands the new URL format (Next 16 is the likely one, and
-  is deliberately not adopted — see Phase 1).
-
+- **Short-term (no longer needed):** retry the build. A failed Vercel deployment from this
+  error is safe to redeploy; production keeps serving the previous version.
+- **Fix: all four families now come from committed files via `next/font/local`.**
+  `src/fonts/app-fonts.ts` (Geist, Geist Mono, Fraunces; root layout) and
+  `src/fonts/film-serif.ts` (Cormorant Garamond 300/400; only the landing page and
+  `/blue-hour` import it, so product screens still do not load it). The CSS variable names
+  are unchanged (`--font-sans`, `--font-mono`, `--font-fraunces`, `--font-film-serif`), so no
+  component or stylesheet changed. `grep -rn "next/font/google" src` is empty.
+  - **Where the files came from** (installed `--no-save` in a scratch directory outside the
+    project, copied out, nothing added to `package.json`; table in `src/fonts/README.md`):
+    Geist and Geist Mono from the `geist` package (the full variable woff2s, wght 100-900, ~70 kB
+    each — no subsetting tool was available, so they are not latin-only); Fraunces from
+    `@fontsource-variable/fraunces` (`latin-full-normal`: wght + opsz + SOFT + WONK axes, latin,
+    121 kB — the same axes the Google version requested); Cormorant Garamond from
+    `@fontsource/cormorant-garamond` (latin 300 and 400, normal, ~22 kB each). **Licences:** all
+    four are SIL Open Font License 1.1; the texts are in `src/fonts/licenses/`.
+  - **Verified:** `npm run build` passes with the proxy variables pointed at a dead address
+    (`HTTPS_PROXY=http://127.0.0.1:1`), so the build cannot have used the network for fonts; no
+    `fonts.googleapis.com`/`fonts.gstatic.com` string appears anywhere in `.next`; the built home
+    page preloads five woff2 files from `/_next/static/media/`; and in headless Chromium the
+    home page made **zero** requests to Google font hosts, all four families reported `loaded`
+    in `document.fonts`, and the computed `font-family` was Geist on `body`, Fraunces on an
+    `h2` and Cormorant on the film `h1`.
+  - **Gotcha:** `next/font/local` derives the CSS family name from the exported *variable
+    name* (`geistSans`, `fraunces`, `filmSerifFont`), not from the font's own name. Nothing
+    references families by literal name (everything goes through the `--font-*` variables), but
+    a devtools `font-family` now reads `geistSans, "geistSans Fallback"`. The film font export
+    is `filmSerifFont` rather than `filmSerif` to avoid clashing with the `filmSerif` class
+    string in `film-typography.ts`.
+  - **Not done:** a side-by-side visual diff of every page against the old Google-served fonts
+    (the files are the same typefaces and axes, and the home page was checked by eye).

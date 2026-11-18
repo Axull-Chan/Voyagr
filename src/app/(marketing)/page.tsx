@@ -1,6 +1,13 @@
-import { Cormorant_Garamond } from "next/font/google"
+import type { Metadata } from "next"
 
 import { cn } from "@/lib/utils"
+import {
+  SITE_DESCRIPTION,
+  SITE_NAME,
+  SITE_TAGLINE,
+  pageMetadata,
+} from "@/lib/site"
+import { filmSerifFont } from "@/fonts/film-serif"
 import { MarketingNavbar } from "@/components/layout/marketing-navbar"
 import { MarketingFooter } from "@/components/layout/marketing-footer"
 import { FilmHero } from "@/features/film/components/film-hero"
@@ -10,16 +17,17 @@ import { FeatureSection } from "@/features/marketing/components/feature-section"
 import { HowItWorksSection } from "@/features/marketing/components/how-it-works-section"
 import { PricingSection } from "@/features/marketing/components/pricing-section"
 
-/** Only the film hero uses the serif — see the campaign page for the rationale. */
-const filmSerif = Cormorant_Garamond({
-  subsets: ["latin"],
-  weight: ["300", "400"],
-  variable: "--font-film-serif",
-})
+const TITLE = `${SITE_NAME} — ${SITE_TAGLINE}`
+
+export const metadata: Metadata = {
+  ...pageMetadata({ title: TITLE, description: SITE_DESCRIPTION, path: "/" }),
+  // The home page's title is the full line, not "<page> · Voyagr".
+  title: { absolute: TITLE },
+}
 
 export default function LandingPage() {
   return (
-    <div className={cn("flex flex-1 flex-col", filmSerif.variable)}>
+    <div className={cn("flex flex-1 flex-col", filmSerifFont.variable)}>
       <MarketingNavbar overHero />
       <main className="flex-1">
         <FilmHero />

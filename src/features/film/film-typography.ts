@@ -1,7 +1,7 @@
 /**
  * Shared type treatments for the Blue Hour campaign page.
  *
- * The display serif is loaded per-route (see the page's `next/font` call)
+ * The display serif is loaded per-route (see `src/fonts/film-serif.ts`)
  * and exposed as `--font-film-serif`, so these classes only resolve inside
  * that page's wrapper — deliberately not promoted to a global theme token,
  * since nothing else in the app uses a serif.

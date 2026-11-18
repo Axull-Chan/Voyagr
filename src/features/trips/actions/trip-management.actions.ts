@@ -9,6 +9,7 @@ import {
   tripIdSchema,
   type RenameTripInput,
 } from "@/features/trips/schemas/trip-management.schemas"
+import { deleteBlockedReason } from "@/features/trips/services/trip-delete"
 
 export type TripManagementResult = { ok: true } | { ok: false; error: string }
 export type DuplicateTripResult =
@@ -16,7 +17,7 @@ export type DuplicateTripResult =
   | { ok: false; error: string }
 
 /**
- * Rename, archive/restore and duplicate.
+ * Rename, archive/restore, duplicate and delete.
  *
  * Ownership is enforced by RLS, the same as every other action in this
  * feature: each mutation is scoped by id alone, and a trip that isn't the
@@ -191,4 +192,77 @@ export async function duplicateTripAction(
   revalidatePath("/trips")
   revalidatePath("/dashboard")
   return { ok: true, tripId: data }
+}
+
+/**
+ * Permanently deletes a trip and everything under it.
+ *
+ * Every table that references `trips` does so `on delete cascade` (days and
+ * their activities/restaurants/weather, hotels, transportation, notes, packing,
+ * budget, expenses, chat messages), so one `delete` removes the lot atomically.
+ * `favorites.trip_id` is `on delete set null`: saved places outlive the trip.
+ *
+ * Ownership is enforced twice: by the `trips_delete_own` RLS policy, and by an
+ * explicit `user_id` filter here so the intent is readable and still holds if
+ * the client is ever swapped for one that bypasses RLS.
+ *
+ * The delete is itself a compare-and-set against `generating` (`neq`), not just
+ * the up-front read, so a generation that starts between the two cannot have
+ * its trip pulled out from under it. Supabase reports a delete that matched
+ * nothing as a success, hence `select("id")` to see what was actually removed.
+ *
+ * Deliberately does NOT revalidate `/trips/:id`: the caller is on that page, and
+ * re-rendering a trip that no longer exists would flash a 404 before the
+ * client's redirect to `/trips` lands.
+ */
+export async function deleteTripAction(
+  tripId: string
+): Promise<TripManagementResult> {
+  if (!tripIdSchema.safeParse(tripId).success) {
+    return { ok: false, error: "That trip couldn't be found." }
+  }
+
+  const { supabase, user } = await requireUser()
+  if (!user) {
+    return { ok: false, error: "You need to be signed in to delete a trip." }
+  }
+
+  const { data: trip, error: readError } = await supabase
+    .from("trips")
+    .select("status")
+    .eq("id", tripId)
+    .eq("user_id", user.id)
+    .maybeSingle()
+  if (readError) {
+    await reportServerError(readError, { context: "action:deleteTrip:read" })
+    return { ok: false, error: "We couldn't delete that trip. Please try again." }
+  }
+  if (!trip) return { ok: false, error: "That trip no longer exists." }
+
+  const blocked = deleteBlockedReason(trip.status)
+  if (blocked) return { ok: false, error: blocked }
+
+  const { data: deleted, error } = await supabase
+    .from("trips")
+    .delete()
+    .eq("id", tripId)
+    .eq("user_id", user.id)
+    .neq("status", "generating")
+    .select("id")
+    .maybeSingle()
+
+  if (error) {
+    await reportServerError(error, { context: "action:deleteTrip" })
+    return { ok: false, error: "We couldn't delete that trip. Please try again." }
+  }
+  if (!deleted) {
+    return {
+      ok: false,
+      error: "That trip just changed. Refresh the page and try again.",
+    }
+  }
+
+  revalidatePath("/trips")
+  revalidatePath("/dashboard")
+  return { ok: true }
 }

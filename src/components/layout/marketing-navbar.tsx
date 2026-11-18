@@ -14,10 +14,13 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { ThemeToggle } from "@/components/layout/theme-toggle"
 
+// Hash links are rooted at "/" because this navbar is also used on pages that
+// aren't the landing page (/privacy, /terms), where a bare "#features" would go
+// nowhere.
 const navLinks = [
-  { label: "Features", href: "#features" },
-  { label: "How it works", href: "#how-it-works" },
-  { label: "Pricing", href: "#pricing" },
+  { label: "Features", href: "/#features" },
+  { label: "How it works", href: "/#how-it-works" },
+  { label: "Pricing", href: "/#pricing" },
   // A real route, unlike the in-page hashes above — the campaign page has
   // its own chrome, so it can't be reached any other way.
   { label: "Blue Hour", href: "/blue-hour" },
