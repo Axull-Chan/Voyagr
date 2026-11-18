@@ -65,7 +65,12 @@ export async function attempt<T>(
   try {
     return await body()
   } catch (error) {
-    console.error(`[service:${subject}]`, error)
+    // A degraded service is a warning, not an error: the page still works, but a
+    // key that is wrong or a provider that is down shows up here as a pattern.
+    // Imported lazily because this module is also reachable from a client component
+    // (through currency-service's `convert`), and reporting is server-only.
+    const { reportServerError } = await import("@/lib/monitoring/report-server")
+    await reportServerError(error, { context: `service:${subject}`, severity: "warning" })
     return unavailable(fallbackValue, describeFailure(error, subject))
   }
 }

@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 
 import { resolveProviderId } from "@/lib/ai"
+import { reportServerError } from "@/lib/monitoring/report-server"
 import {
   describeQuotaBlock,
   getAiLimits,
@@ -72,7 +73,9 @@ export async function reserveAiQuota(
 
     const row = data?.[0]
     if (error || !row) {
-      console.error("[ai quota] reserve failed, allowing the request", error)
+      await reportServerError(error ?? new Error("consume_ai_quota returned no row"), {
+        context: "ai-quota:reserve-failed-open",
+      })
       return { allowed: true, usageId: null }
     }
 
@@ -91,7 +94,7 @@ export async function reserveAiQuota(
       ),
     }
   } catch (error) {
-    console.error("[ai quota] reserve threw, allowing the request", error)
+    await reportServerError(error, { context: "ai-quota:reserve-threw-open" })
     return { allowed: true, usageId: null }
   }
 }
@@ -105,8 +108,8 @@ export async function confirmAiQuota(
   if (usageId === null) return
   try {
     const { error } = await supabase.rpc("confirm_ai_quota", { p_usage_id: usageId })
-    if (error) console.error("[ai quota] confirm failed", error)
+    if (error) await reportServerError(error, { context: "ai-quota:confirm-failed" })
   } catch (error) {
-    console.error("[ai quota] confirm threw", error)
+    await reportServerError(error, { context: "ai-quota:confirm-threw" })
   }
 }

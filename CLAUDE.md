@@ -61,7 +61,8 @@ committed before the next begins — don't skip ahead without the user's go-ahea
   below. Left unchecked until a real trip has been downloaded from the live site.
 - [ ] Phase 12 — Premium features
 - [ ] Phase 13 — Production polish. **Started:** usage limits on the AI calls
-  (see "Usage limits" below). Not yet done: error monitoring, search/sharing
+  (see "Usage limits" below) and error monitoring (see "Error monitoring" below).
+  Not yet done: search/sharing
   metadata, accessibility and performance passes, privacy/terms pages, custom
   domain, Supabase redirect URLs and Google sign-in (those two need the user).
 
@@ -1469,7 +1470,7 @@ Brought the project current after a long gap. `npm audit --omit=dev` went from
   content model, a render smoke test of the PDF document, and `resolveChatOperations`/`assignItemRefIds` in
   the AI layer, which is where "the model may pick but never state a fact" is
   actually enforced. No network, no database, no env vars needed.
-- Added in the Nov 2026 refresh (79 tests), grown to 161 with the PDF work and the usage limits, ~2s.
+- Added in the Nov 2026 refresh (79 tests), grown to 213 with the PDF work, the usage limits and error monitoring, ~3s.
   The three most load-bearing rules were mutation-checked (each deliberately
   broken once, each caught by the intended test, then reverted). It does **not**
   cover server actions, anything needing Supabase, or any component — those
@@ -1629,4 +1630,129 @@ first. Code: `src/lib/ai/usage-limits.ts` (pure: defaults, env overrides, wordin
   hitting the limit on the live site. Not built: showing "N left today" in the UI,
   per-IP limits, and limiting signups (an attacker with many email addresses is bounded only by
   the global ceiling, which is its purpose).
+
+## Error monitoring (second slice of Phase 13)
+
+Before this, an error left almost no trace: the only boundary (`error.tsx`) logged to
+the *visitor's own browser console*, nothing recorded which route or action failed
+on the server, root-layout errors were uncaught, and **Vercel keeps runtime logs for
+only 1 hour on the Hobby plan** — so an error at 3am was gone by breakfast. The
+build also deliberately has no third-party service: Sentry-style tools need an account
+and a secret from the user, so this is zero-dependency, with `reportServerError` /
+`reportClientError` as the single seam where one could be added later.
+
+Code: `src/lib/monitoring/` (`error-model.ts` pure and fully tested; `report-server.ts`;
+`report-client.ts`), `src/instrumentation.ts` (Next's `onRequestError`),
+`src/app/global-error.tsx` (new — root-layout errors), `src/app/error.tsx` (now reports
+and shows a "Reference" code), `src/components/monitoring/error-reporter.tsx` (mounted in
+the root layout), migration `20260917140000_add_error_events.sql`. All ~11 scattered
+`console.error` calls now go through `reportServerError`.
+
+- **Two sinks that fail independently.** Always one JSON line in the server log
+  (`"event":"app_error"`; searchable for the hour Vercel keeps it). Durably, when
+  `NEXT_PUBLIC_ERROR_REPORTING=on`, in `error_events` via the `report_error` function.
+- **Reporting is OFF unless that variable is `on`, and is set `on` only for the
+  Production environment.** Local dev and Vercel previews talk to the *same database
+  as production*, so without the gate a developer's own mistakes and automated test
+  runs would fill the real record. It is inlined at build time (change = redeploy).
+- **One row per distinct problem, not per occurrence.** A repeat bumps `occurrences`
+  and `last_seen_at`; ids and numbers in the message and route are blanked before
+  fingerprinting, so "trip <uuid> failed after 31 ms" is one error, not thousands. A
+  *resolved* error that recurs is **reopened** — that is how a regression shows up.
+- **`report_error` is callable by `anon`** (an error can happen before sign-in), so it is
+  built to survive being called directly by anyone with the public key: every field is
+  truncated; repeats only touch a counter; new kinds are capped at **60 per hour** and
+  **5,000 in total** (a hard storage ceiling) and past the cap it silently does nothing —
+  reporting an error must never itself raise one. The residual risk, stated plainly: an
+  attacker can use up the hourly allowance of *new kinds* and so hide a genuinely new
+  error for up to an hour (the server log line still exists). The table has RLS on with
+  **no policy** and every privilege revoked: no client can read or write it. Rows older than
+  30 days are purged when a new kind arrives. `last_user_id` is taken from `auth.uid()`
+  inside the function (unspoofable) and is null for server-side reports, which use the
+  public key with no session — an error report is a poor place to put a person's id.
+  Messages can still contain personal data if the code that threw them put it there.
+- **Never makes things worse:** reporting never throws, and the database call is abandoned
+  after 2.5 s. The browser reporter is throttled (each distinct problem once, at most ten
+  per page load) and drops noise that says nothing about our code (extension frames,
+  cross-origin "Script error.", ResizeObserver, AbortError); a dropped connection is kept
+  as a *warning*. `redirect()` / `notFound()` (thrown by design) are ignored.
+- **An error with a Next `digest` is NOT re-reported from the browser.** In production
+  Next hides a server error's message from the browser and sends only a generic
+  placeholder plus the digest; `onRequestError` has already recorded it with the real
+  message and stack. The first version reported both, which the production-build test
+  exposed — a second, useless row, spending the hourly budget. The digest is what ties a
+  visitor's "Reference: 2198323246" to the server row.
+- **Two traps found while building it.** (1) `report_error` declares no defaults, and
+  PostgREST finds a function by the NAMES of the arguments sent; `undefined` is dropped
+  when the body becomes JSON, so a missing argument makes it look for a function that does
+  not exist — the report 404s. Every argument is sent, as an explicit `null` when empty
+  (`toRpcArgs`; a test pins it). (2) `service-result.ts` is reachable from a *client*
+  component (the budget section imports `convert` from `currency-service`), so it loads
+  the server reporter with a lazy `import()` inside its catch rather than a top-level
+  import that could pull server code into the browser bundle.
+- **Reading it** (SQL editor, or ask Claude — it can query through the Supabase tool):
+  `select severity, source, context, occurrences, last_seen_at, left(message,100) as message,
+  route, app_release from error_events where resolved_at is null order by last_seen_at desc;`
+  and `update error_events set resolved_at = now() where id = ...;` to close one. A degraded
+  external service shows up as `severity = 'warning'`, `context = 'service:<name>'` — e.g.
+  a wrong OpenTripMap key would appear there as a steady pattern.
+- **Verified:** the SQL in rolled-back transactions (grouping with differing ids/numbers,
+  truncation, reopen on recurrence, source separating server from client, bad input,
+  anon/signed-in cannot select/insert/delete, `last_user_id` set only from a real session,
+  the hourly cap with an existing error still counting past it, 30-day purge); 52 unit tests,
+  five rules mutation-checked (null arguments, ignoring control flow, the throttle, off-by-
+  default, never throwing); and a real **production build** with temporary failing pages
+  (since deleted): Next called `onRequestError` for a route handler (`route`) and a server
+  component (`render`) with the right path and digest, and in a real browser the error page
+  showed the matching reference, and a click-handler error and an unawaited promise rejection
+  were each caught and sent with the right page, browser and all 10 arguments (the request
+  was intercepted, so nothing reached the database).
+- **Applied to the live project** as migration `20261117151840_add_error_events` (Nov 2026),
+  and `NEXT_PUBLIC_ERROR_REPORTING=on` set on Vercel for the **Production target only**. From
+  the catalog: RLS on, **no policy**, 0 rows, no privileges for `anon`/`authenticated` on the
+  table; `report_error` is `SECURITY DEFINER`, executable by both, and its argument names are
+  exactly the ten `toRpcArgs` sends (that name match is what PostgREST resolves on).
+- **Verified end to end against the live database** (needed one extra host, the project's own
+  Supabase address, added to this session's `voyagr` environment's network allowlist): the app's
+  own `reportServerError` and a browser-style RPC sent real reports through PostgREST with the
+  public key. Two server reports whose messages differed only by a digit became **one row with 2
+  occurrences**; the browser-style one landed as a separate `warning` row with its release and
+  user-agent; neither carried a user id. The test rows were deleted afterwards (table back to 0).
+- **Supabase advisors after applying:** three new findings, all **expected and intentional**:
+  INFO "RLS enabled, no policy" on `error_events` (the point: no client may touch it) and the
+  WARNs "Public/Signed-in users can execute SECURITY DEFINER function" for `report_error`
+  (it must be callable before sign-in; the abuse limits in the function are the mitigation).
+  The two older ones for the AI-limit functions remain, also intentional.
+- **Not verified:** a real visitor's error on the live site appearing in the table (the
+  production deploy had not happened when this was written), and Vercel previews/local staying
+  quiet (they do not get the variable, and a unit test pins "off by default"). Not built:
+  alerts (nothing *tells* anyone an error happened — it has to be looked at), an in-app dashboard,
+  source maps (client stack traces are minified), sampling, and release tracking beyond the
+  7-character commit id.
+
+## Build reliability — Google Fonts can fail a build at random
+
+Found while verifying the error-monitoring work: `npm run build` failed three times in
+a row (after passing minutes earlier on identical code) with `TypeError: Cannot read
+properties of null (reading '1')` inside `next/dist/compiled/@next/font/dist/google/
+loader.js:122`. **Cause:** Google Fonts intermittently answers the same CSS request with a
+newer *extensionless* font URL (`https://fonts.gstatic.com/l/font?kit=...&skey=...&v=...`)
+instead of `.../name.woff2`, and Next 15.5.29's loader assumes every URL ends in a file
+extension (`/\.(woff|woff2|eot|ttf|otf)$/.exec(url)[1]`). Measured by calling Next's own
+fetcher 25 times for the exact `Cormorant Garamond` request: **2 of 25 (~8%) returned
+a bad URL**. The app asks for five font families per build (Geist, Geist Mono, Fraunces in
+the root layout, Cormorant Garamond in two marketing pages), so roughly **one build in three
+can fail** — on Vercel and in CI as well, not just locally. It had not bitten before by luck.
+
+- **Not related to any app code.** Identical code builds fine on a retry; the CSS and every
+  font file download fine when run standalone, which is what ruled out the network rules
+  and rate limiting (both were suspected first and wrong).
+- **Short-term:** retry the build. A failed Vercel deployment from this error is safe to
+  redeploy; production keeps serving the previous version.
+- **Durable fixes, not yet done (needs the user's call):** (1) **self-host the four font
+  families** with `next/font/local` (woff2 files committed, or via the `geist` /
+  `@fontsource*` packages) — removes the build-time network dependency entirely and makes
+  builds faster, at the cost of a visual-regression check on the type; or (2) upgrade to a
+  Next release whose loader understands the new URL format (Next 16 is the likely one, and
+  is deliberately not adopted — see Phase 1).
 

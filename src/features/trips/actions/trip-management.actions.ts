@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache"
 
 import { createClient } from "@/lib/supabase/server"
+import { reportServerError } from "@/lib/monitoring/report-server"
 import {
   renameTripSchema,
   tripIdSchema,
@@ -178,7 +179,7 @@ export async function duplicateTripAction(
   if (error || !data) {
     const actionable =
       error?.code === "P0002" || error?.code === "55000"
-    if (!actionable) console.error("[duplicateTripAction] failed", error)
+    if (!actionable) await reportServerError(error, { context: "action:duplicateTrip" })
     return {
       ok: false,
       error: actionable

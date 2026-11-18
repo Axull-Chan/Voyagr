@@ -4,6 +4,7 @@ import { Fraunces, Geist, Geist_Mono } from "next/font/google"
 import { cn } from "@/lib/utils"
 import { ThemeProvider } from "@/components/theme-provider"
 import { MotionProvider } from "@/components/motion-provider"
+import { ErrorReporter } from "@/components/monitoring/error-reporter"
 import { Toaster } from "@/components/ui/sonner"
 import { TooltipProvider } from "@/components/ui/tooltip"
 
@@ -61,6 +62,7 @@ export default function RootLayout({
             <TooltipProvider>
               {children}
               <Toaster />
+              <ErrorReporter />
             </TooltipProvider>
           </MotionProvider>
         </ThemeProvider>

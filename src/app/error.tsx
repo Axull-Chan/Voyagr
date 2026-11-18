@@ -4,6 +4,7 @@ import { useEffect } from "react"
 import { AlertTriangle } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { reportClientError } from "@/lib/monitoring/report-client"
 
 export default function GlobalError({
   error,
@@ -13,7 +14,7 @@ export default function GlobalError({
   reset: () => void
 }) {
   useEffect(() => {
-    console.error(error)
+    void reportClientError(error, { context: "error-boundary" })
   }, [error])
 
   return (
@@ -26,6 +27,13 @@ export default function GlobalError({
         <p className="text-sm text-muted-foreground">
           An unexpected error occurred. You can try again.
         </p>
+        {/* Next's digest ties this generic page to the full error in the server
+            log, so a traveller can quote it if they get in touch. */}
+        {error.digest ? (
+          <p className="text-data-sm text-muted-foreground">
+            Reference: {error.digest}
+          </p>
+        ) : null}
       </div>
       <Button onClick={reset}>Try again</Button>
     </div>
