@@ -57,7 +57,7 @@ function FooterColumn({
 }) {
   return (
     <div>
-      <h3 className="text-sm font-medium text-foreground">{heading}</h3>
+      <h2 className="text-sm font-medium text-foreground">{heading}</h2>
       <ul className="mt-3 space-y-2">
         {links.map((link) => (
           <li key={link.href}>

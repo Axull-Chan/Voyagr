@@ -122,6 +122,8 @@ export function FloatingFlag({
       <img
         src={`/flags/${code}.svg`}
         alt=""
+        loading="lazy"
+        decoding="async"
         className={`${size} rounded-full opacity-70 shadow-md ring-1 ring-black/5 dark:opacity-60 dark:ring-white/10`}
       />
     </motion.div>

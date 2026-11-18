@@ -38,7 +38,7 @@ export function OAuthButtons({
 
 function GoogleIcon() {
   return (
-    <svg viewBox="0 0 24 24" className="size-4">
+    <svg viewBox="0 0 24 24" className="size-4" aria-hidden="true">
       <path
         fill="#4285F4"
         d="M23.52 12.27c0-.79-.07-1.54-.2-2.27H12v4.3h6.47c-.28 1.5-1.13 2.77-2.4 3.62v3.01h3.87c2.27-2.09 3.58-5.17 3.58-8.66z"

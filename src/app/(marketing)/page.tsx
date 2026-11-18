@@ -21,7 +21,7 @@ export default function LandingPage() {
   return (
     <div className={cn("flex flex-1 flex-col", filmSerif.variable)}>
       <MarketingNavbar overHero />
-      <main className="flex-1">
+      <main id="main-content" className="flex-1">
         <FilmHero />
         {/* The film sets the mood and carries the one CTA; these two say what
             you actually get and where you'd start. Split out of the old hero

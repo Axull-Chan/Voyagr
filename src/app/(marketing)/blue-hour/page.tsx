@@ -34,7 +34,7 @@ export default function BlueHourPage() {
       )}
     >
       <FilmHeader />
-      <main>
+      <main id="main-content">
         <ScrollFilm />
         <FilmStats />
         <FilmGallery />

@@ -61,10 +61,13 @@ committed before the next begins — don't skip ahead without the user's go-ahea
   below. Left unchecked until a real trip has been downloaded from the live site.
 - [ ] Phase 12 — Premium features
 - [ ] Phase 13 — Production polish. **Started:** usage limits on the AI calls
-  (see "Usage limits" below) and error monitoring (see "Error monitoring" below).
+  (see "Usage limits" below), error monitoring (see "Error monitoring" below),
+  Privacy and Terms pages, and a first accessibility/performance pass over the
+  public pages (see "Accessibility and performance pass (Phase 13)" below).
   Not yet done: search/sharing
-  metadata, accessibility and performance passes, privacy/terms pages, custom
-  domain, Supabase redirect URLs and Google sign-in (those two need the user).
+  metadata, the remaining items that pass listed, authenticated-page accessibility
+  and performance, custom domain, Supabase redirect URLs and Google sign-in
+  (those two need the user).
 
 ## Infrastructure
 
@@ -1756,3 +1759,125 @@ can fail** — on Vercel and in CI as well, not just locally. It had not bitten 
   Next release whose loader understands the new URL format (Next 16 is the likely one, and
   is deliberately not adopted — see Phase 1).
 
+## Accessibility and performance pass (Phase 13)
+
+A by-hand audit of the **public** pages only (`/`, `/blue-hour`, `/login`,
+`/sign-up`, `/privacy`, `/terms`), plus the Privacy and Terms pages it was run
+against. Nothing behind login was audited. Lighthouse is not installed, so none of
+this is a Lighthouse score; it is Playwright's bundled Chromium driving a production
+build (`npm run build`, `next start`) with `getComputedStyle`, `PerformanceObserver`
+and CDP throttling. Scripts were throwaway (in the session scratchpad) and are not
+committed.
+
+**Privacy and Terms** (`src/app/(marketing)/privacy`, `.../terms`, shared frame in
+`src/features/marketing/components/legal-page.tsx`). Every statement was checked
+against the code or migrations: what is stored (profiles, trips and children,
+expenses, packing, chat, `ai_usage`, `error_events`), which outside services receive
+what (Gemini, Nominatim, Open-Meteo, OpenTripMap, Frankfurter, Unsplash, OpenFreeMap
+tiles loaded by the *browser*), cookies (Supabase auth, `sidebar_state`; theme and
+wizard draft are localStorage), and that no analytics/ads code exists (grep for
+analytics/gtag/posthog/plausible/vercel-analytics found none, nothing in `package.json`).
+Two details worth keeping: browser-side error reports sent while signed in *do* carry
+`auth.uid()` (only server-side ones are anonymous), and `ai_usage` rows are purged at
+about two days. No legal-compliance claim is made, and there is no contact email: the
+pages point at the repository's GitHub issues. **The pages say users can delete
+individual trips; that feature was being added by another branch, so confirm it exists
+before shipping, or reword.** The landing pricing tiers are illustrative (no payments),
+and the Terms say so. Footer and navbar hash links were rewritten from `#pricing` to
+`/#pricing` because both are now used on pages that are not the landing page. The
+sign-up form has a consent line under the submit button (the Google button above it
+creates accounts too and is covered only by proximity).
+
+**Setup note.** `next start` needs `NEXT_PUBLIC_SUPABASE_URL` and
+`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (the middleware builds a Supabase client on
+every request and 500s without them); they are inlined at build time, so they have to
+be present for `npm run build`. Dummy values (`http://127.0.0.1:54321`, any key) are
+enough for signed-out pages and avoid touching the real project. `curl` to localhost
+needs `--noproxy '*'` in the build container.
+
+### Measured, before and after (Pixel 5 emulation, 1.6 Mbps / 150 ms / 4x CPU, single run each)
+
+| | before | after |
+|---|---|---|
+| Horizontal overflow at 375 px (`/`, `/privacy`, `/terms`) | 2 px (navbar; "Sign up" ran 57 px past the edge at 320 px) | 0 |
+| Targets under 24 px at 375 px (excl. inline links in prose) | `/blue-hour` 4, `/login` 1 | 0 (only the visually hidden skip link, 1x1 until focused) |
+| Reduced motion, `/` total transfer | 5,081 kB, 117 requests | 699 kB, 39 requests |
+| Reduced motion, `/blue-hour` total transfer | 5,075 kB, 108 requests | 703 kB, 37 requests |
+| Reduced-motion hero still | `w=3840` rendition, ~200 kB | `w=1200`, ~60 kB |
+| Skip link / bypass blocks | none (8 tab stops before content) | present on `/`, `/blue-hour`, `/privacy`, `/terms` |
+
+Unchanged and still true: one `<h1>` per page (all six); a `<main>` on every page and a
+`banner`/`nav`/`contentinfo` on the marketing pages (the auth pages deliberately have
+only the brand link and `<main>`); every `<input>` has an associated label; no
+`<img>` without an `alt` attribute (all ten on `/` are intentionally `alt=""`: flags
+and photos inside labelled links); no unnamed links or buttons; no duplicate ids; the
+canvas film has `role="img"` plus a description; every tabbable element shows a focus
+indicator (25/11/7/10/19/18 tab stops for the six pages in the order listed, the first on four of them being the skip link; the Blue Hour form
+fields signal focus by their bottom border going from 12 % white to the ink colour,
+verified by keyboard Tab, not by a ring); `prefers-reduced-motion` stops the
+Framer loops (8 of 42 inline transforms changing over 1.2 s down to 0), turns off
+smooth scrolling, and swaps the film for a still with stacked copy.
+
+**Contrast.** Computed from real `getComputedStyle` values (colours normalised through
+a canvas so `oklch`/`color-mix` work), composited down the ancestor chain, both
+themes, after scrolling the whole page. `/login`, `/sign-up`, `/privacy` and `/terms`:
+**no failing text in either theme**; lowest ratios 7.04 light / 6.4 dark on the auth
+pages and 8.39 / 8.47 on the legal pages. The DOM scan cannot see through images, so
+text over photos and the film was sampled from screenshots instead (text hidden,
+worst-5 %-of-pixels contrast against the real pixels): the destination-card names and
+captions pass (lowest 4.83:1); the weather chips were flagged by that sampler but
+compute to at least ~5:1 by hand (opaque `bg-background/80` under primary text) and are
+treated as a sampler artefact; the **Blue Hour film's 11 px kicker/label text over the lit
+Tokyo Tower and shopfront frames samples at about 2.3:1** (p05) and the frame counter
+at about 4.2:1 over bright frames. The film already adds a scrim and a text-shadow, which
+this sampling deliberately ignored, so this is "low in the worst frames", not a
+proven failure; it is listed below, not changed.
+
+**Performance** (mobile emulation, throttled; single runs, so treat differences under
+~10 % as noise). LCP is the headline text on every page: 1.0-1.06 s, FCP identical,
+CLS 0 to 0.009 (the 0.009 is a font-swap shift of the film title, and appears or not
+between runs; unthrottled it is 0.0001). First-load transfer is 533-604 kB on all six
+pages. **`/` and `/blue-hour` then download another 4.37 MB: all 71 film frames**
+(63 kB each, 71 requests), taking `/` to 5.0 MB total and ~28 s to network idle on this
+profile. No image is over 200 kB. The only plain `<img>` elements are five decorative flag SVGs
+(now `loading="lazy"`, so the ones in `display:none` containers on phones are never
+fetched). Three render-blocking stylesheets on `/` and `/blue-hour` (22 kB) and two
+elsewhere, which is how Next ships CSS.
+
+### Fixed in this pass
+- Navbar overflow at <=375 px: "Log in" moves into the hamburger menu below `sm`, and the
+  right-hand gap tightens (`marketing-navbar.tsx`).
+- Skip link and `id="main-content"` on the three marketing pages' `<main>`.
+- Footer column headings `h3` -> `h2` (an `h3` right after a legal page's last `h2` read as
+  belonging to it).
+- Decorative Google icon marked `aria-hidden`; "Forgot password?" and the Blue Hour
+  header/footer links given a 24 px-plus hit area with the layout unchanged (negative
+  margin against the padding).
+- Reduced-motion users no longer preload the 71 frames they never see, and the still is
+  requested at a `sizes="100vw"` rendition instead of 3840 px (`scroll-film.tsx`).
+- Flag `<img>`s lazy and async-decoded.
+
+### Remaining, not fixed
+- **The film's frame preload is the single largest cost on the two most visible pages**
+  (4.37 MB, 71 requests, after a 0.6 MB first load). Options: load a first batch and the
+  rest on idle, honour `navigator.connection.saveData`/slow connections with the still, or
+  re-encode smaller. Each changes how the hero behaves, so it needs a decision.
+- **Poster frame for the film**: frame 0 is fetched only after hydration and painted to the
+  canvas, so first paint is text on a dark ground. A `<link rel="preload">` or an `<img>`
+  poster would help perceived load; the metrics above do not show it because a canvas is not
+  an LCP candidate.
+- **Reduced-motion LCP is ~4.0-4.2 s on this profile** (was 4.6-5.1 s): the still only
+  exists after hydration because the server always renders the animated tree. Rendering the
+  still with CSS (`@media (prefers-reduced-motion)`) would fix it but is a restructure.
+- **Film text legibility** (above): consider a slightly heavier scrim behind the kicker, or a
+  larger/brighter label. Design call.
+- Four font files (207 kB) are downloaded on every page including `/login`, where one is
+  used; the fonts are another branch's area, as is the flaky Google Fonts build.
+- Landing copy says the Free plan is "3 AI itineraries per month" while the enforced limit is
+  5 trips per 24 h per user (`usage-limits.ts`); worth reconciling.
+- Landing footer content spans 1152 px while the navbar content is inset by a further 24 px
+  gutter each side, so they do not align at wide widths (pre-existing).
+- Not checked: screen-reader output (no AT run, only the accessibility tree via DOM), any page
+  behind login (dashboard, trip detail with its map, wizard), zoom/text-resize to 200 %,
+  forced-colors mode, and real-device performance. WCAG 2.5.8 spacing exceptions were not
+  applied; targets under 24 px were counted as failures.
