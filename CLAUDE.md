@@ -59,7 +59,9 @@ committed before the next begins — don't skip ahead without the user's go-ahea
 - [ ] Phase 11 — PDF export. **Built and verified in isolation, not yet
   exercised end to end with a signed-in user** — see "Phase 11 — PDF export"
   below. Left unchecked until a real trip has been downloaded from the live site.
-- [ ] Phase 12 — Premium features
+- [ ] Phase 12 — Premium features. **Planned, not started:** the Basic/Premium decisions and
+  the Phase 0 groundwork (manual itinerary editing) are recorded in "Premium plan — decisions, and
+  Phase 0" below. No subscription or entitlement code exists yet.
 - [ ] Phase 13 — Production polish. **Started:** usage limits on the AI calls
   (see "Usage limits" below), error monitoring (see "Error monitoring" below),
   search/sharing metadata (see "Search and sharing metadata" below), Privacy and
@@ -1505,7 +1507,7 @@ Brought the project current after a long gap. `npm audit --omit=dev` went from
   content model, a render smoke test of the PDF document, and `resolveChatOperations`/`assignItemRefIds` in
   the AI layer, which is where "the model may pick but never state a fact" is
   actually enforced. No network, no database, no env vars needed.
-- Added in the Nov 2026 refresh (79 tests), grown to 245 with the PDF work, the usage limits, error monitoring, trip deletion, the "N left today" hint and the site-metadata helpers, ~3s.
+- Added in the Nov 2026 refresh (79 tests), grown to 288 with the PDF work, the usage limits, error monitoring, trip deletion, the "N left today" hint and the site-metadata helpers, ~3s.
   The three most load-bearing rules were mutation-checked (each deliberately
   broken once, each caught by the intended test, then reverted). It does **not**
   cover server actions, anything needing Supabase, or any component — those
@@ -2020,3 +2022,114 @@ elsewhere, which is how Next ships CSS.
   behind login (dashboard, trip detail with its map, wizard), zoom/text-resize to 200 %,
   forced-colors mode, and real-device performance. WCAG 2.5.8 spacing exceptions were not
   applied; targets under 24 px were counted as failures.
+
+## Premium plan — decisions, and Phase 0 (manual itinerary editing)
+
+A Basic (free) / Premium (paid) split was planned before any code: an audit of the project, then a
+phased roadmap (Phase 0 groundwork, 1 subscription foundation, 2 AI Travel Architect, 3 route
+optimisation, 4 feasibility checker, 5 adaptive itinerary and budget intelligence, 6 context-aware
+assistant). The audit's findings that shaped it, so they are not rediscovered: **there was no way to
+build an itinerary by hand** (the only writers of `activities` were the generator and the chat apply
+step), so gating AI generation would have left free users with no itinerary tool at all; opening hours
+were **fabricated** (below); there is no routing provider (only straight-line distance), so Phase 3 can
+only ship straight-line travel times honestly labelled as estimates until one is added; and nothing
+supplies real opening hours or closures, so "may be closed" checks are not buildable yet.
+
+**Decisions made by the user** (all six, as recommended):
+1. AI itinerary generation stays available to Basic with a modest allowance; Premium gets higher limits
+   plus additional capabilities such as per-day regeneration.
+2. AI chat stays available to Basic with a limited allowance; Premium gets higher limits and the more
+   advanced context-aware capabilities.
+3. PDF export stays free.
+4. Plans consolidate to **Basic and Premium**; **Team is removed from the pricing until collaboration
+   exists.** *Not yet applied:* the landing page still shows Free / Explorer ($9) / Team ($24) and says
+   "3 AI itineraries per month" while the enforced limit is 5 trips per 24 h. That copy has to change with
+   Phase 1, when the real plan limits exist.
+5. Fabricated restaurant opening hours are removed; where real hours are unavailable the UI says so.
+6. A **3-day grace period** for `past_due` subscriptions.
+
+### What Phase 0 built
+
+- **Manual itinerary CRUD** (`actions/itinerary.actions.ts`, `components/detail/itinerary-editor.tsx`):
+  add, edit, delete and reorder activities on any day. No model is involved and no AI quota is touched.
+  Every action validates (`schemas/itinerary.schemas.ts`), requires a signed-in user, then
+  `services/activity-store.ts` confirms the trip exists for that user **and is editable** and that the
+  day/activity belongs to **that trip** — the trip check is what stops an edit landing on a trip that is
+  `generating` (the generator clears and re-inserts days, so the edit would vanish) or `archived`. RLS
+  still decides ownership. Hiding the controls (`editable`) is a courtesy, not the access control.
+- **One provider, not a dialog per row.** `ItineraryEditorProvider` wraps the day list and holds a single
+  add/edit dialog (a bottom `Sheet` below `md`, matching the budget section) and a single remove
+  confirmation; `ActivityControls` / `AddActivityButton` are small client leaves, so `DayTimeline` stays a
+  server component. Move earlier/later and edit/remove are always visible (touch has no hover) but quiet.
+- **Reorder is within a time of day**, because the timeline shows morning/afternoon/evening groups: a move
+  swaps with the next activity *in the same group*. `reorderWithinSlot` renumbers the whole day 0..n and
+  returns only the rows that change. Exchanging two stored numbers would be wrong when they are equal, and
+  `sort_order` ties genuinely occur — so ordering is `sort_order`, then `created_at`, then `id`
+  (`orderActivities`), used by both the page and the action so what is shown and what a move acts on cannot
+  disagree. Not atomic (no transactions in the Supabase client): a failure between the two writes leaves a
+  harmless tie that the next move tidies. Moving an activity to a different *day* is not built (the chat
+  can still do it).
+- **A manual activity has no coordinates, travel time or walking distance, on purpose.** A person typing a
+  venue name has not resolved a place; guessing coordinates could pin the wrong city. So it has no map pin
+  and no "est. km walk". The form says so ("a name only; it isn't placed on the map"). Geocoding the name
+  with Nominatim was considered and left out: a first-match geocode can quietly choose a different place
+  with the same name, which is the fabrication class this project keeps removing. If added, show the match
+  and ask.
+- **`trip_days.daily_cost` is recomputed after every add/edit/delete** (`refreshDayCost`): the generator
+  defined it as the sum of the day's activity costs, and the PDF and JSON export print it, so leaving the
+  old total would print a figure for a day that no longer exists. Best effort — the edit has already
+  succeeded.
+- **Trips with an empty itinerary.** The wizard's last step has a second, quieter action, "Start with an
+  empty itinerary" (`createEmptyTripAction`): the same validated answers, one `trip_days` row per date, **no
+  provider call and no quota reserved**. `createBlankItinerary` still fills in what is real and free — the
+  forecast per date (Open-Meteo where it reaches, otherwise the plain "Forecast not yet available" row) and
+  a destination photo — and never invents a plan. The trip row is written as `draft` and flipped to `ready`
+  once its days exist; if that fails the action still returns the trip, so the traveller lands on a draft
+  page with a **"Plan it by hand"** button (`startManualItineraryAction`, which also recovers drafts left by a
+  failed generation) instead of staying on the wizard one click from a duplicate. The unique
+  `(trip_id, day_number)` constraint is what prevents two sets of days if requests race.
+  Because a hand-planned trip has no resolved places, the page marks the **destination itself** (a real
+  geocoded point, cached) so the map and the live forecast still work.
+- **Restaurant opening hours are no longer produced or shown.** Every provider wrote a fixed window per
+  meal type ("07:00 – 11:00", "11:30 – 15:00", "17:30 – 22:30") into `restaurants.opening_hours` and the
+  trip page printed it as the venue's own hours. All 56 stored restaurants carried it. `openingHours` is now
+  `string | null` and null everywhere (`venue-grounded.ts`, both mock sites); the page renders **one**
+  line under "Places to eat" — "Opening hours aren't available — check before you go." — rather than
+  "unavailable" under every name. The page ignores the column entirely until a real source exists, so the fix
+  does not depend on the data migration.
+- **`createTripAction` was only touched to share one `tripRow` builder** with `createEmptyTripAction`, so the
+  two cannot store the same answers differently; generation behaviour is unchanged.
+
+### Verification
+
+`eslint`, `tsc`, **288 tests** (was 245; +43) and `next build` pass. Three rules were mutation-checked, each
+caught by the intended test and restored: reorder taking its neighbour from the whole day instead of the same
+time of day (4 failures), a `generating` trip being editable (1), and a real-venue restaurant getting a
+meal-type window again (1). Rendered in a real browser (Playwright Chromium on a production build, via
+temporary probe routes with fixture data, since deleted) at 1280 and 375 px: **48/48** editor checks —
+controls present and 32 px, move disabled at group edges, validation messages, edit pre-fill, add/remove focus
+handling, Esc, a read-only trip showing no controls, no template hours, no overflow — and **20/20** wizard
+checks: Next never submits, both start paths show, each shows only its own working label, one request per
+click. The bottom sheet was checked on 375×667 and 390×844 (the form scrolls inside it and the submit button
+stays reachable).
+
+**Not verified — no signed-in session was available, so none of the server actions ran against the database:**
+that an activity actually saves, updates, deletes or reorders and the page then shows it; that
+`refreshDayCost` updates `trip_days.daily_cost`; `createEmptyTripAction` / `createBlankItinerary` against the
+real Supabase, Open-Meteo and Unsplash (the days, the weather rows and the cover photo); "Plan it by hand" on a
+real draft; that RLS refuses editing someone else's trip (the action also checks, but it was not exercised);
+and the destination marker for a hand-planned trip. In the browser checks the actions were reached and
+refused a signed-out visitor, which proves the wiring and the validation, not the writes.
+
+**Migration written, not applied:** `20261118100000_clear_fabricated_restaurant_hours.sql` sets every existing
+`restaurants.opening_hours` to null (every non-null value came from the template; nothing else ever wrote
+one). Safe to run twice. Until it is applied the old values sit unused in the table — the page no longer
+renders them.
+
+**Not done (deliberately):** the pricing copy (decision 4, above), any subscription/entitlement code,
+per-plan limits, a Premium page or account settings — Phase 1 onward waits for the user's go-ahead. Also
+not built: moving an activity to another day by hand, adding or deleting whole days, editing a trip's dates,
+and per-restaurant editing. `nextActivitySortOrder` now exists twice (here and, unexported, in
+`chat.actions.ts`); the chat copy was left alone so unrelated behaviour did not change, though it also
+means a chat-applied edit does not refresh `daily_cost`.
+

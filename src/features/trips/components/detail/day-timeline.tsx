@@ -10,6 +10,10 @@ import {
 import { cn } from "@/lib/utils"
 import { formatCurrency, TIME_SLOTS, type TimeSlot } from "@/lib/trips/trip-domain"
 import type { TripDay } from "@/features/trips/queries/trip-detail"
+import {
+  ActivityControls,
+  AddActivityButton,
+} from "@/features/trips/components/detail/itinerary-editor"
 
 /**
  * The shape this component displays, deliberately not the database row.
@@ -70,8 +74,10 @@ function clockTime(value: string | null): string {
 /**
  * One day of the trip: weather, summary, then the schedule by time of day.
  *
- * A server component — there is nothing interactive here, so none of this
- * needs to reach the browser as JavaScript.
+ * A server component. The only interactive parts are the small client leaves from
+ * `itinerary-editor` (add, move, edit, remove), which render nothing unless the
+ * page wrapped the list in an editable `ItineraryEditorProvider` — so the timeline
+ * itself still ships no JavaScript of its own.
  */
 export function DayTimeline({
   day,
@@ -136,7 +142,7 @@ export function DayTimeline({
                 {SLOT_LABEL[slot]}
               </p>
               <ul className="mt-2 space-y-3">
-                {items.map((activity) => (
+                {items.map((activity, index) => (
                   <li key={activity.id} className="flex gap-3">
                     <span className="w-12 shrink-0 pt-0.5 text-data-sm text-muted-foreground">
                       {clockTime(activity.start_time)}
@@ -171,6 +177,12 @@ export function DayTimeline({
                           <span>Free</span>
                         )}
                       </p>
+                      <ActivityControls
+                        activity={activity}
+                        dayNumber={day.dayNumber}
+                        canMoveUp={index > 0}
+                        canMoveDown={index < items.length - 1}
+                      />
                     </div>
                   </li>
                 ))}
@@ -184,6 +196,12 @@ export function DayTimeline({
         </p>
       )}
 
+      <AddActivityButton
+        dayId={day.id}
+        dayNumber={day.dayNumber}
+        className="-ml-2 mt-3"
+      />
+
       {day.restaurants.length > 0 ? (
         <div className="mt-5 border-t border-border pt-4">
           <p className="text-eyebrow flex items-center gap-1.5 text-muted-foreground">
@@ -195,17 +213,22 @@ export function DayTimeline({
               <li key={restaurant.id} className="text-sm">
                 <span className="font-semibold text-foreground">{restaurant.name}</span>
                 <span className="block text-xs text-muted-foreground">
-                  {[
-                    restaurant.meal_type,
-                    restaurant.cuisine,
-                    restaurant.opening_hours,
-                  ]
+                  {[restaurant.meal_type, restaurant.cuisine]
                     .filter(Boolean)
                     .join(" · ")}
                 </span>
               </li>
             ))}
           </ul>
+          {/* `restaurants.opening_hours` is deliberately NOT rendered. Every value
+              ever stored there was a fixed window per meal type, not the venue's
+              own hours, and no source wired up here supplies real ones. Saying so
+              once, plainly, beats printing a template as if it were a fact — and
+              beats repeating "unavailable" under every name. If a real source is
+              added, render its value here and drop this line. */}
+          <p className="mt-2 text-xs text-muted-foreground">
+            Opening hours aren&apos;t available — check before you go.
+          </p>
         </div>
       ) : null}
     </article>

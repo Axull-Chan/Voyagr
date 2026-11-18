@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation"
 
 import { createClient } from "@/lib/supabase/server"
+import { orderActivities } from "@/features/trips/services/itinerary-edit"
 import type { Tables } from "@/types/database.types"
 
 /**
@@ -99,9 +100,9 @@ export async function getTripDetail(tripId: string): Promise<TripDetail> {
       date: row.date,
       summary: row.summary,
       dailyCost: row.daily_cost,
-      activities: [...((row.activities as ActivityRow[]) ?? [])].sort(
-        (a, b) => a.sort_order - b.sort_order
-      ),
+      // The same ordering the reorder action uses, so what is shown and what a
+      // move acts on can't disagree when two rows share a sort_order.
+      activities: orderActivities((row.activities as ActivityRow[]) ?? []),
       restaurants: (row.restaurants as RestaurantRow[]) ?? [],
       weather,
     }

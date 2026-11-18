@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/server"
 import { buildTripContext } from "@/services/itinerary-service"
 import { recordImageUse } from "@/services/image-service"
 import { persistItinerary } from "@/features/trips/services/itinerary-writer"
+import { createBlankItinerary } from "@/features/trips/services/blank-itinerary"
 import { reportServerError } from "@/lib/monitoring/report-server"
 import {
   confirmAiQuota,
@@ -20,6 +21,89 @@ import {
 export type CreateTripResult =
   | { ok: true; tripId: string; warnings: string[] }
   | { ok: false; error: string }
+
+/**
+ * The `trips` row for what the wizard collected. Shared by both ways of starting a
+ * trip so the two can never store the same answers differently.
+ */
+function tripRow(
+  userId: string,
+  input: CreateTripInput,
+  status: "draft" | "generating"
+) {
+  return {
+    user_id: userId,
+    // A placeholder until a generated itinerary proposes a better one.
+    title: `Trip to ${input.destination}`,
+    destination: input.destination,
+    starting_city: input.startingCity?.trim() || null,
+    start_date: input.startDate,
+    end_date: input.endDate,
+    travelers: input.travelers,
+    budget: input.budget,
+    currency: input.currency,
+    travel_style: input.travelStyle,
+    accommodation: input.accommodation,
+    transportation: input.transportation,
+    interests: input.interests,
+    additional_notes: input.notes?.trim() || null,
+    status,
+  }
+}
+
+/**
+ * Creates a trip with every day set up and nothing scheduled in it, for a traveller
+ * who wants to plan it themselves.
+ *
+ * No model is involved: it never reserves AI quota, never calls a provider, and never
+ * writes a made-up place. It does what is free and real — the forecast for each date
+ * and a destination photo — so the trip looks like any other. The same wizard answers
+ * are stored (budget, currency, party size, notes), so budget tracking works as usual.
+ *
+ * Written as a `draft` first and flipped to `ready` once its days exist, so a failure
+ * part-way leaves a trip the traveller can finish with "plan it by hand" rather than
+ * a trip with no way forward.
+ */
+export async function createEmptyTripAction(
+  values: CreateTripInput
+): Promise<CreateTripResult> {
+  const parsed = createTripSchema.safeParse(values)
+  if (!parsed.success) {
+    return { ok: false, error: "Please check the form for errors." }
+  }
+  const input = parsed.data
+
+  const supabase = await createClient()
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser()
+  if (authError || !user) {
+    return { ok: false, error: "You need to be signed in to create a trip." }
+  }
+
+  const { data: trip, error: insertError } = await supabase
+    .from("trips")
+    .insert(tripRow(user.id, input, "draft"))
+    .select("id, destination, start_date, end_date, cover_image_url")
+    .single()
+  if (insertError || !trip) {
+    return { ok: false, error: "We couldn't save your trip. Please try again." }
+  }
+
+  const blank = await createBlankItinerary(supabase, trip)
+  revalidatePath("/trips")
+  revalidatePath("/dashboard")
+
+  if (!blank.ok) {
+    // The trip row exists, as a draft. Reporting a failure here would leave the
+    // traveller on the wizard, one click from creating a duplicate; taking them to
+    // the draft instead puts a "Plan it by hand" button in front of them that
+    // finishes the same job.
+    return { ok: true, tripId: trip.id, warnings: [blank.error] }
+  }
+  return { ok: true, tripId: trip.id, warnings: blank.notices }
+}
 
 /**
  * Creates a trip and fills it with a generated itinerary.
@@ -60,24 +144,7 @@ export async function createTripAction(
 
   const { data: trip, error: insertError } = await supabase
     .from("trips")
-    .insert({
-      user_id: user.id,
-      // A placeholder until the provider proposes a better one below.
-      title: `Trip to ${input.destination}`,
-      destination: input.destination,
-      starting_city: startingCity,
-      start_date: input.startDate,
-      end_date: input.endDate,
-      travelers: input.travelers,
-      budget: input.budget,
-      currency: input.currency,
-      travel_style: input.travelStyle,
-      accommodation: input.accommodation,
-      transportation: input.transportation,
-      interests: input.interests,
-      additional_notes: notes,
-      status: "generating",
-    })
+    .insert(tripRow(user.id, input, "generating"))
     .select("id")
     .single()
 

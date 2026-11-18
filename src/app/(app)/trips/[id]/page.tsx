@@ -8,7 +8,7 @@ import { tripDurationDays } from "@/lib/trips/trip-domain"
 import { createClient } from "@/lib/supabase/server"
 import { getRates } from "@/services/currency-service"
 import { getTripWeather } from "@/services/weather-service"
-import type { MapMarker } from "@/services/map-service"
+import { geocodeDestination, type MapMarker } from "@/services/map-service"
 import { getTripDetail } from "@/features/trips/queries/trip-detail"
 import { getTripChatHistory } from "@/features/trips/queries/trip-chat"
 import {
@@ -26,6 +26,9 @@ import { PackingSection } from "@/features/trips/components/detail/packing-secti
 import { TripChat } from "@/features/trips/components/detail/trip-chat"
 import { getAiQuotaHint } from "@/features/trips/services/ai-quota"
 import { TripActionsMenu } from "@/features/trips/components/detail/trip-actions-menu"
+import { ItineraryEditorProvider } from "@/features/trips/components/detail/itinerary-editor"
+import { StartManualPlanning } from "@/features/trips/components/detail/start-manual-planning"
+import { editBlockedReason } from "@/features/trips/services/itinerary-edit"
 
 interface TripDetailPageProps {
   params: Promise<{ id: string }>
@@ -141,6 +144,24 @@ export default async function TripDetailPage({ params }: TripDetailPageProps) {
         })),
     ]),
   ]
+
+  // A trip planned by hand has nothing resolved to pin yet — activities typed in
+  // carry no coordinates on purpose. Rather than show no map at all, mark the
+  // destination itself, which is a real geocoded point, so the map and the live
+  // forecast below still work. (Geocoding is cached, so this is not a lookup per view.)
+  if (markers.length === 0 && days.length > 0) {
+    const place = (await geocodeDestination(trip.destination)).data
+    if (place) {
+      markers.push({
+        id: "destination",
+        kind: "destination",
+        name: place.name,
+        latitude: place.latitude,
+        longitude: place.longitude,
+        detail: place.displayName,
+      })
+    }
+  }
 
   const mapCentre = markers[0]
     ? { latitude: markers[0].latitude, longitude: markers[0].longitude }
@@ -271,23 +292,39 @@ export default async function TripDetailPage({ params }: TripDetailPageProps) {
                 Day by day
               </h2>
               {days.length > 0 ? (
-                <div className="divide-border divide-y">
-                  {days.map((day) => (
-                    <DayTimeline
-                      key={day.id}
-                      day={day}
-                      currency={trip.currency}
-                      forecast={forecastFor(day)}
-                    />
-                  ))}
-                </div>
+                // The controls are a courtesy; every change is re-checked by the
+                // server action, which is what actually decides.
+                <ItineraryEditorProvider
+                  tripId={trip.id}
+                  currency={trip.currency}
+                  editable={editBlockedReason(trip.status) === null}
+                >
+                  <div className="divide-border divide-y">
+                    {days.map((day) => (
+                      <DayTimeline
+                        key={day.id}
+                        day={day}
+                        currency={trip.currency}
+                        forecast={forecastFor(day)}
+                      />
+                    ))}
+                  </div>
+                </ItineraryEditorProvider>
               ) : (
                 <div className="border-border border-t py-10 text-center">
                   <p className="text-muted-foreground text-sm">
                     {trip.status === "draft"
-                      ? "This trip is still a draft — its itinerary hasn't been generated yet."
+                      ? "This trip is still a draft — it doesn't have an itinerary yet."
                       : "No itinerary yet."}
                   </p>
+                  {trip.status === "draft" && trip.start_date && trip.end_date ? (
+                    <>
+                      <p className="mx-auto mt-1 max-w-sm text-muted-foreground text-sm">
+                        You can set up a day for each date and fill them in yourself.
+                      </p>
+                      <StartManualPlanning tripId={trip.id} />
+                    </>
+                  ) : null}
                 </div>
               )}
             </RevealItem>

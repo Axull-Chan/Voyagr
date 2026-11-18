@@ -5,13 +5,24 @@ import { useRouter } from "next/navigation"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion"
-import { AlertCircle, ArrowLeft, ArrowRight, Check, Loader2, Sparkles } from "lucide-react"
+import {
+  AlertCircle,
+  ArrowLeft,
+  ArrowRight,
+  CalendarPlus,
+  Check,
+  Loader2,
+  Sparkles,
+} from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { addDays } from "@/lib/trips/trip-domain"
 import { Button } from "@/components/ui/button"
 import { describeRemaining, type AiQuotaHint } from "@/lib/ai/usage-limits"
-import { createTripAction } from "@/features/trips/actions/trip.actions"
+import {
+  createEmptyTripAction,
+  createTripAction,
+} from "@/features/trips/actions/trip.actions"
 import {
   createTripSchema,
   WIZARD_STEPS,
@@ -67,6 +78,9 @@ export function CreateTripWizard({
   const [direction, setDirection] = useState<1 | -1>(1)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
+  // Which of the two ways of starting was chosen, only so the right button shows the
+  // "working" label while the request runs.
+  const [startMode, setStartMode] = useState<"ai" | "empty">("ai")
 
   // Destructured because the hook returns a fresh object each render — using
   // `draft` itself as an effect dependency would resubscribe the watcher on
@@ -117,22 +131,32 @@ export function CreateTripWizard({
     setStepIndex((index) => Math.max(index - 1, 0))
   }
 
-  const onSubmit = handleSubmit((values) => {
-    setSubmitError(null)
-    startTransition(async () => {
-      const result = await createTripAction(values)
-      if (!result.ok) {
-        setSubmitError(result.error)
-        // Re-read the "N left" caption: a refusal means it was out of date.
-        // Client state (the form, the step) survives a refresh. On success the
-        // push below lands on a freshly rendered /trips/new next visit.
-        router.refresh()
-        return
-      }
-      clearDraft()
-      router.push(`/trips/${result.tripId}`)
+  // Both ways of starting validate the same answers and land on the same page; they
+  // differ only in whether an AI itinerary is generated (and an allowance spent).
+  function submitWith(mode: "ai" | "empty") {
+    return handleSubmit((values) => {
+      setSubmitError(null)
+      setStartMode(mode)
+      startTransition(async () => {
+        const result =
+          mode === "ai"
+            ? await createTripAction(values)
+            : await createEmptyTripAction(values)
+        if (!result.ok) {
+          setSubmitError(result.error)
+          // Re-read the "N left" caption: a refusal means it was out of date.
+          // Client state (the form, the step) survives a refresh. On success the
+          // push below lands on a freshly rendered /trips/new next visit.
+          router.refresh()
+          return
+        }
+        clearDraft()
+        router.push(`/trips/${result.tripId}`)
+      })
     })
-  })
+  }
+  const onSubmit = submitWith("ai")
+  const onSubmitEmpty = submitWith("empty")
 
   // Slide direction is the only thing that changes between steps, so the
   // variants take it as a custom param rather than duplicating the object.
@@ -223,7 +247,7 @@ export function CreateTripWizard({
                     generated (spending quota) before step 4 was ever shown. */}
                 {isLastStep ? (
                   <Button key="submit" type="submit" disabled={isPending}>
-                    {isPending ? (
+                    {isPending && startMode === "ai" ? (
                       <>
                         <Loader2
                           aria-hidden="true"
@@ -265,6 +289,37 @@ export function CreateTripWizard({
                   </p>
                 ) : null}
               </div>
+
+              {/* The other way to start. Sets up a day for each date and leaves them
+                  empty: no AI, and nothing is deducted from the allowance above. */}
+              {isLastStep ? (
+                <div className="mt-5 border-t border-border pt-4">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="-ml-2"
+                    disabled={isPending}
+                    onClick={onSubmitEmpty}
+                  >
+                    {isPending && startMode === "empty" ? (
+                      <Loader2
+                        aria-hidden="true"
+                        className="animate-spin motion-reduce:animate-none"
+                      />
+                    ) : (
+                      <CalendarPlus aria-hidden="true" />
+                    )}
+                    {isPending && startMode === "empty"
+                      ? "Setting up your trip…"
+                      : "Start with an empty itinerary"}
+                  </Button>
+                  <p className="mt-1 max-w-prose text-caption text-muted-foreground">
+                    Prefer to plan it yourself? You&apos;ll get a day for each date and add the
+                    activities. No AI is used.
+                  </p>
+                </div>
+              ) : null}
             </div>
         </form>
       </div>

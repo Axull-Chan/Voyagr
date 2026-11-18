@@ -117,7 +117,15 @@ export interface GeneratedRestaurant {
    */
   priceLevel: number | null
   distanceKm: number
-  openingHours: string
+  /**
+   * Null for every provider today. This used to be a fixed window per meal type
+   * ("07:00 - 11:00" for breakfast and so on) — a template, not a measurement,
+   * stored and shown as if it were the venue's own hours. No source wired up here
+   * supplies real opening hours (OpenTripMap's list endpoint carries none), so
+   * there is nothing honest to put here yet. Kept nullable rather than removed: a
+   * real source would populate it without a contract change.
+   */
+  openingHours: string | null
   lat: number
   lng: number
 }

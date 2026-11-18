@@ -253,12 +253,7 @@ function buildRestaurants(
       rating: null,
       priceLevel: null,
       distanceKm: round(0.2 + rng() * 1.8, 1),
-      openingHours:
-        meal === "breakfast"
-          ? "07:00 – 11:00"
-          : meal === "lunch"
-            ? "11:30 – 15:00"
-            : "17:30 – 22:30",
+      openingHours: null,
       lat: coords.lat,
       lng: coords.lng,
     }
@@ -625,12 +620,7 @@ function buildRestaurantsFromVenues(
       rating: null,
       priceLevel: null,
       distanceKm: round(venue.rating > 0 ? 0.4 + rng() * 1.6 : 0.8, 1),
-      openingHours:
-        meal === "breakfast"
-          ? "07:00 – 11:00"
-          : meal === "lunch"
-            ? "11:30 – 15:00"
-            : "17:30 – 22:30",
+      openingHours: null,
       lat: venue.latitude,
       lng: venue.longitude,
     })
