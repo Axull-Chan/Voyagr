@@ -1,9 +1,16 @@
 import Link from "next/link"
 
 const productLinks = [
-  { label: "Features", href: "#features" },
-  { label: "How it works", href: "#how-it-works" },
-  { label: "Pricing", href: "#pricing" },
+  // Rooted at "/" so they still work from /privacy and /terms, which share
+  // this footer; on the landing page they resolve to an in-page jump.
+  { label: "Features", href: "/#features" },
+  { label: "How it works", href: "/#how-it-works" },
+  { label: "Pricing", href: "/#pricing" },
+]
+
+const legalLinks = [
+  { label: "Privacy Policy", href: "/privacy" },
+  { label: "Terms of Use", href: "/terms" },
 ]
 
 export function MarketingFooter() {
@@ -26,20 +33,9 @@ export function MarketingFooter() {
           </p>
         </div>
 
-        <div>
-          <h3 className="text-sm font-medium text-foreground">Product</h3>
-          <ul className="mt-3 space-y-2">
-            {productLinks.map((link) => (
-              <li key={link.href}>
-                <Link
-                  href={link.href}
-                  className="rounded-sm text-sm text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                >
-                  {link.label}
-                </Link>
-              </li>
-            ))}
-          </ul>
+        <div className="flex gap-16">
+          <FooterColumn heading="Product" links={productLinks} />
+          <FooterColumn heading="Legal" links={legalLinks} />
         </div>
       </div>
 
@@ -49,5 +45,31 @@ export function MarketingFooter() {
         </p>
       </div>
     </footer>
+  )
+}
+
+function FooterColumn({
+  heading,
+  links,
+}: {
+  heading: string
+  links: { label: string; href: string }[]
+}) {
+  return (
+    <div>
+      <h3 className="text-sm font-medium text-foreground">{heading}</h3>
+      <ul className="mt-3 space-y-2">
+        {links.map((link) => (
+          <li key={link.href}>
+            <Link
+              href={link.href}
+              className="rounded-sm text-sm text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              {link.label}
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </div>
   )
 }
