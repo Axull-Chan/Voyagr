@@ -1,4 +1,11 @@
+import type { Metadata } from "next"
 import Link from "next/link"
+
+import { NOINDEX } from "@/lib/site"
+
+// Account screens have nothing to offer a search result. /login and /sign-up
+// override this in their own metadata; forgot/reset-password inherit it.
+export const metadata: Metadata = { robots: NOINDEX }
 
 export default function AuthLayout({
   children,

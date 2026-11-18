@@ -1,3 +1,4 @@
+import type { Metadata } from "next"
 import { cookies } from "next/headers"
 
 import { AppSidebar } from "@/components/layout/app-sidebar"
@@ -10,6 +11,11 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar"
 import { createClient } from "@/lib/supabase/server"
+import { NOINDEX } from "@/lib/site"
+
+// The signed-in app is private. robots.txt also disallows these paths; the
+// header here covers a crawler that reaches one anyway.
+export const metadata: Metadata = { robots: NOINDEX }
 
 export default async function AppLayout({
   children,
