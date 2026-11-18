@@ -108,6 +108,10 @@ export function ScrollFilm({
   // wherever the reader outruns the network, which is exactly when they're
   // scrolling fastest.
   useEffect(() => {
+    // Reduced motion serves one still (below), so the other 70 frames — about
+    // 4.3 MB — would be downloaded for nothing.
+    if (prefersReducedMotion) return
+
     let cancelled = false
     let settled = 0
     const images: HTMLImageElement[] = []
@@ -133,7 +137,7 @@ export function ScrollFilm({
     return () => {
       cancelled = true
     }
-  }, [draw])
+  }, [draw, prefersReducedMotion])
 
   useEffect(() => {
     if (!ready || prefersReducedMotion) return
@@ -199,6 +203,10 @@ export function ScrollFilm({
           width={1280}
           height={720}
           priority
+          // Without `sizes` Next assumes the width=1280 prop is the display
+          // size and offers only 1x/2x, so a 2.6x phone was sent the 3840px
+          // rendition of a 1280px source.
+          sizes="100vw"
           className="h-[70svh] w-full object-cover"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-film-bg via-film-bg/40 to-film-bg/70" />

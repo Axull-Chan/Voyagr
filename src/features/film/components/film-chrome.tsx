@@ -26,7 +26,7 @@ export function FilmHeader() {
           href="/"
           className={cn(
             filmLabel,
-            "rounded-sm transition-colors hover:text-film-ink focus-visible:ring-2 focus-visible:ring-film-ink focus-visible:outline-none"
+            "-my-2 rounded-sm py-2 transition-colors hover:text-film-ink focus-visible:ring-2 focus-visible:ring-film-ink focus-visible:outline-none"
           )}
         >
           Back to site
@@ -47,7 +47,7 @@ export function FilmFooter() {
             place.
           </p>
         </div>
-        <nav className="flex flex-wrap gap-x-8 gap-y-3">
+        <nav className="flex flex-wrap gap-x-8 gap-y-0">
           {[
             { label: "The series", href: "#series" },
             { label: "Enquiries", href: "#inquire" },
@@ -58,7 +58,7 @@ export function FilmFooter() {
               href={link.href}
               className={cn(
                 filmLabel,
-                "rounded-sm transition-colors hover:text-film-ink focus-visible:ring-2 focus-visible:ring-film-ink focus-visible:outline-none"
+                "rounded-sm py-2 transition-colors hover:text-film-ink focus-visible:ring-2 focus-visible:ring-film-ink focus-visible:outline-none"
               )}
             >
               {link.label}

@@ -25,7 +25,7 @@ export function LegalPage({ title, summary, updated, children }: LegalPageProps)
   return (
     <div className="flex flex-1 flex-col">
       <MarketingNavbar />
-      <main className="flex-1 px-6 py-16 sm:py-20">
+      <main id="main-content" className="flex-1 px-6 py-16 sm:py-20">
         <article className="mx-auto max-w-[68ch]">
           <header className="border-b border-border pb-8">
             <h1 className="text-display text-foreground">{title}</h1>
