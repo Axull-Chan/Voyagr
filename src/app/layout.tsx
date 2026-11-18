@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from "next"
-import { Fraunces, Geist, Geist_Mono } from "next/font/google"
 
 import { cn } from "@/lib/utils"
+import { fraunces, geistMono, geistSans } from "@/fonts/app-fonts"
 import { ThemeProvider } from "@/components/theme-provider"
 import { MotionProvider } from "@/components/motion-provider"
 import { ErrorReporter } from "@/components/monitoring/error-reporter"
@@ -9,19 +9,6 @@ import { Toaster } from "@/components/ui/sonner"
 import { TooltipProvider } from "@/components/ui/tooltip"
 
 import "./globals.css"
-
-const geistSans = Geist({ subsets: ["latin"], variable: "--font-sans" })
-const geistMono = Geist_Mono({ subsets: ["latin"], variable: "--font-mono" })
-// Voice, per DESIGN.md — headlines, day headings, and dialog/sheet/card
-// titles via --font-heading. Weights 400/600 only (the system's discipline
-// throughout); optical sizing and SOFT/WONK are what the display sizes need
-// to stay legible rather than thin, so the full variable font loads instead
-// of static cuts.
-const fraunces = Fraunces({
-  subsets: ["latin"],
-  variable: "--font-fraunces",
-  axes: ["opsz", "SOFT", "WONK"],
-})
 
 export const metadata: Metadata = {
   title: {
