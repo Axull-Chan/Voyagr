@@ -49,6 +49,10 @@ export const chatOperationSchema = z.discriminatedUnion("kind", [
     kind: z.literal("remove_activity"),
     activityId: z.string().uuid(),
     label: z.string(),
+    // Optional expected state for staleness checks; absent on older proposals.
+    expectedDayNumber: z.number().int().min(1).optional(),
+    expectedTimeSlot: enumOf(TIME_SLOTS).nullable().optional(),
+    expectedStartTime: z.string().nullable().optional(),
   }),
   z.object({
     kind: z.literal("move_activity"),
@@ -58,6 +62,10 @@ export const chatOperationSchema = z.discriminatedUnion("kind", [
     toTimeSlot: enumOf(TIME_SLOTS),
     // Optional: proposals stored before this field existed don't carry it.
     toStartTime: z.string().nullable().optional(),
+    // Optional expected state for staleness checks; absent on older proposals.
+    expectedDayNumber: z.number().int().min(1).optional(),
+    expectedTimeSlot: enumOf(TIME_SLOTS).nullable().optional(),
+    expectedStartTime: z.string().nullable().optional(),
   }),
   z.object({
     kind: z.literal("add_restaurant"),

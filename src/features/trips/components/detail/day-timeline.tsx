@@ -11,6 +11,8 @@ import { cn } from "@/lib/utils"
 import { formatCurrency, TIME_SLOTS, type TimeSlot } from "@/lib/trips/trip-domain"
 import type { TripDay } from "@/features/trips/queries/trip-detail"
 import { restaurantHoursText } from "@/features/trips/services/restaurant-hours"
+import { ReplanButton } from "@/features/trips/components/detail/replan-button"
+import { isSevereForecast } from "@/lib/ai/providers/weather-warnings"
 import {
   FEASIBILITY_STATUS_LABEL,
   dayTotalsText,
@@ -85,8 +87,11 @@ export function DayTimeline({
   currency,
   forecast,
   feasibility = null,
+  tripId = null,
 }: {
   day: TripDay
+  /** Enables the one-click replan buttons; omitted where none should show. */
+  tripId?: string | null
   currency: string
   forecast: DayForecast | null
   /** Route and pace check for this day, computed by the page from stored rows. */
@@ -123,7 +128,23 @@ export function DayTimeline({
           </h3>
           <p className="text-data-sm text-muted-foreground">{formatDayDate(day.date)}</p>
         </div>
-        {forecast ? <WeatherChip forecast={forecast} /> : null}
+        {forecast ? (
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <WeatherChip forecast={forecast} />
+            {tripId && day.activities.length > 0 && weatherWorthAdapting(forecast) ? (
+              <ReplanButton
+                tripId={tripId}
+                dayNumber={day.dayNumber}
+                kind="weather"
+                forecast={{
+                  condition: forecast.condition,
+                  precipitationChance: forecast.precipitationChance,
+                  windKph: forecast.windKph,
+                }}
+              />
+            ) : null}
+          </div>
+        ) : null}
       </header>
 
       {/* The day's narrative is Tier 3 — the reason the page exists — and
@@ -139,7 +160,7 @@ export function DayTimeline({
       ) : null}
 
       {feasibility && day.activities.length > 0 ? (
-        <FeasibilityNote feasibility={feasibility} />
+        <FeasibilityNote feasibility={feasibility} tripId={tripId} dayNumber={day.dayNumber} />
       ) : null}
 
       {bySlot.length > 0 ? (
@@ -334,7 +355,15 @@ function WeatherChip({ forecast }: { forecast: DayForecast }) {
  * the notice style. Missing locations or times are listed muted: they limit
  * what could be checked but aren't a problem with the plan itself.
  */
-function FeasibilityNote({ feasibility }: { feasibility: DayFeasibility }) {
+function FeasibilityNote({
+  feasibility,
+  tripId,
+  dayNumber,
+}: {
+  feasibility: DayFeasibility
+  tripId: string | null
+  dayNumber: number
+}) {
   const totals = dayTotalsText(feasibility)
   const problems = feasibility.issues.filter((issue) => issue.severity !== "info")
   const gaps = feasibility.issues.filter((issue) => issue.severity === "info")
@@ -359,6 +388,11 @@ function FeasibilityNote({ feasibility }: { feasibility: DayFeasibility }) {
           ))}
         </ul>
       ) : null}
+      {flagged && tripId ? (
+        <div className="pt-1">
+          <ReplanButton tripId={tripId} dayNumber={dayNumber} kind="pace" />
+        </div>
+      ) : null}
       {gaps.length > 0 ? (
         <ul className="max-w-prose space-y-1 text-xs text-muted-foreground">
           {gaps.map((issue) => (
@@ -368,4 +402,14 @@ function FeasibilityNote({ feasibility }: { feasibility: DayFeasibility }) {
       ) : null}
     </div>
   )
+}
+
+/**
+ * Whether to offer "Adapt for weather": only for a real forecast (live, or the
+ * one stored from Open-Meteo at planning time — never the modelled climate),
+ * and only when it is severe by the same rule the weather warnings use.
+ */
+function weatherWorthAdapting(forecast: DayForecast): boolean {
+  if (forecast.provenance !== "live" && forecast.provenance !== "planning-real") return false
+  return isSevereForecast(forecast)
 }

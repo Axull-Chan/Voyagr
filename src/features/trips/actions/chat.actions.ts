@@ -14,6 +14,7 @@ import { createClient } from "@/lib/supabase/server"
 import { sourcePlaces } from "@/services/places-service"
 import { reportServerError } from "@/lib/monitoring/report-server"
 import { syncItineraryCosts } from "@/features/trips/services/itinerary-cost-sync"
+import { hasExpectedState, staleOperationReason } from "@/lib/trips/operation-staleness"
 import {
   placeActivity,
   type Placement,
@@ -282,6 +283,23 @@ export async function applyChatOperationsAction(
     .select("id, day_number")
     .eq("trip_id", tripId)
   const dayIdByNumber = new Map<number, string>((dayRows ?? []).map((d) => [d.day_number, d.id]))
+  const dayNumberById = new Map<string, number>((dayRows ?? []).map((d) => [d.id, d.day_number]))
+
+  /** The activity as it is now, for proposals that recorded what they expected. */
+  async function currentActivity(activityId: string) {
+    const { data } = await supabase
+      .from("activities")
+      .select("start_time, time_slot, trip_day_id")
+      .eq("id", activityId)
+      .maybeSingle()
+    return data
+      ? {
+          startTime: data.start_time,
+          timeSlot: data.time_slot,
+          dayNumber: dayNumberById.get(data.trip_day_id) ?? null,
+        }
+      : null
+  }
 
   let appliedCount = 0
   const skipped: { operation: ChatOperation; reason: string }[] = []
@@ -348,6 +366,19 @@ export async function applyChatOperationsAction(
         break
       }
       case "remove_activity": {
+        // A replan records what it expected; skip rather than remove the wrong thing.
+        if (hasExpectedState(op)) {
+          const current = await currentActivity(op.activityId)
+          if (!current) {
+            skipped.push({ operation: op, reason: "Already removed." })
+            continue
+          }
+          const stale = staleOperationReason(op, current)
+          if (stale) {
+            skipped.push({ operation: op, reason: stale })
+            continue
+          }
+        }
         const { data } = await supabase
           .from("activities")
           .delete()
@@ -379,13 +410,14 @@ export async function applyChatOperationsAction(
           skipped.push({ operation: op, reason: "That day no longer exists." })
           continue
         }
-        const { data: current } = await supabase
-          .from("activities")
-          .select("start_time")
-          .eq("id", op.activityId)
-          .maybeSingle()
+        const current = await currentActivity(op.activityId)
         if (!current) {
           skipped.push({ operation: op, reason: "That activity no longer exists." })
+          continue
+        }
+        const stale = staleOperationReason(op, current)
+        if (stale) {
+          skipped.push({ operation: op, reason: stale })
           continue
         }
         // Moving to another slot used to keep the old time (an evening activity
@@ -396,7 +428,7 @@ export async function applyChatOperationsAction(
           id: op.activityId,
           slot: op.toTimeSlot,
           explicitStartTime: op.toStartTime ?? null,
-          currentStartTime: current.start_time,
+          currentStartTime: current.startTime,
           dayActivities: await dayActivities(supabase, dayId),
         })
         const { data } = await supabase

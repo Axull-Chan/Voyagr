@@ -332,6 +332,7 @@ export default async function TripDetailPage({ params }: TripDetailPageProps) {
                       currency={trip.currency}
                       forecast={forecastFor(day)}
                       feasibility={feasibilityByDay.get(day.id) ?? null}
+                      tripId={trip.status === "ready" ? trip.id : null}
                     />
                   ))}
                 </div>

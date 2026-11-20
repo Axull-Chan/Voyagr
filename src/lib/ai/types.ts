@@ -307,13 +307,33 @@ export type ChatOperation =
       estimatedCost: number
       category: string
     }
-  | { kind: "remove_activity"; activityId: string; label: string }
+  | {
+      kind: "remove_activity"
+      activityId: string
+      label: string
+      /**
+       * The activity's state when this was proposed. When present, apply skips
+       * the operation if the activity has changed since (a stale suggestion);
+       * absent on model proposals and on proposals stored before these existed.
+       */
+      expectedDayNumber?: number
+      expectedTimeSlot?: TimeSlot | null
+      expectedStartTime?: string | null
+    }
   | {
       kind: "move_activity"
       activityId: string
       label: string
       toDayNumber: number
       toTimeSlot: TimeSlot
+      /**
+       * The activity's state when this was proposed. When present, apply skips
+       * the operation if the activity has changed since (a stale suggestion);
+       * absent on model proposals and on proposals stored before these existed.
+       */
+      expectedDayNumber?: number
+      expectedTimeSlot?: TimeSlot | null
+      expectedStartTime?: string | null
       /** A time the traveller asked for; absent or null lets the app choose one inside the slot. */
       toStartTime?: string | null
     }
