@@ -6,9 +6,19 @@ import { createClient } from "@/lib/supabase/server"
 import { reportServerError } from "@/lib/monitoring/report-server"
 import {
   renameTripSchema,
+  shiftTripDatesSchema,
   tripIdSchema,
+  updateTripBudgetSchema,
   type RenameTripInput,
+  type ShiftTripDatesInput,
+  type UpdateTripBudgetInput,
 } from "@/features/trips/schemas/trip-management.schemas"
+import {
+  budgetEditBlockedReason,
+  dateShiftBlockedReason,
+  isoToday,
+} from "@/features/trips/services/trip-edit"
+import { syncItineraryCosts } from "@/features/trips/services/itinerary-cost-sync"
 import { deleteBlockedReason } from "@/features/trips/services/trip-delete"
 import { recoverStaleGeneration } from "@/features/trips/services/generation-recovery"
 
@@ -274,5 +284,120 @@ export async function deleteTripAction(
 
   revalidatePath("/trips")
   revalidatePath("/dashboard")
+  return { ok: true }
+}
+
+/**
+ * Moves the whole trip to a new start date, keeping its length.
+ *
+ * The work is one database function, `shift_trip_dates`, so the trip, its
+ * days, the stay, any transport, the stale stored weather and pending replan
+ * proposals all change together or not at all (see its migration). The same
+ * rules are checked here first only to answer quickly and in plain words; the
+ * function enforces them regardless, against the database's own `current_date`.
+ * Expenses keep their dates: they record when money was actually spent.
+ */
+export async function shiftTripDatesAction(
+  input: ShiftTripDatesInput
+): Promise<TripManagementResult> {
+  const parsed = shiftTripDatesSchema.safeParse(input)
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Choose a new start date." }
+  }
+  const { tripId, startDate } = parsed.data
+
+  const { supabase, user } = await requireUser()
+  if (!user) return { ok: false, error: "You need to be signed in to change a trip's dates." }
+
+  const { data: trip, error: readError } = await supabase
+    .from("trips")
+    .select("status, start_date, end_date")
+    .eq("id", tripId)
+    .maybeSingle()
+  if (readError) {
+    await reportServerError(readError, { context: "action:shiftTripDates:read" })
+    return { ok: false, error: "We couldn't change the dates. Please try again." }
+  }
+  if (!trip) return { ok: false, error: "That trip no longer exists." }
+
+  const blocked = dateShiftBlockedReason(
+    { status: trip.status, startDate: trip.start_date, endDate: trip.end_date },
+    startDate,
+    isoToday()
+  )
+  if (blocked) return { ok: false, error: blocked }
+
+  const { error } = await supabase.rpc("shift_trip_dates", {
+    p_trip_id: tripId,
+    p_new_start: startDate,
+  })
+  if (error) {
+    // The function's own refusals carry a user-facing message.
+    const userFacing = error.code === "22023" || error.code === "55000"
+    if (error.code === "P0002") return { ok: false, error: "That trip no longer exists." }
+    if (userFacing) return { ok: false, error: error.message }
+    await reportServerError(error, { context: "action:shiftTripDates" })
+    return { ok: false, error: "We couldn't change the dates. Please try again." }
+  }
+
+  revalidateTripViews(tripId)
+  return { ok: true }
+}
+
+/**
+ * Sets (or clears) the trip's budget, keeping its currency, then re-derives the
+ * planned budget lines from it (`syncItineraryCosts`), so the Budget section's
+ * plan and "Remaining" follow. Refused while generating: generation writes the
+ * budget lines itself when it finishes, from the budget it started with.
+ */
+export async function updateTripBudgetAction(
+  input: UpdateTripBudgetInput
+): Promise<TripManagementResult> {
+  const parsed = updateTripBudgetSchema.safeParse(input)
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Please check the amount." }
+  }
+  const { tripId, budget } = parsed.data
+
+  const { supabase, user } = await requireUser()
+  if (!user) return { ok: false, error: "You need to be signed in to change a trip." }
+
+  const { data: trip, error: readError } = await supabase
+    .from("trips")
+    .select("status")
+    .eq("id", tripId)
+    .maybeSingle()
+  if (readError) {
+    await reportServerError(readError, { context: "action:updateTripBudget:read" })
+    return { ok: false, error: "We couldn't update the budget. Please try again." }
+  }
+  if (!trip) return { ok: false, error: "That trip no longer exists." }
+  const blocked = budgetEditBlockedReason(trip.status)
+  if (blocked) return { ok: false, error: blocked }
+
+  // Compare-and-set against generating, like archive and delete.
+  const { data: updated, error } = await supabase
+    .from("trips")
+    .update({ budget })
+    .eq("id", tripId)
+    .neq("status", "generating")
+    .select("id")
+    .maybeSingle()
+  if (error) {
+    await reportServerError(error, { context: "action:updateTripBudget" })
+    return { ok: false, error: "We couldn't update the budget. Please try again." }
+  }
+  if (!updated) return { ok: false, error: "That trip just changed. Refresh the page and try again." }
+
+  const sync = await syncItineraryCosts(supabase, tripId)
+  if (!sync.ok) {
+    // The budget itself is saved; only the derived plan lines lag until the next edit.
+    await reportServerError(new Error("Budget lines resync failed after a budget edit"), {
+      context: "action:updateTripBudget:sync",
+      severity: "warning",
+    })
+  }
+
+  revalidateTripViews(tripId)
   return { ok: true }
 }

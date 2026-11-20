@@ -285,6 +285,10 @@ export default async function TripDetailPage({ params }: TripDetailPageProps) {
             tripId={trip.id}
             title={trip.title}
             status={trip.status}
+            startDate={trip.start_date}
+            endDate={trip.end_date}
+            budget={trip.budget === null ? null : Number(trip.budget)}
+            currency={trip.currency}
           />
         </RevealItem>
 
