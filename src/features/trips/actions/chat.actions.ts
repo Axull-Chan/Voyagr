@@ -13,6 +13,7 @@ import {
 import { createClient } from "@/lib/supabase/server"
 import { sourcePlaces } from "@/services/places-service"
 import { reportServerError } from "@/lib/monitoring/report-server"
+import { syncItineraryCosts } from "@/features/trips/services/itinerary-cost-sync"
 import {
   confirmAiQuota,
   getAiQuotaHint,
@@ -384,6 +385,19 @@ export async function applyChatOperationsAction(
         else appliedCount += 1
         break
       }
+    }
+  }
+
+  // Activity changes move each day's cost and, for a trip with no budget of
+  // its own, the planned budget lines; re-derive them so the page, the PDF and
+  // the export agree with what is now scheduled. Only changed rows are written.
+  if (appliedCount > 0 && operations.some((op) => op.kind.endsWith("_activity"))) {
+    const sync = await syncItineraryCosts(supabase, tripId)
+    if (!sync.ok) {
+      await reportServerError(new Error("Itinerary cost resync failed after a chat edit"), {
+        context: "action:applyChatOperations",
+        severity: "warning",
+      })
     }
   }
 

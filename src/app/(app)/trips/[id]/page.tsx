@@ -26,6 +26,7 @@ import { PackingSection } from "@/features/trips/components/detail/packing-secti
 import { TripChat } from "@/features/trips/components/detail/trip-chat"
 import { getAiQuotaHint } from "@/features/trips/services/ai-quota"
 import { TripActionsMenu } from "@/features/trips/components/detail/trip-actions-menu"
+import { GenerateItineraryButton } from "@/features/trips/components/detail/generate-itinerary-button"
 
 interface TripDetailPageProps {
   params: Promise<{ id: string }>
@@ -286,8 +287,13 @@ export default async function TripDetailPage({ params }: TripDetailPageProps) {
                   <p className="text-muted-foreground text-sm">
                     {trip.status === "draft"
                       ? "This trip is still a draft — its itinerary hasn't been generated yet."
-                      : "No itinerary yet."}
+                      : trip.status === "generating"
+                        ? "Your itinerary is being generated. Refresh in a minute."
+                        : "No itinerary yet."}
                   </p>
+                  {trip.status === "draft" ? (
+                    <GenerateItineraryButton tripId={trip.id} />
+                  ) : null}
                 </div>
               )}
             </RevealItem>

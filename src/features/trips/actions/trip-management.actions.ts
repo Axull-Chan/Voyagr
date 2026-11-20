@@ -10,6 +10,7 @@ import {
   type RenameTripInput,
 } from "@/features/trips/schemas/trip-management.schemas"
 import { deleteBlockedReason } from "@/features/trips/services/trip-delete"
+import { recoverStaleGeneration } from "@/features/trips/services/generation-recovery"
 
 export type TripManagementResult = { ok: true } | { ok: false; error: string }
 export type DuplicateTripResult =
@@ -102,6 +103,9 @@ export async function setTripArchivedAction(
     return { ok: false, error: "You need to be signed in to change a trip." }
   }
 
+  // A trip whose generation was killed is a draft, not "still generating".
+  await recoverStaleGeneration(supabase, tripId)
+
   const { data: trip, error: readError } = await supabase
     .from("trips")
     .select("status")
@@ -170,6 +174,10 @@ export async function duplicateTripAction(
     return { ok: false, error: "You need to be signed in to duplicate a trip." }
   }
 
+  // `duplicate_trip` refuses a stored `generating` status (55000); a stale one
+  // is recovered first so a killed generation doesn't block it forever.
+  await recoverStaleGeneration(supabase, tripId)
+
   // One transactional database function rather than a chain of client calls —
   // see the migration for why. It raises with a user-facing message for the
   // cases a person can act on (not found, still generating).
@@ -226,6 +234,8 @@ export async function deleteTripAction(
   if (!user) {
     return { ok: false, error: "You need to be signed in to delete a trip." }
   }
+
+  await recoverStaleGeneration(supabase, tripId)
 
   const { data: trip, error: readError } = await supabase
     .from("trips")

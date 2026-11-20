@@ -2,6 +2,7 @@ import { ACCOMMODATION_NOUN, accommodationMultiplier } from "@/lib/ai/pricing"
 import { ACTIVITIES_PER_DAY } from "@/lib/ai/providers/mock-provider"
 import { resolveDestination } from "@/lib/ai/providers/mock-catalog"
 import { reconcileWeatherWarnings } from "@/lib/ai/providers/weather-warnings"
+import { dayCostFromActivities, planBudgetLines } from "@/lib/trips/itinerary-costs"
 import type {
   GeneratedActivity,
   GeneratedDay,
@@ -438,7 +439,7 @@ function mapDay(
     dayNumber,
     date,
     summary: modelDay.summary,
-    estimatedCost: round(activities.reduce((sum, a) => sum + a.estimatedCost, 0)),
+    estimatedCost: dayCostFromActivities(activities.map((a) => a.estimatedCost)),
     activities,
     restaurants,
     weather: mapWeather(sourced, date),
@@ -473,28 +474,18 @@ function buildBudget(
   hotel: GeneratedHotel,
   transportation: GeneratedTransport[]
 ): { lines: { category: BudgetCategory; plannedAmount: number }[]; warning: string | null } {
-  const activityTotal = days.reduce((sum, d) => sum + d.estimatedCost, 0)
-  const transportTotal = transportation.reduce((sum, t) => sum + t.cost, 0)
-  const estimated = hotel.totalCost + transportTotal + activityTotal * 1.6 // headroom for food/shopping, matching the split ratios below
-
-  const total = request.budget && request.budget > 0 ? request.budget : estimated
-  const warning =
-    request.budget && request.budget > 0 && request.budget < estimated * 0.75
-      ? "Your budget is tight for this destination and length — the plan leans on free activities and cheaper meals."
-      : null
-
-  const remaining = Math.max(total - hotel.totalCost - transportTotal, total * 0.2)
-
+  // Shared with the chat's post-edit resync, so the two can never disagree.
+  const { lines, isTight } = planBudgetLines({
+    budget: request.budget,
+    hotelTotal: hotel.totalCost,
+    transportTotal: transportation.reduce((sum, t) => sum + t.cost, 0),
+    activityTotal: days.reduce((sum, d) => sum + d.estimatedCost, 0),
+  })
   return {
-    lines: [
-      { category: "hotels", plannedAmount: round(hotel.totalCost) },
-      { category: "transportation", plannedAmount: round(transportTotal) },
-      { category: "food", plannedAmount: round(remaining * 0.42) },
-      { category: "activities", plannedAmount: round(remaining * 0.3) },
-      { category: "shopping", plannedAmount: round(remaining * 0.16) },
-      { category: "emergency_fund", plannedAmount: round(remaining * 0.12) },
-    ],
-    warning,
+    lines,
+    warning: isTight
+      ? "Your budget is tight for this destination and length — the plan leans on free activities and cheaper meals."
+      : null,
   }
 }
 

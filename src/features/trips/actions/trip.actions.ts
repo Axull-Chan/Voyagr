@@ -16,6 +16,13 @@ import {
   createTripSchema,
   type CreateTripInput,
 } from "@/features/trips/schemas/trip.schemas"
+import { tripIdSchema } from "@/features/trips/schemas/trip-management.schemas"
+import {
+  effectiveTripStatus,
+  regenerateBlockedReason,
+  tripRowToCreateInput,
+} from "@/features/trips/services/generation-state"
+import { recoverStaleGeneration } from "@/features/trips/services/generation-recovery"
 
 export type CreateTripResult =
   | { ok: true; tripId: string; warnings: string[] }
@@ -85,6 +92,35 @@ export async function createTripAction(
     return { ok: false, error: "We couldn't save your trip. Please try again." }
   }
 
+  return generateIntoTrip({
+    supabase,
+    tripId: trip.id,
+    input,
+    usageId: quota.usageId,
+    context: "action:createTrip",
+  })
+}
+
+type ServerClient = Awaited<ReturnType<typeof createClient>>
+
+/**
+ * Builds and stores an itinerary for a trip already marked `generating`.
+ * Shared by creation and regeneration so both leave the same states: `ready`
+ * on success, `draft` on any caught failure. (An uncaught kill — the platform
+ * timeout — is handled by treating stale `generating` rows as drafts; see
+ * `services/generation-state.ts`.)
+ */
+async function generateIntoTrip(args: {
+  supabase: ServerClient
+  tripId: string
+  input: CreateTripInput
+  usageId: number | null
+  context: string
+}): Promise<CreateTripResult> {
+  const { supabase, tripId, input, usageId, context: reportContext } = args
+  const startingCity = input.startingCity?.trim() || null
+  const notes = input.notes?.trim() || null
+
   try {
     // Real-world data first: coordinates, listed venues, live forecast and a
     // destination photo. Each degrades independently, so a missing photo or
@@ -115,8 +151,8 @@ export async function createTripAction(
     const itinerary = await getAiProvider().generateItinerary(request)
     // The model call succeeded, so the slot now counts. Done before persisting:
     // the request has been spent whether or not our own write goes well.
-    await confirmAiQuota(supabase, quota.usageId)
-    await persistItinerary(supabase, trip.id, itinerary)
+    await confirmAiQuota(supabase, usageId)
+    await persistItinerary(supabase, tripId, itinerary)
 
     await supabase
       .from("trips")
@@ -133,7 +169,7 @@ export async function createTripAction(
           context.image?.attribution.photographerUrl ?? null,
         cover_image_link: context.image?.attribution.photoUrl ?? null,
       })
-      .eq("id", trip.id)
+      .eq("id", tripId)
 
     // Unsplash requires a usage ping when a photo is actually adopted, which
     // is here — once per trip — rather than on every page view.
@@ -141,25 +177,104 @@ export async function createTripAction(
 
     revalidatePath("/trips")
     revalidatePath("/dashboard")
+    revalidatePath(`/trips/${tripId}`)
 
     // Context notices ("photos aren't connected") matter to the user as much
     // as the planner's own warnings, so they surface together.
     return {
       ok: true,
-      tripId: trip.id,
+      tripId,
       warnings: [...context.notices, ...itinerary.warnings],
     }
   } catch (error) {
     // Leave the trip recoverable rather than throwing away what they entered.
-    await supabase.from("trips").update({ status: "draft" }).eq("id", trip.id)
+    await supabase.from("trips").update({ status: "draft" }).eq("id", tripId)
     revalidatePath("/trips")
+    revalidatePath(`/trips/${tripId}`)
 
     const message =
       error instanceof AiGenerationError
         ? error.message
         : "We couldn't build your itinerary. Your trip was saved as a draft — try generating again."
 
-    await reportServerError(error, { context: "action:createTrip" })
+    await reportServerError(error, { context: reportContext })
     return { ok: false, error: message }
   }
+}
+
+/**
+ * Generates an itinerary for an existing `draft` trip — one whose first
+ * generation failed or was killed — from the details already stored on it.
+ *
+ * A trip stuck at `generating` past any possible request lifetime is first
+ * recovered to `draft`. The switch back to `generating` is a compare-and-set on
+ * `draft`, so two clicks (or two tabs) cannot run two generations for one trip.
+ */
+export async function regenerateTripAction(tripId: string): Promise<CreateTripResult> {
+  if (!tripIdSchema.safeParse(tripId).success) {
+    return { ok: false, error: "That trip couldn't be found." }
+  }
+
+  const supabase = await createClient()
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser()
+  if (authError || !user) {
+    return { ok: false, error: "You need to be signed in to generate an itinerary." }
+  }
+
+  await recoverStaleGeneration(supabase, tripId)
+
+  const { data: row, error: readError } = await supabase
+    .from("trips")
+    .select(
+      "status, updated_at, destination, starting_city, start_date, end_date, travelers, budget, currency, travel_style, interests, accommodation, transportation, additional_notes"
+    )
+    .eq("id", tripId)
+    .eq("user_id", user.id)
+    .maybeSingle()
+  if (readError) {
+    await reportServerError(readError, { context: "action:regenerateTrip:read" })
+    return { ok: false, error: "We couldn't load that trip. Please try again." }
+  }
+  if (!row) return { ok: false, error: "That trip no longer exists." }
+
+  const blocked = regenerateBlockedReason(effectiveTripStatus(row.status, row.updated_at, Date.now()))
+  if (blocked) return { ok: false, error: blocked }
+
+  const parsed = createTripSchema.safeParse(tripRowToCreateInput(row))
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: "This trip is missing details needed to plan it. Create a new trip instead.",
+    }
+  }
+
+  const quota = await reserveAiQuota(supabase, "trip_generation")
+  if (!quota.allowed) return { ok: false, error: quota.message }
+
+  const { data: claimed, error: claimError } = await supabase
+    .from("trips")
+    .update({ status: "generating" })
+    .eq("id", tripId)
+    .eq("user_id", user.id)
+    .eq("status", "draft")
+    .select("id")
+    .maybeSingle()
+  if (claimError) {
+    await reportServerError(claimError, { context: "action:regenerateTrip:claim" })
+    return { ok: false, error: "We couldn't start generating. Please try again." }
+  }
+  if (!claimed) {
+    return { ok: false, error: "That trip just changed. Refresh the page and try again." }
+  }
+
+  return generateIntoTrip({
+    supabase,
+    tripId,
+    input: parsed.data,
+    usageId: quota.usageId,
+    context: "action:regenerateTrip",
+  })
 }

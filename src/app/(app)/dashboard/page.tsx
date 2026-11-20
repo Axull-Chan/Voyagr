@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { TripCard } from "@/features/trips/components/trip-card"
 import { TripRow } from "@/features/trips/components/trip-row"
 import { createClient } from "@/lib/supabase/server"
+import { effectiveTripStatus } from "@/features/trips/services/generation-state"
 
 export const metadata: Metadata = { title: "Dashboard" }
 
@@ -28,7 +29,7 @@ export default async function DashboardPage() {
     supabase
       .from("trips")
       .select(
-        "id, title, destination, start_date, end_date, status, created_at, cover_image_url, cover_image_credit_name"
+        "id, title, destination, start_date, end_date, status, created_at, cover_image_url, cover_image_credit_name, updated_at"
       )
       // Archived trips are shelved: they stay on /trips, but the dashboard's
       // upcoming trip and its totals describe what is still in play.
@@ -36,7 +37,12 @@ export default async function DashboardPage() {
       .order("created_at", { ascending: false }),
   ])
 
-  const trips = tripsData ?? []
+  // A trip whose generation was killed is shown as the draft it effectively is.
+  const now = Date.now()
+  const trips = (tripsData ?? []).map((t) => ({
+    ...t,
+    status: effectiveTripStatus(t.status, t.updated_at, now),
+  }))
   const firstName = profile?.full_name?.split(" ")[0]
   const today = new Date().toISOString().slice(0, 10)
 
