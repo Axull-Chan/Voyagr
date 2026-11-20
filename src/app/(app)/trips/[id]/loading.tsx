@@ -26,6 +26,8 @@ export default function TripDetailLoading() {
                   <Skeleton className="h-8 w-48 rounded-lg" />
                 </div>
                 <Skeleton className="h-4 w-full max-w-md" />
+                {/* The day's pace line (route and timing check). */}
+                <Skeleton className="h-3 w-56" />
                 <div className="space-y-2 pt-2">
                   <Skeleton className="h-4 w-20" />
                   <Skeleton className="h-4 w-full max-w-sm" />

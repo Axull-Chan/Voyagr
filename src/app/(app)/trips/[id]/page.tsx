@@ -27,6 +27,11 @@ import { TripChat } from "@/features/trips/components/detail/trip-chat"
 import { getAiQuotaHint } from "@/features/trips/services/ai-quota"
 import { TripActionsMenu } from "@/features/trips/components/detail/trip-actions-menu"
 import { GenerateItineraryButton } from "@/features/trips/components/detail/generate-itinerary-button"
+import {
+  FEASIBILITY_STATUS_LABEL,
+  analyzeDay,
+  tripStartPoint,
+} from "@/lib/trips/feasibility"
 
 interface TripDetailPageProps {
   params: Promise<{ id: string }>
@@ -173,6 +178,35 @@ export default async function TripDetailPage({ params }: TripDetailPageProps) {
    * see the `DayForecast.provenance` doc comment in day-timeline.tsx for why
    * that distinction has to survive to the label, not just the freshness one.
    */
+  // Route and pace per day, from the stored rows: distances from the real stay
+  // (if there is one) in each day's time order. Computed here, never stored,
+  // so it always matches what the page shows. No provider calls.
+  const routeStart = tripStartPoint(hotels)
+  const feasibilityByDay = new Map(
+    days.map((day) => [
+      day.id,
+      analyzeDay(
+        day.activities.map((a) => ({
+          id: a.id,
+          title: a.title,
+          timeSlot: a.time_slot,
+          startTime: a.start_time,
+          durationMinutes: a.duration_minutes,
+          lat: a.lat,
+          lng: a.lng,
+          sortOrder: a.sort_order,
+        })),
+        { start: routeStart, transport: trip.transportation }
+      ),
+    ])
+  )
+  const flaggedDays = days.flatMap((day) => {
+    const f = feasibilityByDay.get(day.id)
+    return f && day.activities.length > 0 && (f.status === "tight" || f.status === "busy")
+      ? [{ dayNumber: day.dayNumber, status: f.status }]
+      : []
+  })
+
   function forecastFor(day: (typeof days)[number]): DayForecast | null {
     const fresh = day.date ? liveWeather?.data.byDate[day.date] : undefined
     if (fresh) {
@@ -271,6 +305,24 @@ export default async function TripDetailPage({ params }: TripDetailPageProps) {
               <h2 className="text-destination text-foreground mb-4">
                 Day by day
               </h2>
+              {flaggedDays.length > 0 ? (
+                // Only the days worth a second look, each linking to its section.
+                <p className="text-data-sm text-notice-foreground -mt-2 mb-4">
+                  {flaggedDays.length === 1 ? "1 day looks" : `${flaggedDays.length} days look`}{" "}
+                  tight or busy:{" "}
+                  {flaggedDays.map(({ dayNumber, status }, index) => (
+                    <span key={dayNumber}>
+                      {index > 0 ? ", " : null}
+                      <a
+                        href={`#day-${dayNumber}`}
+                        className="focus-visible:ring-ring rounded-sm underline underline-offset-2 focus-visible:ring-2 focus-visible:outline-none"
+                      >
+                        Day {dayNumber} ({FEASIBILITY_STATUS_LABEL[status].toLowerCase()})
+                      </a>
+                    </span>
+                  ))}
+                </p>
+              ) : null}
               {days.length > 0 ? (
                 <div className="divide-border divide-y">
                   {days.map((day) => (
@@ -279,6 +331,7 @@ export default async function TripDetailPage({ params }: TripDetailPageProps) {
                       day={day}
                       currency={trip.currency}
                       forecast={forecastFor(day)}
+                      feasibility={feasibilityByDay.get(day.id) ?? null}
                     />
                   ))}
                 </div>

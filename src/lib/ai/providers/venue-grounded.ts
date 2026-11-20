@@ -2,6 +2,7 @@ import { ACCOMMODATION_NOUN, accommodationMultiplier } from "@/lib/ai/pricing"
 import { ACTIVITIES_PER_DAY } from "@/lib/ai/providers/mock-provider"
 import { resolveDestination } from "@/lib/ai/providers/mock-catalog"
 import { reconcileWeatherWarnings } from "@/lib/ai/providers/weather-warnings"
+import { haversineKm, planDayRoute } from "@/lib/trips/feasibility"
 import { dayCostFromActivities, planBudgetLines } from "@/lib/trips/itinerary-costs"
 import type {
   GeneratedActivity,
@@ -45,26 +46,8 @@ export const MAX_RESTAURANT_CANDIDATES = 25
 // rather than a number with no relationship to anything on the page.
 // ---------------------------------------------------------------------------
 
-function toRadians(degrees: number): number {
-  return (degrees * Math.PI) / 180
-}
-
-function haversineKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
-  const R = 6371
-  const dLat = toRadians(b.lat - a.lat)
-  const dLng = toRadians(b.lng - a.lng)
-  const s =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRadians(a.lat)) * Math.cos(toRadians(b.lat)) * Math.sin(dLng / 2) ** 2
-  return R * 2 * Math.asin(Math.sqrt(s))
-}
-
-/** ~4.5 km/h — a touch slower than a brisk walking pace, to allow for city
- * navigation, crossings and the odd pause, without inventing a false-precise
- * routed time the way naming a specific number of minutes would imply. */
-function walkMinutesFor(km: number): number {
-  return Math.max(5, Math.round((km / 4.5) * 60))
-}
+// Distance maths and leg estimates live in lib/trips/feasibility.ts, shared
+// with the trip page's feasibility checks and the post-edit resync.
 
 function round(value: number, dp = 0): number {
   const factor = 10 ** dp
@@ -194,7 +177,7 @@ function venueLines(byId: Map<string, SourcedVenue>): string {
   return [...byId.entries()]
     .map(
       ([refId, v]) =>
-        `- id: ${refId} | name: "${v.name}" | kinds: ${v.kinds.join(",") || "unknown"}`
+        `- id: ${refId} | name: "${v.name}" | kinds: ${v.kinds.join(",") || "unknown"} | at: ${v.latitude.toFixed(3)},${v.longitude.toFixed(3)}`
     )
     .join("\n")
 }
@@ -227,6 +210,7 @@ export function buildPrompt(
     "You must never invent a place. Every activity and restaurant you schedule references a venue by its exact id from the candidate list you are given — never a name, never a place not in that list.",
     "Do not repeat the same venue anywhere in the trip.",
     "Write in a warm, specific, confident travel-guide voice. Avoid starting every activity title with the same word.",
+    "Each candidate's \"at\" is its latitude,longitude. Keep each day's activities and meals close together, so a day doesn't criss-cross the city; the app orders stops within each part of the day by distance.",
     "Do not put anything about the weather in \"warnings\": the app writes weather warnings itself from the forecast. A day's condition is the worst seen at any point that day, so judge how wet a day is by its precipitation chance, not its label.",
     "A venue's \"kinds\" are its real categories (from OpenStreetMap). Ground your description in what the kinds actually say the place is — do not claim something about it that its kinds don't support.",
   ].join(" ")
@@ -360,6 +344,7 @@ function mapDay(
   attractionsById: Map<string, SourcedVenue>,
   restaurantsById: Map<string, SourcedVenue>,
   originPoint: { lat: number; lng: number },
+  dayStart: { lat: number; lng: number },
   warnings: string[]
 ): GeneratedDay {
   // The array's own position is the source of truth for numbering and
@@ -368,8 +353,10 @@ function mapDay(
   const dayNumber = dayIndex + 1
   const date = addDays(request.startDate, dayIndex)
 
-  let previousPoint = originPoint
-  const activities: GeneratedActivity[] = []
+  // Resolve each activity against its real venue first...
+  const resolved: (Omit<GeneratedActivity, "travelTimeMinutes" | "walkingDistanceKm"> & {
+    timeSlot: GeneratedActivity["timeSlot"]
+  })[] = []
   for (const a of modelDay.activities) {
     const venue = attractionsById.get(a.venueId)
     if (!venue) {
@@ -379,9 +366,7 @@ function mapDay(
       warnings.push(`Dropped an activity referencing an unknown venue on day ${dayNumber}.`)
       continue
     }
-    const point = { lat: venue.latitude, lng: venue.longitude }
-    const distanceKm = round(haversineKm(previousPoint, point), 1)
-    activities.push({
+    resolved.push({
       timeSlot: (TIME_SLOTS as readonly string[]).includes(a.timeSlot)
         ? (a.timeSlot as GeneratedActivity["timeSlot"])
         : "morning",
@@ -392,13 +377,23 @@ function mapDay(
       lng: venue.longitude,
       startTime: a.startTime,
       durationMinutes: a.durationMinutes,
-      travelTimeMinutes: walkMinutesFor(distanceKm),
-      walkingDistanceKm: distanceKm,
       estimatedCost: Math.max(0, a.estimatedCost),
       category: venue.kinds[0] ?? "interesting_places",
     })
-    previousPoint = point
   }
+
+  // ...then order them by distance within each slot, starting from the stay,
+  // and re-time any stop whose time no longer leaves room to get there. Legs
+  // are measured in that final order, so the stored distances match the day.
+  const activities: GeneratedActivity[] = planDayRoute(resolved, {
+    start: dayStart,
+    transport: request.transportation,
+  }).map(({ item, startTime, leg }) => ({
+    ...item,
+    startTime,
+    travelTimeMinutes: leg?.minutes ?? 0,
+    walkingDistanceKm: leg?.km ?? 0,
+  }))
 
   const restaurants: GeneratedRestaurant[] = []
   for (const r of modelDay.restaurants) {
@@ -525,6 +520,11 @@ export function assembleItinerary(args: {
   const warnings: string[] = reconcileWeatherWarnings(model.warnings, sourced.weatherByDate, tripDates)
   const originPoint = { lat: sourced.latitude, lng: sourced.longitude }
 
+  // The stay is each day's starting point when it's a real listing; an example
+  // stay has no real location, so the day starts from the city centre instead.
+  const hotel = mapHotel(model, request, candidates.hotelsById, nights)
+  const dayStart = hotel.source === "mock" ? originPoint : { lat: hotel.lat, lng: hotel.lng }
+
   const days = model.days.map((day, index) =>
     mapDay(
       day,
@@ -534,11 +534,11 @@ export function assembleItinerary(args: {
       candidates.attractionsById,
       candidates.restaurantsById,
       originPoint,
+      dayStart,
       warnings
     )
   )
 
-  const hotel = mapHotel(model, request, candidates.hotelsById, nights)
   if (hotel.source === "mock") {
     warnings.push(
       "We couldn't find a listed place to stay here, so the suggested hotel is an example to budget against rather than a real one."
