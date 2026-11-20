@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { TripCard } from "@/features/trips/components/trip-card"
 import { TripRow } from "@/features/trips/components/trip-row"
 import { createClient } from "@/lib/supabase/server"
+import { effectiveTripStatus } from "@/features/trips/services/generation-state"
 
 export const metadata: Metadata = { title: "My Trips" }
 
@@ -16,14 +17,19 @@ export default async function TripsPage() {
   const { data: trips } = await supabase
     .from("trips")
     .select(
-      "id, title, destination, start_date, end_date, status, cover_image_url, cover_image_credit_name"
+      "id, title, destination, start_date, end_date, status, cover_image_url, cover_image_credit_name, updated_at"
     )
     .order("created_at", { ascending: false })
 
   // Archived trips are listed in their own section rather than mixed into
   // Upcoming/Past: a shelved trip says nothing about what is coming next, and
   // it must not be promoted to the "Next" lead.
-  const everything = trips ?? []
+  // A trip whose generation was killed is shown as the draft it effectively is.
+  const now = Date.now()
+  const everything = (trips ?? []).map((t) => ({
+    ...t,
+    status: effectiveTripStatus(t.status, t.updated_at, now),
+  }))
   const archived = everything.filter((t) => t.status === "archived")
   const all = everything.filter((t) => t.status !== "archived")
   const today = new Date().toISOString().slice(0, 10)

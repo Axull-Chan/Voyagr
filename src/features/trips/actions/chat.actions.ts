@@ -13,6 +13,12 @@ import {
 import { createClient } from "@/lib/supabase/server"
 import { sourcePlaces } from "@/services/places-service"
 import { reportServerError } from "@/lib/monitoring/report-server"
+import { syncItineraryCosts } from "@/features/trips/services/itinerary-cost-sync"
+import {
+  placeActivity,
+  type Placement,
+  type ScheduledActivity,
+} from "@/lib/trips/activity-schedule"
 import {
   confirmAiQuota,
   getAiQuotaHint,
@@ -195,19 +201,25 @@ export async function sendChatMessageAction(
   }
 }
 
-/** `max(sort_order)+1` scoped to one day — append-at-end, for a new or moved
- * activity. Restaurants have no `sort_order` column at all, so no equivalent
- * is needed there. */
-async function nextActivitySortOrder(supabase: Client, tripDayId: string): Promise<number> {
+/** One day's activities as `placeActivity` needs them. Restaurants have no
+ * `sort_order` column at all, so no equivalent is needed there. */
+async function dayActivities(supabase: Client, tripDayId: string): Promise<ScheduledActivity[]> {
   const { data } = await supabase
     .from("activities")
-    .select("sort_order")
+    .select("id, time_slot, start_time, duration_minutes, sort_order")
     .eq("trip_day_id", tripDayId)
-    .order("sort_order", { ascending: false })
-    .limit(1)
-  const max = data?.[0]?.sort_order
-  return typeof max === "number" ? max + 1 : 0
+  return data ?? []
 }
+
+/** Writes the sort_order changes a placement implies for the other activities. */
+async function applyReorder(supabase: Client, reorder: Placement["reorder"]): Promise<void> {
+  for (const { id, sortOrder } of reorder) {
+    await supabase.from("activities").update({ sort_order: sortOrder }).eq("id", id)
+  }
+}
+
+/** Placeholder id for an activity that doesn't exist yet. */
+const NEW_ACTIVITY_ID = "__new__"
 
 export type ApplyChatOperationsResult =
   | {
@@ -288,7 +300,13 @@ export async function applyChatOperationsAction(
           skipped.push({ operation: op, reason: "That day no longer exists." })
           continue
         }
-        const sortOrder = await nextActivitySortOrder(supabase, dayId)
+        // A time inside the slot, and a place among the day's activities by time.
+        const placement = placeActivity({
+          id: NEW_ACTIVITY_ID,
+          slot: op.timeSlot,
+          explicitStartTime: op.startTime,
+          dayActivities: await dayActivities(supabase, dayId),
+        })
         const { error } = await supabase.from("activities").insert({
           trip_day_id: dayId,
           time_slot: op.timeSlot,
@@ -297,14 +315,18 @@ export async function applyChatOperationsAction(
           location_name: op.locationName,
           lat: op.lat,
           lng: op.lng,
-          start_time: op.startTime,
+          start_time: placement.startTime,
           duration_minutes: op.durationMinutes,
           estimated_cost: op.estimatedCost,
           category: op.category,
-          sort_order: sortOrder,
+          sort_order: placement.sortOrder,
         })
-        if (error) skipped.push({ operation: op, reason: "Couldn't save the new activity." })
-        else appliedCount += 1
+        if (error) {
+          skipped.push({ operation: op, reason: "Couldn't save the new activity." })
+        } else {
+          await applyReorder(supabase, placement.reorder)
+          appliedCount += 1
+        }
         break
       }
       case "add_restaurant": {
@@ -357,15 +379,40 @@ export async function applyChatOperationsAction(
           skipped.push({ operation: op, reason: "That day no longer exists." })
           continue
         }
-        const sortOrder = await nextActivitySortOrder(supabase, dayId)
+        const { data: current } = await supabase
+          .from("activities")
+          .select("start_time")
+          .eq("id", op.activityId)
+          .maybeSingle()
+        if (!current) {
+          skipped.push({ operation: op, reason: "That activity no longer exists." })
+          continue
+        }
+        // Moving to another slot used to keep the old time (an evening activity
+        // still saying 10:00) and append it last. Now the time fits the target
+        // slot — the one asked for, else its own if it already fits, else after
+        // what is there — and the target day is re-sequenced by slot and time.
+        const placement = placeActivity({
+          id: op.activityId,
+          slot: op.toTimeSlot,
+          explicitStartTime: op.toStartTime ?? null,
+          currentStartTime: current.start_time,
+          dayActivities: await dayActivities(supabase, dayId),
+        })
         const { data } = await supabase
           .from("activities")
-          .update({ trip_day_id: dayId, time_slot: op.toTimeSlot, sort_order: sortOrder })
+          .update({
+            trip_day_id: dayId,
+            time_slot: op.toTimeSlot,
+            start_time: placement.startTime,
+            sort_order: placement.sortOrder,
+          })
           .eq("id", op.activityId)
           .select("id")
         if (!data || data.length === 0) {
           skipped.push({ operation: op, reason: "That activity no longer exists." })
         } else {
+          await applyReorder(supabase, placement.reorder)
           appliedCount += 1
         }
         break
@@ -384,6 +431,19 @@ export async function applyChatOperationsAction(
         else appliedCount += 1
         break
       }
+    }
+  }
+
+  // Activity changes move each day's cost and, for a trip with no budget of
+  // its own, the planned budget lines; re-derive them so the page, the PDF and
+  // the export agree with what is now scheduled. Only changed rows are written.
+  if (appliedCount > 0 && operations.some((op) => op.kind.endsWith("_activity"))) {
+    const sync = await syncItineraryCosts(supabase, tripId)
+    if (!sync.ok) {
+      await reportServerError(new Error("Itinerary cost resync failed after a chat edit"), {
+        context: "action:applyChatOperations",
+        severity: "warning",
+      })
     }
   }
 

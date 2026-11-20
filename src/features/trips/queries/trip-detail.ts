@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation"
 
 import { createClient } from "@/lib/supabase/server"
+import { effectiveTripStatus } from "@/features/trips/services/generation-state"
 import type { Tables } from "@/types/database.types"
 
 /**
@@ -108,7 +109,12 @@ export async function getTripDetail(tripId: string): Promise<TripDetail> {
   })
 
   return {
-    trip: tripResult.data,
+    // A trip whose generation was killed reads as the draft it effectively is,
+    // so the page offers to generate it and its menu allows archive/delete.
+    trip: {
+      ...tripResult.data,
+      status: effectiveTripStatus(tripResult.data.status, tripResult.data.updated_at, Date.now()),
+    },
     days,
     hotels: hotelsResult.data ?? [],
     transportation: transportResult.data ?? [],

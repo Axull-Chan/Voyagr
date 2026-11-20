@@ -109,6 +109,16 @@ describe("buildTripExport", () => {
     expect(out.expenses).toHaveLength(1)
   })
 
+  it("drops guessed meal-window hours from restaurants, keeping the rest", () => {
+    const day = detail.days[0]!
+    const withHours = {
+      ...detail,
+      days: [{ ...day, restaurants: [{ ...day.restaurants[0]!, opening_hours: "17:30 – 22:30" }] }],
+    } as unknown as TripDetail
+    const restaurant = buildTripExport(withHours, exportedAt).days[0]?.restaurants[0]
+    expect(restaurant).toMatchObject({ name: "Cafe Central", opening_hours: null })
+  })
+
   it("keeps provenance, so an example can't pass as a real reading once exported", () => {
     expect(out.hotels[0]).toMatchObject({ source: "mock" })
     expect(out.days[0]?.weather).toMatchObject({ source: "mock", condition: "Rain" })

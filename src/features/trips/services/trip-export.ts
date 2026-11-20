@@ -1,4 +1,5 @@
 import type { TripDetail } from "@/features/trips/queries/trip-detail"
+import { restaurantHoursForExport } from "@/features/trips/services/restaurant-hours"
 
 /**
  * The portable, human-readable form of a trip.
@@ -45,7 +46,11 @@ export function buildTripExport(detail: TripDetail, exportedAt = new Date()) {
       dailyCost: day.dailyCost,
       weather: day.weather ? omit(day.weather, CHILD_KEYS) : null,
       activities: day.activities.map((a) => omit(a, CHILD_KEYS)),
-      restaurants: day.restaurants.map((r) => omit(r, CHILD_KEYS)),
+      // Guessed meal-window hours are dropped, so a file can't state them as fact.
+      restaurants: day.restaurants.map((r) => ({
+        ...omit(r, CHILD_KEYS),
+        opening_hours: restaurantHoursForExport(r.opening_hours),
+      })),
     })),
     hotels: hotels.map((h) => omit(h, CHILD_KEYS)),
     transportation: transportation.map((t) => omit(t, CHILD_KEYS)),

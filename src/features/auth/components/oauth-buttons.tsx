@@ -8,14 +8,17 @@ import { signInWithGoogleAction } from "@/features/auth/actions/auth.actions"
 
 export function OAuthButtons({
   onError,
+  redirectTo,
 }: {
   onError?: (message: string) => void
+  /** Where to return after sign-in; validated on the server. */
+  redirectTo?: string | null
 }) {
   const [isPending, setIsPending] = useState(false)
 
   async function handleGoogle() {
     setIsPending(true)
-    const result = await signInWithGoogleAction()
+    const result = await signInWithGoogleAction(redirectTo)
     if (result && "error" in result) {
       onError?.(result.error)
     }

@@ -1,6 +1,8 @@
 import { ACCOMMODATION_NOUN, accommodationMultiplier } from "@/lib/ai/pricing"
 import { ACTIVITIES_PER_DAY } from "@/lib/ai/providers/mock-provider"
 import { resolveDestination } from "@/lib/ai/providers/mock-catalog"
+import { reconcileWeatherWarnings } from "@/lib/ai/providers/weather-warnings"
+import { dayCostFromActivities, planBudgetLines } from "@/lib/trips/itinerary-costs"
 import type {
   GeneratedActivity,
   GeneratedDay,
@@ -204,7 +206,7 @@ function weatherLines(sourced: SourcedContext, startDate: string, dayCount: numb
     const w = sourced.weatherByDate[date]
     lines.push(
       w
-        ? `- ${date}: ${w.condition}, high ${w.tempHighC ?? "?"}°C, low ${w.tempLowC ?? "?"}°C`
+        ? `- ${date}: ${w.condition}${w.precipitationChance !== null ? ` (${w.precipitationChance}% chance of precipitation)` : ""}, high ${w.tempHighC ?? "?"}°C, low ${w.tempLowC ?? "?"}°C`
         : `- ${date}: no forecast available yet (beyond the forecast horizon)`
     )
   }
@@ -225,6 +227,7 @@ export function buildPrompt(
     "You must never invent a place. Every activity and restaurant you schedule references a venue by its exact id from the candidate list you are given — never a name, never a place not in that list.",
     "Do not repeat the same venue anywhere in the trip.",
     "Write in a warm, specific, confident travel-guide voice. Avoid starting every activity title with the same word.",
+    "Do not put anything about the weather in \"warnings\": the app writes weather warnings itself from the forecast. A day's condition is the worst seen at any point that day, so judge how wet a day is by its precipitation chance, not its label.",
     "A venue's \"kinds\" are its real categories (from OpenStreetMap). Ground your description in what the kinds actually say the place is — do not claim something about it that its kinds don't support.",
   ].join(" ")
 
@@ -291,14 +294,6 @@ function mapWeather(sourced: SourcedContext, date: string): GeneratedWeather {
     sunrise: null,
     sunset: null,
   }
-}
-
-function openingHoursFor(meal: string): string {
-  return meal === "breakfast"
-    ? "07:00 – 11:00"
-    : meal === "lunch"
-      ? "11:30 – 15:00"
-      : "17:30 – 22:30"
 }
 
 /** A stay with no real listing behind it — same honest fallback the mock
@@ -426,7 +421,8 @@ function mapDay(
         haversineKm(originPoint, { lat: venue.latitude, lng: venue.longitude }),
         1
       ),
-      openingHours: openingHoursFor(r.mealType),
+      // No provider sources real hours; a per-meal guess here was shown as fact.
+      openingHours: null,
       lat: venue.latitude,
       lng: venue.longitude,
     })
@@ -436,7 +432,7 @@ function mapDay(
     dayNumber,
     date,
     summary: modelDay.summary,
-    estimatedCost: round(activities.reduce((sum, a) => sum + a.estimatedCost, 0)),
+    estimatedCost: dayCostFromActivities(activities.map((a) => a.estimatedCost)),
     activities,
     restaurants,
     weather: mapWeather(sourced, date),
@@ -471,28 +467,18 @@ function buildBudget(
   hotel: GeneratedHotel,
   transportation: GeneratedTransport[]
 ): { lines: { category: BudgetCategory; plannedAmount: number }[]; warning: string | null } {
-  const activityTotal = days.reduce((sum, d) => sum + d.estimatedCost, 0)
-  const transportTotal = transportation.reduce((sum, t) => sum + t.cost, 0)
-  const estimated = hotel.totalCost + transportTotal + activityTotal * 1.6 // headroom for food/shopping, matching the split ratios below
-
-  const total = request.budget && request.budget > 0 ? request.budget : estimated
-  const warning =
-    request.budget && request.budget > 0 && request.budget < estimated * 0.75
-      ? "Your budget is tight for this destination and length — the plan leans on free activities and cheaper meals."
-      : null
-
-  const remaining = Math.max(total - hotel.totalCost - transportTotal, total * 0.2)
-
+  // Shared with the chat's post-edit resync, so the two can never disagree.
+  const { lines, isTight } = planBudgetLines({
+    budget: request.budget,
+    hotelTotal: hotel.totalCost,
+    transportTotal: transportation.reduce((sum, t) => sum + t.cost, 0),
+    activityTotal: days.reduce((sum, d) => sum + d.estimatedCost, 0),
+  })
   return {
-    lines: [
-      { category: "hotels", plannedAmount: round(hotel.totalCost) },
-      { category: "transportation", plannedAmount: round(transportTotal) },
-      { category: "food", plannedAmount: round(remaining * 0.42) },
-      { category: "activities", plannedAmount: round(remaining * 0.3) },
-      { category: "shopping", plannedAmount: round(remaining * 0.16) },
-      { category: "emergency_fund", plannedAmount: round(remaining * 0.12) },
-    ],
-    warning,
+    lines,
+    warning: isTight
+      ? "Your budget is tight for this destination and length — the plan leans on free activities and cheaper meals."
+      : null,
   }
 }
 
@@ -534,7 +520,9 @@ export function assembleItinerary(args: {
   providerId: string
 }): GeneratedItinerary {
   const { model, request, sourced, dayCount, nights, candidates, providerId } = args
-  const warnings: string[] = [...model.warnings]
+  // Weather claims are the forecast's to make, not the model's.
+  const tripDates = Array.from({ length: dayCount }, (_, i) => addDays(request.startDate, i))
+  const warnings: string[] = reconcileWeatherWarnings(model.warnings, sourced.weatherByDate, tripDates)
   const originPoint = { lat: sourced.latitude, lng: sourced.longitude }
 
   const days = model.days.map((day, index) =>

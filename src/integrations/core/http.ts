@@ -59,6 +59,10 @@ export async function fetchJson<T>(
   } = options
 
   let lastError: IntegrationError | undefined
+  // Keys travel in the URL for several providers (Gemini `key`, OpenTripMap
+  // `apikey`), so anything we build an error from is scrubbed of them first.
+  const secrets = collectSecrets(url, headers)
+  const scrub = (text: string) => redactSecrets(text, secrets)
 
   for (let attempt = 0; attempt <= retries; attempt += 1) {
     // A fresh controller per attempt — an aborted one stays aborted.
@@ -90,6 +94,7 @@ export async function fetchJson<T>(
         const detail = await response
           .json()
           .then((json: unknown) => extractErrorMessage(json))
+          .then((message) => (message === null ? null : scrub(message)))
           .catch(() => null)
 
         const error = new IntegrationError(
@@ -115,7 +120,8 @@ export async function fetchJson<T>(
           provider,
           "invalid_response",
           `${provider} returned a body that was not valid JSON`,
-          { cause }
+          // A JSON parse error quotes the start of the body, which can echo the URL.
+          { cause: scrubCause(cause, scrub) }
         )
       }
     } catch (error) {
@@ -128,7 +134,7 @@ export async function fetchJson<T>(
         const aborted = error instanceof Error && error.name === "AbortError"
         if (aborted && signal?.aborted) {
           throw new IntegrationError(provider, "unavailable", "Request cancelled", {
-            cause: error,
+            cause: scrubCause(error, scrub),
           })
         }
         const wrapped = new IntegrationError(
@@ -137,7 +143,7 @@ export async function fetchJson<T>(
           aborted
             ? `${provider} timed out after ${timeoutMs}ms`
             : `${provider} could not be reached`,
-          { cause: error }
+          { cause: scrubCause(error, scrub) }
         )
         if (attempt === retries) throw wrapped
         lastError = wrapped
@@ -185,4 +191,94 @@ export function buildUrl(
     url.searchParams.set(key, String(value))
   }
   return url.toString()
+}
+
+/**
+ * Query parameters that carry credentials in some provider's URL. Matched
+ * case-insensitively; `key` is Gemini's, `apikey` OpenTripMap's.
+ */
+export const SENSITIVE_QUERY_PARAMS = [
+  "apikey",
+  "api_key",
+  "api-key",
+  "key",
+  "token",
+  "access_token",
+  "auth",
+  "client_secret",
+  "client_id",
+  "secret",
+  "signature",
+  "sig",
+  "password",
+] as const
+
+const SENSITIVE_HEADERS = ["authorization", "x-api-key", "x-goog-api-key", "api-key"]
+
+/** Shorter values are not treated as secrets: replacing "1" everywhere would mangle messages. */
+const MIN_SECRET_LENGTH = 6
+
+const REDACTED = "[REDACTED]"
+
+/**
+ * The credential values a request carries: sensitive query parameters of its
+ * URL and sensitive request headers (a `Bearer ` prefix is stripped).
+ */
+export function collectSecrets(
+  url: string,
+  headers?: Record<string, string>
+): string[] {
+  const values: string[] = []
+  try {
+    const sensitive = new Set<string>(SENSITIVE_QUERY_PARAMS)
+    for (const [name, value] of new URL(url).searchParams) {
+      if (sensitive.has(name.toLowerCase())) values.push(value)
+    }
+  } catch {
+    // Not an absolute URL: nothing to collect from it.
+  }
+  for (const [name, value] of Object.entries(headers ?? {})) {
+    if (SENSITIVE_HEADERS.includes(name.toLowerCase())) {
+      values.push(value.replace(/^(bearer|token|basic|client-id)\s+/i, ""))
+    }
+  }
+  return [...new Set(values)].filter((value) => value.length >= MIN_SECRET_LENGTH)
+}
+
+const PARAM_PATTERN = new RegExp(
+  // `?name=` or `&name=`, also percent-encoded (`%3F`, `%26`, `%3D`), up to
+  // the next separator. The value is what gets replaced; the name is kept so
+  // a message still says which parameter it was.
+  `((?:[?&]|%3F|%26)(?:${SENSITIVE_QUERY_PARAMS.map((p) => p.replace("-", "\\-")).join("|")})(?:=|%3D))[^&\\s"'<>#]*`,
+  "gi"
+)
+
+/**
+ * Removes credentials from text that is about to become an error message:
+ * every sensitive query parameter's value in any URL-looking text, plus every
+ * known secret value wherever it appears (in any encoding we can predict).
+ */
+export function redactSecrets(text: string, secrets: readonly string[] = []): string {
+  let out = text.replace(PARAM_PATTERN, `$1${REDACTED}`)
+  for (const secret of secrets) {
+    if (secret.length < MIN_SECRET_LENGTH) continue
+    for (const form of new Set([secret, encodeURIComponent(secret)])) {
+      out = out.split(form).join(REDACTED)
+    }
+  }
+  return out
+}
+
+/**
+ * A copy of a thrown value with its message scrubbed, for use as an error
+ * `cause` (the error reporter folds the cause's message into what it stores).
+ */
+function scrubCause(cause: unknown, scrub: (text: string) => string): unknown {
+  if (cause instanceof Error) {
+    const copy = new Error(scrub(cause.message))
+    copy.name = cause.name
+    copy.stack = cause.stack ? scrub(cause.stack) : undefined
+    return copy
+  }
+  return typeof cause === "string" ? scrub(cause) : cause
 }

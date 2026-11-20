@@ -117,7 +117,13 @@ export interface GeneratedRestaurant {
    */
   priceLevel: number | null
   distanceKm: number
-  openingHours: string
+  /**
+   * The venue's real hours when a source gives them. Null today for every
+   * provider: none supplies hours, and the per-meal windows generation used to
+   * write here were shown as if they were the restaurant's own (see
+   * `features/trips/services/restaurant-hours.ts`).
+   */
+  openingHours: string | null
   lat: number
   lng: number
 }
@@ -295,7 +301,8 @@ export type ChatOperation =
       locationName: string
       lat: number
       lng: number
-      startTime: string
+      /** Null when not asked for: the app places it within the slot. */
+      startTime: string | null
       durationMinutes: number
       estimatedCost: number
       category: string
@@ -307,6 +314,8 @@ export type ChatOperation =
       label: string
       toDayNumber: number
       toTimeSlot: TimeSlot
+      /** A time the traveller asked for; absent or null lets the app choose one inside the slot. */
+      toStartTime?: string | null
     }
   | {
       kind: "add_restaurant"

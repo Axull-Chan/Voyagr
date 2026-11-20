@@ -10,6 +10,7 @@ import {
 import { cn } from "@/lib/utils"
 import { formatCurrency, TIME_SLOTS, type TimeSlot } from "@/lib/trips/trip-domain"
 import type { TripDay } from "@/features/trips/queries/trip-detail"
+import { restaurantHoursText } from "@/features/trips/services/restaurant-hours"
 
 /**
  * The shape this component displays, deliberately not the database row.
@@ -198,7 +199,9 @@ export function DayTimeline({
                   {[
                     restaurant.meal_type,
                     restaurant.cuisine,
-                    restaurant.opening_hours,
+                    // A per-meal guess is labelled as typical, never shown as
+                    // this restaurant's own hours.
+                    restaurantHoursText(restaurant.opening_hours),
                   ]
                     .filter(Boolean)
                     .join(" · ")}

@@ -200,16 +200,16 @@ describe("resolveChatOperations — adding an activity", () => {
     expect(cost(12.5)).toMatchObject({ estimatedCost: 12.5 })
   })
 
-  it("accepts only a valid HH:MM start time, else defaults to 10:00", () => {
+  it("accepts only a valid HH:MM start time, else leaves it null for the app to place", () => {
     const start = (startTime: string | null) =>
       resolve(
         op({ kind: "add_activity", venueRef: "a1", dayNumber: 1, startTime })
       ).operations[0]
     expect(start("09:30")).toMatchObject({ startTime: "09:30" })
-    expect(start("25:00")).toMatchObject({ startTime: "10:00" })
-    expect(start("9:30")).toMatchObject({ startTime: "10:00" })
-    expect(start("noonish")).toMatchObject({ startTime: "10:00" })
-    expect(start(null)).toMatchObject({ startTime: "10:00" })
+    expect(start("25:00")).toMatchObject({ startTime: null })
+    expect(start("9:30")).toMatchObject({ startTime: null })
+    expect(start("noonish")).toMatchObject({ startTime: null })
+    expect(start(null)).toMatchObject({ startTime: null })
   })
 
   it("coerces an unknown time slot to morning", () => {
@@ -283,9 +283,19 @@ describe("resolveChatOperations — removing and moving existing items", () => {
       toDayNumber: 2,
       toTimeSlot: "evening",
     })
+    expect(ok.operations[0]).toMatchObject({ toStartTime: null })
     const bad = resolve(op({ kind: "move_activity", itemRef: "act1", toDayNumber: 9 }))
     expect(bad.operations).toEqual([])
     expect(bad.warnings).toHaveLength(1)
+  })
+
+  it("carries an explicitly requested time on a move, and drops a malformed one", () => {
+    const at = (startTime: string | null) =>
+      resolve(
+        op({ kind: "move_activity", itemRef: "act1", toDayNumber: 2, toTimeSlot: "evening", startTime })
+      ).operations[0]
+    expect(at("19:15")).toMatchObject({ toStartTime: "19:15" })
+    expect(at("7pm")).toMatchObject({ toStartTime: null })
   })
 })
 
