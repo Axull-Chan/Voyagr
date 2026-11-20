@@ -295,7 +295,8 @@ export type ChatOperation =
       locationName: string
       lat: number
       lng: number
-      startTime: string
+      /** Null when not asked for: the app places it within the slot. */
+      startTime: string | null
       durationMinutes: number
       estimatedCost: number
       category: string
@@ -307,6 +308,8 @@ export type ChatOperation =
       label: string
       toDayNumber: number
       toTimeSlot: TimeSlot
+      /** A time the traveller asked for; absent or null lets the app choose one inside the slot. */
+      toStartTime?: string | null
     }
   | {
       kind: "add_restaurant"

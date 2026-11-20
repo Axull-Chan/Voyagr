@@ -116,7 +116,7 @@ function itineraryLines(snapshot: ChatItinerarySnapshot, itemRefs: ItemRefs): st
       const activityLines = activities
         .map(
           (a) =>
-            `  - id: ${activityRefById.get(a.id)} | ${a.timeSlot ?? "unscheduled"} | "${a.title}"${a.locationName ? ` at ${a.locationName}` : ""}`
+            `  - id: ${activityRefById.get(a.id)} | ${a.timeSlot ?? "unscheduled"}${a.startTime ? ` ${a.startTime.slice(0, 5)}` : ""} | "${a.title}"${a.locationName ? ` at ${a.locationName}` : ""}`
         )
         .join("\n")
       const restaurantLines = restaurants
@@ -144,6 +144,7 @@ export const CHAT_EDIT_SYSTEM_PROMPT = [
   "You must never invent a place. If you propose adding an activity or a restaurant, it must reference a venue by its exact id from the candidate list you are given — never a name, never a place not in that list.",
   "If the candidate list for what they're asking about is empty, or nothing in it fits, propose no add operation and say so honestly in your reply rather than inventing one.",
   "You have no real price or rating data for restaurants or activities — never claim one option is cheaper, better-rated, or more authentic than another as a fact. You may say it's a different option.",
+  "To move an activity, set toDayNumber and toTimeSlot (morning before 12:00, afternoon 12:00-17:00, evening from 17:00); set startTime only when the traveller asked for a specific time, and make it fall inside that slot. Leave startTime null otherwise - the app picks a time that fits the slot.",
   "Propose at most a few operations for one message — this is a small, reviewable edit, not a rewrite of the trip.",
   "If the message isn't a request to change anything (a question, small talk, unclear), reply conversationally and propose zero operations.",
   "Write short, warm, specific replies — a sentence or two, not a report.",
@@ -185,6 +186,11 @@ Traveller's new message: "${request.message}"
 // dropped with a warning, same `if (!x) { warnings.push(...); continue }`
 // idiom `assembleItinerary` uses in venue-grounded.ts.
 // ---------------------------------------------------------------------------
+
+/** An `HH:MM` time from the model, or null when absent or malformed. */
+function validStartTime(value: string | null): string | null {
+  return /^([01][0-9]|2[0-3]):[0-5][0-9]$/.test(value ?? "") ? (value as string) : null
+}
 
 function asTimeSlot(value: string | null): (typeof TIME_SLOTS)[number] {
   return (TIME_SLOTS as readonly string[]).includes(value ?? "")
@@ -228,9 +234,9 @@ export function resolveChatOperations(
           locationName: venue.name,
           lat: venue.latitude,
           lng: venue.longitude,
-          startTime: /^([01][0-9]|2[0-3]):[0-5][0-9]$/.test(op.startTime ?? "")
-            ? (op.startTime as string)
-            : "10:00",
+          // Null lets the app place it after what is already in the slot,
+          // rather than every unspecified add landing at the same hour.
+          startTime: validStartTime(op.startTime),
           durationMinutes: Math.min(480, Math.max(15, op.durationMinutes ?? 90)),
           estimatedCost: Math.max(0, op.estimatedCost ?? 0),
           category: venue.kinds[0] ?? "interesting_places",
@@ -284,6 +290,7 @@ export function resolveChatOperations(
           label: item.title,
           toDayNumber: op.toDayNumber,
           toTimeSlot: asTimeSlot(op.toTimeSlot),
+          toStartTime: validStartTime(op.startTime),
         })
         break
       }

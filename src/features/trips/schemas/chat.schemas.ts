@@ -39,7 +39,8 @@ export const chatOperationSchema = z.discriminatedUnion("kind", [
     locationName: z.string(),
     lat: z.number(),
     lng: z.number(),
-    startTime: z.string(),
+    // Nullable since activity placement (older stored proposals always carry a string).
+    startTime: z.string().nullable(),
     durationMinutes: z.number().int().min(0),
     estimatedCost: z.number().min(0),
     category: z.string(),
@@ -55,6 +56,8 @@ export const chatOperationSchema = z.discriminatedUnion("kind", [
     label: z.string(),
     toDayNumber: z.number().int().min(1),
     toTimeSlot: enumOf(TIME_SLOTS),
+    // Optional: proposals stored before this field existed don't carry it.
+    toStartTime: z.string().nullable().optional(),
   }),
   z.object({
     kind: z.literal("add_restaurant"),
