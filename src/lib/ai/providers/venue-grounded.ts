@@ -296,14 +296,6 @@ function mapWeather(sourced: SourcedContext, date: string): GeneratedWeather {
   }
 }
 
-function openingHoursFor(meal: string): string {
-  return meal === "breakfast"
-    ? "07:00 – 11:00"
-    : meal === "lunch"
-      ? "11:30 – 15:00"
-      : "17:30 – 22:30"
-}
-
 /** A stay with no real listing behind it — same honest fallback the mock
  * uses, reimplemented locally rather than imported so no provider reaches
  * into another provider's internals; see pricing.ts for the one piece that
@@ -429,7 +421,8 @@ function mapDay(
         haversineKm(originPoint, { lat: venue.latitude, lng: venue.longitude }),
         1
       ),
-      openingHours: openingHoursFor(r.mealType),
+      // No provider sources real hours; a per-meal guess here was shown as fact.
+      openingHours: null,
       lat: venue.latitude,
       lng: venue.longitude,
     })

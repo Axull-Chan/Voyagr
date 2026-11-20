@@ -117,7 +117,13 @@ export interface GeneratedRestaurant {
    */
   priceLevel: number | null
   distanceKm: number
-  openingHours: string
+  /**
+   * The venue's real hours when a source gives them. Null today for every
+   * provider: none supplies hours, and the per-meal windows generation used to
+   * write here were shown as if they were the restaurant's own (see
+   * `features/trips/services/restaurant-hours.ts`).
+   */
+  openingHours: string | null
   lat: number
   lng: number
 }
