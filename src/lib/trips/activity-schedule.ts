@@ -27,7 +27,7 @@ export const SLOT_DEFAULT_START: Record<TimeSlot, string> = {
 }
 
 /** The latest start a computed time may take within each slot. */
-const SLOT_LATEST_START: Record<TimeSlot, string> = {
+export const SLOT_LATEST_START: Record<TimeSlot, string> = {
   morning: "11:30",
   afternoon: "16:30",
   evening: "21:30",

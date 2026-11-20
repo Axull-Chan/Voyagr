@@ -2,11 +2,13 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 
 import type { Database } from "@/types/database.types"
 import { dayCostUpdates, planBudgetLines } from "@/lib/trips/itinerary-costs"
+import { legUpdates, tripStartPoint } from "@/lib/trips/feasibility"
 
 type Client = SupabaseClient<Database>
 
 /**
- * Brings `trip_days.daily_cost` and the planned `budget_breakdown` lines back in
+ * Brings `trip_days.daily_cost`, the planned `budget_breakdown` lines and each
+ * activity's stored leg (`travel_time_minutes`, `walking_distance_km`) back in
  * line with the activities a trip now holds, using the same rules generation
  * used (`lib/trips/itinerary-costs.ts`). Called after the chat adds, removes or
  * moves activities; the trip page, the PDF and the JSON export all read these
@@ -19,16 +21,21 @@ type Client = SupabaseClient<Database>
 export async function syncItineraryCosts(
   supabase: Client,
   tripId: string
-): Promise<{ ok: boolean; daysUpdated: number; budgetLinesUpdated: number }> {
+): Promise<{ ok: boolean; daysUpdated: number; budgetLinesUpdated: number; legsUpdated: number }> {
   const [tripRes, daysRes, hotelsRes, transportRes, budgetRes] = await Promise.all([
-    supabase.from("trips").select("budget").eq("id", tripId).maybeSingle(),
-    supabase.from("trip_days").select("id, daily_cost, activities(estimated_cost)").eq("trip_id", tripId),
-    supabase.from("hotels").select("total_cost, is_primary").eq("trip_id", tripId),
+    supabase.from("trips").select("budget, transportation").eq("id", tripId).maybeSingle(),
+    supabase
+      .from("trip_days")
+      .select(
+        "id, daily_cost, activities(id, title, time_slot, start_time, duration_minutes, lat, lng, sort_order, estimated_cost, travel_time_minutes, walking_distance_km)"
+      )
+      .eq("trip_id", tripId),
+    supabase.from("hotels").select("total_cost, is_primary, lat, lng, source").eq("trip_id", tripId),
     supabase.from("transportation").select("cost").eq("trip_id", tripId),
     supabase.from("budget_breakdown").select("id, category, planned_amount").eq("trip_id", tripId),
   ])
   if (tripRes.error || daysRes.error || hotelsRes.error || transportRes.error || budgetRes.error || !tripRes.data) {
-    return { ok: false, daysUpdated: 0, budgetLinesUpdated: 0 }
+    return { ok: false, daysUpdated: 0, budgetLinesUpdated: 0, legsUpdated: 0 }
   }
 
   const days = daysRes.data ?? []
@@ -61,7 +68,41 @@ export async function syncItineraryCosts(
     if (error) ok = false
   }
 
-  return { ok, daysUpdated: dayUpdates.length, budgetLinesUpdated: budgetUpdates.length }
+  // Distances between stops, in each day's current order, from the stay. A chat
+  // move or add re-sequences the day, so the stored legs would otherwise
+  // describe a route the traveller no longer takes.
+  const start = tripStartPoint(hotelsRes.data ?? [])
+  let legsUpdated = 0
+  for (const day of days) {
+    const updates = legUpdates(
+      (day.activities ?? []).map((a) => ({
+        id: a.id,
+        title: a.title,
+        timeSlot: a.time_slot,
+        startTime: a.start_time,
+        durationMinutes: a.duration_minutes,
+        lat: a.lat,
+        lng: a.lng,
+        sortOrder: a.sort_order,
+        travel_time_minutes: a.travel_time_minutes,
+        walking_distance_km: a.walking_distance_km,
+      })),
+      { start, transport: tripRes.data.transportation }
+    )
+    for (const update of updates) {
+      const { error } = await supabase
+        .from("activities")
+        .update({
+          travel_time_minutes: update.travelTimeMinutes,
+          walking_distance_km: update.walkingDistanceKm,
+        })
+        .eq("id", update.id)
+      if (error) ok = false
+      else legsUpdated += 1
+    }
+  }
+
+  return { ok, daysUpdated: dayUpdates.length, budgetLinesUpdated: budgetUpdates.length, legsUpdated }
 }
 
 /**

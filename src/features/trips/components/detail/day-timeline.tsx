@@ -11,6 +11,12 @@ import { cn } from "@/lib/utils"
 import { formatCurrency, TIME_SLOTS, type TimeSlot } from "@/lib/trips/trip-domain"
 import type { TripDay } from "@/features/trips/queries/trip-detail"
 import { restaurantHoursText } from "@/features/trips/services/restaurant-hours"
+import {
+  FEASIBILITY_STATUS_LABEL,
+  dayTotalsText,
+  legText,
+  type DayFeasibility,
+} from "@/lib/trips/feasibility"
 
 /**
  * The shape this component displays, deliberately not the database row.
@@ -78,10 +84,13 @@ export function DayTimeline({
   day,
   currency,
   forecast,
+  feasibility = null,
 }: {
   day: TripDay
   currency: string
   forecast: DayForecast | null
+  /** Route and pace check for this day, computed by the page from stored rows. */
+  feasibility?: DayFeasibility | null
 }) {
   // `activities.time_slot` is nullable, so grouping strictly by the three
   // known slots silently drops anything unslotted — it would sit in the
@@ -129,6 +138,10 @@ export function DayTimeline({
         </p>
       ) : null}
 
+      {feasibility && day.activities.length > 0 ? (
+        <FeasibilityNote feasibility={feasibility} />
+      ) : null}
+
       {bySlot.length > 0 ? (
         <ol className="mt-5 space-y-5">
           {bySlot.map(({ slot, items }) => (
@@ -155,10 +168,17 @@ export function DayTimeline({
                         {activity.duration_minutes ? (
                           <span className="text-data-sm">{formatDuration(activity.duration_minutes)}</span>
                         ) : null}
-                        {activity.walking_distance_km ? (
-                          // Straight-line distance between real coordinates, not a
-                          // routed one — "est." for the same reason the hotel rate
-                          // gets it: connected to real data, but not a measurement.
+                        {feasibility ? (
+                          // The leg in from the previous stop (or the stay), worked
+                          // out from real coordinates in the day's current order:
+                          // straight-line distance x a street factor at assumed
+                          // speeds, so "est." — connected to real data, not routed.
+                          feasibility.legs[activity.id] ? (
+                            <span className="text-data-sm">
+                              {legText(feasibility.legs[activity.id]!)}
+                            </span>
+                          ) : null
+                        ) : activity.walking_distance_km ? (
                           <span className="text-data-sm">est. {Number(activity.walking_distance_km)} km walk</span>
                         ) : null}
                         {Number(activity.estimated_cost) > 0 ? (
@@ -304,6 +324,47 @@ function WeatherChip({ forecast }: { forecast: DayForecast }) {
               ? "at time of planning"
               : "typical weather, not a forecast"}
         </span>
+      ) : null}
+    </div>
+  )
+}
+
+/**
+ * The day's pace in one line, then anything that makes it tight or busy, in
+ * the notice style. Missing locations or times are listed muted: they limit
+ * what could be checked but aren't a problem with the plan itself.
+ */
+function FeasibilityNote({ feasibility }: { feasibility: DayFeasibility }) {
+  const totals = dayTotalsText(feasibility)
+  const problems = feasibility.issues.filter((issue) => issue.severity !== "info")
+  const gaps = feasibility.issues.filter((issue) => issue.severity === "info")
+  const flagged = feasibility.status === "tight" || feasibility.status === "busy"
+  return (
+    <div className="mt-3 space-y-1.5" data-feasibility={feasibility.status}>
+      <p className="text-data-sm text-muted-foreground">
+        <span
+          className={cn(
+            "font-semibold",
+            flagged ? "text-notice-foreground" : "text-foreground"
+          )}
+        >
+          {FEASIBILITY_STATUS_LABEL[feasibility.status]}
+        </span>
+        {totals ? <> · {totals}</> : null}
+      </p>
+      {problems.length > 0 ? (
+        <ul className="max-w-prose space-y-1 text-xs text-notice-foreground">
+          {problems.map((issue) => (
+            <li key={`${issue.kind}-${issue.stopIds.join("-")}`}>{issue.message}</li>
+          ))}
+        </ul>
+      ) : null}
+      {gaps.length > 0 ? (
+        <ul className="max-w-prose space-y-1 text-xs text-muted-foreground">
+          {gaps.map((issue) => (
+            <li key={`${issue.kind}-${issue.stopIds.join("-")}`}>{issue.message}</li>
+          ))}
+        </ul>
       ) : null}
     </div>
   )

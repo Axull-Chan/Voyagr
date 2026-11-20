@@ -43,6 +43,7 @@ import {
   type MealType,
   type TimeSlot,
 } from "@/lib/trips/trip-domain"
+import { legsInOrder, sortStopsByTime } from "@/lib/trips/feasibility"
 
 /**
  * Deterministic itinerary generator.
@@ -222,12 +223,38 @@ function buildActivities(
       lng: coords.lng,
       startTime: SLOT_START[slot],
       durationMinutes: round(60 + rng() * 120),
-      travelTimeMinutes: round(8 + rng() * 25),
-      walkingDistanceKm: round(0.3 + rng() * 2.2, 1),
+      // Filled in from coordinates once the day is assembled (withLegs).
+      travelTimeMinutes: 0,
+      walkingDistanceKm: 0,
       // Free things exist; roughly a third of activities cost nothing.
       estimatedCost: rng() > 0.66 ? 0 : round(costPerActivity * (0.6 + rng() * 0.9)),
       category: template.category,
     }
+  })
+}
+
+/**
+ * Sets each activity's leg (travel minutes and street km) from the previous
+ * stop in time order, starting from `start`. These used to be random numbers
+ * labelled "est."; now they are estimates from real or catalogue coordinates.
+ */
+function withLegs(
+  activities: GeneratedActivity[],
+  start: { lat: number; lng: number },
+  transport: string
+): void {
+  const ordered = sortStopsByTime(
+    activities.map((a, index) => ({ a, timeSlot: a.timeSlot, startTime: a.startTime, sortOrder: index }))
+  )
+  const legs = legsInOrder(
+    ordered.map(({ a }) => a),
+    start,
+    transport
+  )
+  ordered.forEach(({ a }, i) => {
+    const leg = legs[i]
+    a.travelTimeMinutes = leg?.minutes ?? 0
+    a.walkingDistanceKm = leg?.km ?? 0
   })
 }
 
@@ -584,8 +611,9 @@ function buildActivitiesFromVenues(
       lng: venue.longitude,
       startTime: SLOT_START[slot],
       durationMinutes: round(60 + rng() * 120),
-      travelTimeMinutes: round(8 + rng() * 25),
-      walkingDistanceKm: round(0.3 + rng() * 2.2, 1),
+      // Filled in from coordinates once the day is assembled (withLegs).
+      travelTimeMinutes: 0,
+      walkingDistanceKm: 0,
       estimatedCost: rng() > 0.66 ? 0 : round(costPerActivity * (0.6 + rng() * 0.9)),
       // A venue's own OSM categories describe it better than our guess.
       category: venue.kinds[0] ?? "interesting_places",
@@ -970,6 +998,13 @@ class MockAiProvider implements AiProvider {
             costPerActivity,
             usedActivityDescriptions
           )
+
+      // Distances between stops come from their coordinates, not a dice roll.
+      withLegs(
+        activities,
+        sourced ? { lat: sourced.latitude, lng: sourced.longitude } : { lat: profile.lat, lng: profile.lng },
+        request.transportation
+      )
 
       const mealCount = 2 + (index % 2)
       const restaurants = restaurantRotation.available
