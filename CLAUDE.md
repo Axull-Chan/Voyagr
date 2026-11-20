@@ -2020,3 +2020,44 @@ elsewhere, which is how Next ships CSS.
   behind login (dashboard, trip detail with its map, wizard), zoom/text-resize to 200 %,
   forced-colors mode, and real-device performance. WCAG 2.5.8 spacing exceptions were not
   applied; targets under 24 px were counted as failures.
+
+## Live provider verification (2026-11-20)
+
+A cloud session with `GEMINI_API_KEY`, `OPENTRIPMAP_API_KEY`, `GEMINI_MODEL` and
+`AI_PROVIDER` set ran the real providers through the app's own integration code
+(throwaway Vitest scripts in the session scratchpad, not committed; no database
+writes, no deploy).
+
+- **OpenTripMap authenticates only with the `?apikey=` query parameter.** Checked by
+  status code: query parameter 200; `x-api-key` header, bare `Authorization` and
+  `Authorization: Bearer` all 401 (same as no key). `places.ts` already did this.
+  `src/integrations/opentripmap/places.test.ts` pins it (stubbed `fetch`, no network)
+  and checks that the key is absent from thrown errors and from `serialiseError`
+  output for a 401, a network failure and a missing key. Mutation-checked: renaming
+  the parameter fails the pin test.
+- **Open gap, not fixed:** because both OpenTripMap and Gemini keys travel in the URL,
+  a provider error body that *echoed the request URL* would be copied verbatim into
+  the `IntegrationError` message by `fetchJson` (`extractErrorMessage`), and from
+  there into logs and `error_events`. Neither provider's real error bodies do this
+  (OpenTripMap 401: no body message; Gemini 404 names the model, not the URL), so
+  nothing leaks today. Fix would be redacting key-bearing query params in
+  `core/http.ts` before building the message.
+- **Results.** Nominatim geocoded "Lisbon, Portugal" to 38.7078, -9.1366. Open-Meteo
+  returned a live forecast for all three trip days. OpenTripMap: a radius search's 15
+  raw rows mapped 1:1 (name, point, `rate`, kinds, distance, sort order) and the xid
+  detail matched; the full pipeline sourced 16 attractions, 15 restaurants and 10
+  hotels. `gemini-3-flash-preview`: a small structured call matched the raw candidate
+  text and `usageMetadata` exactly (4.5 s). End-to-end 3-day Lisbon trip
+  (`buildTripContext` + `getAiProvider().generateItinerary`, no persistence): ~2 s
+  of context, ~19 s of generation, 9/9 activities and 6/6 restaurants resolved to
+  real venues with exact coordinates, a real OpenTripMap hotel with null rating,
+  every day's weather identical to the Open-Meteo forecast. Earlier in the same
+  session two Gemini calls timed out at 60 s while an identical request a minute
+  later took ~3 s via both curl and Node: Google-side latency, as noted under
+  Infrastructure.
+- **Two output-grounding gaps found in Gemini's text.** (1) Model-written `warnings`
+  said "Heavy rain is expected on November 24th and 25th" while Open-Meteo gave Nov 25
+  a 10% precipitation chance (condition "Rain" from the weather code). Nothing checks
+  warnings against the forecast. (2) Activity `estimatedCost` is the model's own
+  number and is not verified against anything (Arco da Rua Augusta came back at
+  EUR 15, several times the usual ticket price); it feeds the activities budget line.
