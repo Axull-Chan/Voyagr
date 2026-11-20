@@ -1,6 +1,7 @@
 import { ACCOMMODATION_NOUN, accommodationMultiplier } from "@/lib/ai/pricing"
 import { ACTIVITIES_PER_DAY } from "@/lib/ai/providers/mock-provider"
 import { resolveDestination } from "@/lib/ai/providers/mock-catalog"
+import { reconcileWeatherWarnings } from "@/lib/ai/providers/weather-warnings"
 import type {
   GeneratedActivity,
   GeneratedDay,
@@ -204,7 +205,7 @@ function weatherLines(sourced: SourcedContext, startDate: string, dayCount: numb
     const w = sourced.weatherByDate[date]
     lines.push(
       w
-        ? `- ${date}: ${w.condition}, high ${w.tempHighC ?? "?"}°C, low ${w.tempLowC ?? "?"}°C`
+        ? `- ${date}: ${w.condition}${w.precipitationChance !== null ? ` (${w.precipitationChance}% chance of precipitation)` : ""}, high ${w.tempHighC ?? "?"}°C, low ${w.tempLowC ?? "?"}°C`
         : `- ${date}: no forecast available yet (beyond the forecast horizon)`
     )
   }
@@ -225,6 +226,7 @@ export function buildPrompt(
     "You must never invent a place. Every activity and restaurant you schedule references a venue by its exact id from the candidate list you are given — never a name, never a place not in that list.",
     "Do not repeat the same venue anywhere in the trip.",
     "Write in a warm, specific, confident travel-guide voice. Avoid starting every activity title with the same word.",
+    "Do not put anything about the weather in \"warnings\": the app writes weather warnings itself from the forecast. A day's condition is the worst seen at any point that day, so judge how wet a day is by its precipitation chance, not its label.",
     "A venue's \"kinds\" are its real categories (from OpenStreetMap). Ground your description in what the kinds actually say the place is — do not claim something about it that its kinds don't support.",
   ].join(" ")
 
@@ -534,7 +536,9 @@ export function assembleItinerary(args: {
   providerId: string
 }): GeneratedItinerary {
   const { model, request, sourced, dayCount, nights, candidates, providerId } = args
-  const warnings: string[] = [...model.warnings]
+  // Weather claims are the forecast's to make, not the model's.
+  const tripDates = Array.from({ length: dayCount }, (_, i) => addDays(request.startDate, i))
+  const warnings: string[] = reconcileWeatherWarnings(model.warnings, sourced.weatherByDate, tripDates)
   const originPoint = { lat: sourced.latitude, lng: sourced.longitude }
 
   const days = model.days.map((day, index) =>
