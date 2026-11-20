@@ -13,7 +13,11 @@ import type { SourcedContext } from "@/lib/ai/types"
  * numbers in `weatherByDate` alone.
  */
 
-type DayForecast = SourcedContext["weatherByDate"][string]
+/** Only what the rules read, so a stored row or a displayed forecast both fit. */
+type DayForecast = Pick<
+  SourcedContext["weatherByDate"][string],
+  "condition" | "precipitationChance" | "windKph"
+>
 
 /** At or above this precipitation probability a wet day is worth a warning. */
 export const LIKELY_PRECIPITATION_CHANCE = 50
@@ -88,4 +92,13 @@ export function reconcileWeatherWarnings(
     return forecast ? forecastWarningsForDay(date, forecast) : []
   })
   return [...fromForecast, ...kept]
+}
+
+/**
+ * Whether a forecast is bad enough to warn about: exactly the rule the warnings
+ * above use (rain, snow or storms at >= LIKELY_PRECIPITATION_CHANCE, or wind at
+ * >= STRONG_WIND_KPH), so "Adapt for weather" appears exactly when a warning would.
+ */
+export function isSevereForecast(forecast: DayForecast): boolean {
+  return forecastWarningsForDay("1970-01-01", forecast).length > 0
 }

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useTransition } from "react"
+import { useEffect, useState, useTransition } from "react"
 import { MessageCircle, Send } from "lucide-react"
 import { toast } from "sonner"
 
@@ -16,7 +16,12 @@ import {
 } from "@/components/ui/sheet"
 import type { ChatOperation } from "@/lib/ai"
 import { describeRemaining, type AiQuotaHint } from "@/lib/ai/usage-limits"
-import { formatCurrency } from "@/lib/trips/trip-domain"
+import { describeOperation } from "@/features/trips/services/chat-operation-text"
+import {
+  REPLAN_PROPOSAL_EVENT,
+  SUPERSEDED_NOTE,
+  type ReplanProposalDetail,
+} from "@/features/trips/components/detail/replan-events"
 import {
   applyChatOperationsAction,
   sendChatMessageAction,
@@ -47,24 +52,6 @@ function toChatMessage(row: TripChatMessageRow): ChatMessage {
   }
 }
 
-function describeOperation(op: ChatOperation, currency: string): string {
-  switch (op.kind) {
-    case "add_activity":
-      return `Add: ${op.title} — Day ${op.dayNumber}, ${op.timeSlot}${
-        op.estimatedCost > 0 ? `, est. ${formatCurrency(op.estimatedCost, currency)}` : ""
-      }`
-    case "add_restaurant":
-      return `Add: ${op.name} — Day ${op.dayNumber}, ${op.mealType}`
-    case "remove_activity":
-      return `Remove: ${op.label}`
-    case "remove_restaurant":
-      return `Remove: ${op.label}`
-    case "move_activity":
-      return `Move: ${op.label} — Day ${op.toDayNumber}, ${op.toTimeSlot}`
-    case "reword_day_summary":
-      return `Reword day ${op.dayNumber}'s summary`
-  }
-}
 
 /**
  * The trip assistant: a floating trigger + slide-over chat for proposing
@@ -99,6 +86,24 @@ export function TripChat({
   const [quota, setQuota] = useState<AiQuotaHint | null>(initialQuota)
   const [messages, setMessages] = useState<ChatMessage[]>(() => initialMessages.map(toChatMessage))
   const [discardedIds, setDiscardedIds] = useState<Set<string>>(() => new Set())
+
+  // A replan button elsewhere on the page hands its proposal over here: retire
+  // the day's previous pending replan, append the new one, and open the panel
+  // so it can be reviewed and applied like any other proposal.
+  useEffect(() => {
+    function onProposal(event: Event) {
+      const { proposal, supersededIds } = (event as CustomEvent<ReplanProposalDetail>).detail
+      setMessages((prev) => [
+        ...prev.map((m) =>
+          supersededIds.includes(m.id) ? { ...m, operations: null, content: `${m.content}${SUPERSEDED_NOTE}` } : m
+        ),
+        { id: proposal.id, role: "assistant", content: proposal.content, operations: proposal.operations, appliedAt: null },
+      ])
+      setOpen(true)
+    }
+    window.addEventListener(REPLAN_PROPOSAL_EVENT, onProposal)
+    return () => window.removeEventListener(REPLAN_PROPOSAL_EVENT, onProposal)
+  }, [])
   const [draft, setDraft] = useState("")
   const [isPending, startTransition] = useTransition()
 
