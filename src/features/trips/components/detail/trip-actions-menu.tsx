@@ -5,12 +5,14 @@ import { useRouter } from "next/navigation"
 import {
   Archive,
   ArchiveRestore,
+  CalendarRange,
   Copy,
   Download,
   FileText,
   MoreHorizontal,
   Pencil,
   Trash2,
+  Wallet,
 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -42,11 +44,20 @@ import {
   deleteBlockedReason,
   tripDeletionCopy,
 } from "@/features/trips/services/trip-delete"
+import {
+  ChangeDatesDialog,
+  EditBudgetDialog,
+} from "@/features/trips/components/detail/trip-edit-dialogs"
 
 interface TripActionsMenuProps {
   tripId: string
   title: string
   status: string
+  /** For Change dates / Edit budget; dates absent means the item isn't offered. */
+  startDate?: string | null
+  endDate?: string | null
+  budget?: number | null
+  currency?: string
 }
 
 /**
@@ -68,6 +79,10 @@ export function TripActionsMenu({
   tripId,
   title,
   status,
+  startDate = null,
+  endDate = null,
+  budget = null,
+  currency = "USD",
 }: TripActionsMenuProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
@@ -77,6 +92,8 @@ export function TripActionsMenu({
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [deleted, setDeleted] = useState(false)
+  const [datesOpen, setDatesOpen] = useState(false)
+  const [budgetOpen, setBudgetOpen] = useState(false)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const cancelDeleteRef = useRef<HTMLButtonElement>(null)
 
@@ -182,6 +199,17 @@ export function TripActionsMenu({
           <DropdownMenuItem onClick={openRename}>
             <Pencil aria-hidden="true" /> Rename
           </DropdownMenuItem>
+          {/* Both are refused while generating, like duplicate/archive/delete. */}
+          {isGenerating || !startDate || !endDate ? null : (
+            <DropdownMenuItem onClick={() => setDatesOpen(true)}>
+              <CalendarRange aria-hidden="true" /> Change dates
+            </DropdownMenuItem>
+          )}
+          {isGenerating ? null : (
+            <DropdownMenuItem onClick={() => setBudgetOpen(true)}>
+              <Wallet aria-hidden="true" /> Edit budget
+            </DropdownMenuItem>
+          )}
           {isGenerating ? null : (
             <DropdownMenuItem onClick={duplicate}>
               <Copy aria-hidden="true" /> Duplicate
@@ -214,6 +242,24 @@ export function TripActionsMenu({
           )}
         </DropdownMenuContent>
       </DropdownMenu>
+
+      {startDate && endDate ? (
+        <ChangeDatesDialog
+          open={datesOpen}
+          onOpenChange={setDatesOpen}
+          tripId={tripId}
+          status={status}
+          startDate={startDate}
+          endDate={endDate}
+        />
+      ) : null}
+      <EditBudgetDialog
+        open={budgetOpen}
+        onOpenChange={setBudgetOpen}
+        tripId={tripId}
+        budget={budget}
+        currency={currency}
+      />
 
       <Dialog open={renameOpen} onOpenChange={setRenameOpen}>
         <DialogContent>

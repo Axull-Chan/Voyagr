@@ -827,6 +827,10 @@ export type Database = {
         Args: { source_trip_id: string }
         Returns: string
       }
+      shift_trip_dates: {
+        Args: { p_trip_id: string; p_new_start: string }
+        Returns: string
+      }
       report_error: {
         Args: {
           p_source: string
