@@ -20,8 +20,16 @@ import { signInAction } from "@/features/auth/actions/auth.actions"
 import { OAuthButtons } from "@/features/auth/components/oauth-buttons"
 import { loginSchema, type LoginInput } from "@/features/auth/schemas/auth.schemas"
 
-export function LoginForm() {
-  const [error, setError] = useState<string | null>(null)
+export function LoginForm({
+  redirectTo = null,
+  initialError = null,
+}: {
+  /** The page to return to after sign-in; the server re-validates it. */
+  redirectTo?: string | null
+  /** A message for a failed email-link or Google sign-in, from `?error=`. */
+  initialError?: string | null
+} = {}) {
+  const [error, setError] = useState<string | null>(initialError)
   const form = useForm<LoginInput>({
     resolver: zodResolver(loginSchema),
     defaultValues: { email: "", password: "" },
@@ -29,7 +37,7 @@ export function LoginForm() {
 
   async function onSubmit(values: LoginInput) {
     setError(null)
-    const result = await signInAction(values)
+    const result = await signInAction(values, redirectTo)
     if (result && "error" in result) {
       setError(result.error)
     }
@@ -46,7 +54,7 @@ export function LoginForm() {
         </p>
       </div>
 
-      <OAuthButtons onError={setError} />
+      <OAuthButtons onError={setError} redirectTo={redirectTo} />
 
       <div className="flex items-center gap-2">
         <span className="h-px flex-1 bg-border" />

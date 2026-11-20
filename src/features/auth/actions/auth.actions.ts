@@ -5,6 +5,7 @@ import { redirect } from "next/navigation"
 
 import { createClient } from "@/lib/supabase/server"
 import { reportServerError } from "@/lib/monitoring/report-server"
+import { safeRedirectPath } from "@/lib/auth/safe-redirect"
 import {
   forgotPasswordSchema,
   loginSchema,
@@ -25,7 +26,15 @@ async function getOrigin() {
   return `${protocol}://${host}`
 }
 
-export async function signInAction(values: LoginInput): Promise<ActionResult> {
+/**
+ * Signs in and returns to `redirectTo` (the page the middleware bounced them
+ * from) when it is a safe same-site path, else the dashboard. Validated here,
+ * on the server, whatever the client sent.
+ */
+export async function signInAction(
+  values: LoginInput,
+  redirectTo?: string | null
+): Promise<ActionResult> {
   const parsed = loginSchema.safeParse(values)
   if (!parsed.success) {
     return { error: "Enter a valid email and password." }
@@ -37,7 +46,7 @@ export async function signInAction(values: LoginInput): Promise<ActionResult> {
     return { error: error.message }
   }
 
-  redirect("/dashboard")
+  redirect(safeRedirectPath(redirectTo))
 }
 
 export async function signUpAction(values: SignUpInput): Promise<ActionResult> {
@@ -109,12 +118,20 @@ export async function updatePasswordAction(
   redirect("/dashboard")
 }
 
-export async function signInWithGoogleAction(): Promise<ActionResult> {
+export async function signInWithGoogleAction(
+  redirectTo?: string | null
+): Promise<ActionResult> {
   const origin = await getOrigin()
+  // Carried through the callback's `next`, which validates it again.
+  const next = safeRedirectPath(redirectTo)
+  const callback =
+    next === "/dashboard"
+      ? `${origin}/auth/callback`
+      : `${origin}/auth/callback?next=${encodeURIComponent(next)}`
   const supabase = await createClient()
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: "google",
-    options: { redirectTo: `${origin}/auth/callback` },
+    options: { redirectTo: callback },
   })
   if (error) {
     return { error: error.message }

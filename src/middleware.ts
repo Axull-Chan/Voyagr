@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr"
 import { NextResponse, type NextRequest } from "next/server"
+import { safeRedirectPath } from "@/lib/auth/safe-redirect"
 
 // /reset-password is deliberately excluded: it must stay reachable both by a
 // freshly-authenticated recovery session (password reset email flow) and by
@@ -59,10 +60,10 @@ export async function middleware(request: NextRequest) {
   }
 
   if (user && isAuthRoute) {
-    const url = request.nextUrl.clone()
-    url.pathname = "/dashboard"
-    url.search = ""
-    return NextResponse.redirect(url)
+    // Already signed in: go where the login link was heading, if that is a
+    // safe same-site path, else the dashboard.
+    const target = safeRedirectPath(request.nextUrl.searchParams.get("redirectTo"))
+    return NextResponse.redirect(new URL(target, request.url))
   }
 
   return supabaseResponse
