@@ -104,6 +104,26 @@ describe("OpenTripMap errors never carry the key", () => {
     expect(everythingVisible(error)).not.toContain(KEY)
   })
 
+  it.each([400, 500])(
+    "a %i error body that echoes the request URL has the key redacted",
+    async (status) => {
+      fetchMock.mockImplementation(async (input: unknown) =>
+        jsonResponse({ message: `Bad request: ${String(input)}` }, status)
+      )
+
+      const error = await searchPlaces({
+        latitude: 5.005 + status / 1000,
+        longitude: 6.006,
+        kinds: ["museums"],
+      }).catch((e: unknown) => e)
+
+      expect(error).toBeInstanceOf(IntegrationError)
+      expect((error as IntegrationError).status).toBe(status)
+      expect(String(error)).toContain("apikey=[REDACTED]")
+      expect(everythingVisible(error)).not.toContain(KEY)
+    }
+  )
+
   it("a network failure is unavailable and key-free, cause included", async () => {
     fetchMock.mockRejectedValue(new TypeError("fetch failed"))
 
