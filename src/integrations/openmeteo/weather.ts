@@ -1,6 +1,7 @@
 import { CACHE_TTL, integrationCache } from "@/integrations/core/cache"
 import { IntegrationError } from "@/integrations/core/errors"
 import { buildUrl, fetchJson } from "@/integrations/core/http"
+import { openMeteoConfig } from "@/lib/config/providers"
 
 /**
  * Open-Meteo forecast API.
@@ -13,7 +14,7 @@ import { buildUrl, fetchJson } from "@/integrations/core/http"
  */
 
 const PROVIDER = "open-meteo"
-const ENDPOINT = "https://api.open-meteo.com/v1/forecast"
+// Free host by default; a paid plan (OPEN_METEO_API_KEY) or own host via config.
 
 /**
  * The window Open-Meteo will actually serve, measured in days from today.
@@ -146,13 +147,16 @@ export async function fetchDailyForecast(
   const key = `openmeteo:${latitude.toFixed(2)}:${longitude.toFixed(2)}:${startDate}:${endDate}`
 
   return integrationCache.getOrSet(key, CACHE_TTL.weather, async () => {
-    const url = buildUrl(ENDPOINT, {
+    const { forecastUrl, apiKey } = openMeteoConfig()
+    const url = buildUrl(forecastUrl, {
       latitude,
       longitude,
       daily: DAILY_VARIABLES.join(","),
       timezone: "auto",
       start_date: startDate,
       end_date: endDate,
+      // Dropped by buildUrl when null; redacted from any error built from it.
+      apikey: apiKey,
     })
 
     const data = await fetchJson<OpenMeteoResponse>(PROVIDER, url, { signal })

@@ -14,7 +14,7 @@ import { useReducedMotion } from "framer-motion"
 import { cn } from "@/lib/utils"
 import {
   boundsForMarkers,
-  MAP_ATTRIBUTION,
+  MAP_CREDITS,
   MAP_STYLE_URL,
   type MapMarker,
 } from "@/services/map-service"
@@ -212,7 +212,25 @@ export function TripMap({ markers, center, className }: TripMapProps) {
               </li>
             ))}
         </ul>
-        <p className="text-xs text-muted-foreground">{MAP_ATTRIBUTION}</p>
+        <p className="text-xs text-muted-foreground">
+          {MAP_CREDITS.map((credit, index) => (
+            <span key={credit.label}>
+              {index > 0 ? " · " : null}
+              {credit.href ? (
+                <a
+                  href={credit.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="rounded-sm underline-offset-2 hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                >
+                  {credit.label}
+                </a>
+              ) : (
+                credit.label
+              )}
+            </span>
+          ))}
+        </p>
       </div>
     </div>
   )

@@ -1,6 +1,7 @@
 import { CACHE_TTL, integrationCache } from "@/integrations/core/cache"
 import { IntegrationError } from "@/integrations/core/errors"
 import { buildUrl, fetchJson } from "@/integrations/core/http"
+import { frankfurterBaseUrl } from "@/lib/config/providers"
 
 /**
  * Frankfurter exchange rates — https://frankfurter.dev/
@@ -12,7 +13,7 @@ import { buildUrl, fetchJson } from "@/integrations/core/http"
  */
 
 const PROVIDER = "frankfurter"
-const BASE_URL = "https://api.frankfurter.dev/v2"
+// FRANKFURTER_BASE_URL can point at a self-hosted instance; see lib/config/providers.
 
 /** One row per quote currency, as returned by `/v2/rates`. */
 interface RateRow {
@@ -54,7 +55,7 @@ export async function fetchRates(
   const key = `frankfurter:${base.toUpperCase()}:${wanted.join(",")}`
 
   return integrationCache.getOrSet(key, CACHE_TTL.currency, async () => {
-    const url = buildUrl(`${BASE_URL}/rates`, {
+    const url = buildUrl(`${frankfurterBaseUrl()}/rates`, {
       base: base.toUpperCase(),
       quotes: wanted.join(","),
     })
@@ -99,7 +100,7 @@ export async function fetchSupportedCurrencies(
     async () => {
       const rows = await fetchJson<{ iso_code?: string; name?: string }[]>(
         PROVIDER,
-        `${BASE_URL}/currencies`,
+        `${frankfurterBaseUrl()}/currencies`,
         { signal }
       )
       if (!Array.isArray(rows)) {
