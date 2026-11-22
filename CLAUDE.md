@@ -59,12 +59,19 @@ committed before the next begins — don't skip ahead without the user's go-ahea
 - [ ] Phase 11 — PDF export. **Built and verified in isolation, not yet
   exercised end to end with a signed-in user** — see "Phase 11 — PDF export"
   below. Left unchecked until a real trip has been downloaded from the live site.
-- [ ] Phase 12 — Premium features
+- [ ] Phase 12 — Premium features. **Not started.** There is still no billing
+  or plan entitlement; `src/lib/billing/plans.ts` only makes the pricing section
+  honest (Free shows the enforced limits, paid tiers are "Coming soon"). Real
+  plans need a payment provider, which the user hasn't set up.
 - [ ] Phase 13 — Production polish. **Started:** usage limits on the AI calls
   (see "Usage limits" below), error monitoring (see "Error monitoring" below),
   search/sharing metadata (see "Search and sharing metadata" below), Privacy and
   Terms pages, and a first accessibility/performance pass over the public pages
-  (see "Accessibility and performance pass (Phase 13)" below).
+  (see "Accessibility and performance pass (Phase 13)" below). Since then, five
+  reliability/product milestones (PRs #8-#12, see "Reliability and product
+  milestones (Nov 2026)" below): verified providers, the open-redirect fix,
+  route feasibility, adaptive replanning, date/budget editing, and commercial
+  readiness (configurable providers, quota ceilings, attribution).
   Not yet done: the items that pass left open, authenticated-page accessibility and
   performance, custom domain, Supabase redirect URLs and Google sign-in (those two
   need the user).
@@ -91,15 +98,22 @@ committed before the next begins — don't skip ahead without the user's go-ahea
   labelled fallback rather than breaking. Google was returning 503 "high
   demand" on the newer flash models during testing (and one `generateContent`
   call on the default `gemini-3.6-flash` hung >100 s), so intermittent failed
-  generations are an external capacity issue, not a key problem; `GEMINI_MODEL`
-  can override the default model without a code change. **It is now set to
-  `gemini-3-flash-preview` on Vercel** (all environments): an end-to-end run of
-  the real pipeline showed the code's default `gemini-3.6-flash` timing out at
-  the app's own 60 s limit, while `gemini-3-flash-preview` produced a complete,
-  fully venue-grounded itinerary (all 10 activities backed by real venues, live
-  forecast, real photo credit) — but took ~79 s including one retry. Two caveats:
-  it is a *preview* model Google can change or withdraw (if generation starts
-  failing with `unavailable`, check the model first), and the platform's
+  generations are an external capacity issue, not a key problem. **Current model
+  settings (2026-11-22):** the code default is `gemini-3.8-flash`
+  (`DEFAULT_GEMINI_MODEL` in `src/lib/config/providers.ts`; the user's choice of
+  stable GA Flash model, after `gemini-2.5-flash` was deprecated). On Vercel,
+  `GEMINI_MODEL=gemini-3.8-flash` (plain, all environments) and
+  `GEMINI_FALLBACK_MODEL=gemini-3.5-flash-lite` (sensitive, production + preview;
+  its value is write-only, recorded here from the user). The fallback gets one
+  attempt only when the primary times out or returns a 5xx (e.g. 503 "high
+  demand"). History: `GEMINI_MODEL` was earlier `gemini-3-flash-preview` (the
+  then-default `gemini-3.6-flash` timed out at 60 s), was found **deleted** from
+  Vercel on 2026-11-22, and was re-created with the value above. The first
+  production request on the new model hit a Google 503 "high demand" (a capacity
+  answer, not "model not found"), with no fallback because the deployment
+  serving it was the wrong branch (see "Deploying production" below). Caveats:
+  Google can change model availability (if generation fails with `unavailable`,
+  check the model first), and the platform's
   function timeout could not be read with the available tools (the project/
   deployment APIs trim it, and the dashboard was inaccessible), so it is now set
   **explicitly in code**: `export const maxDuration = 150` on `/trips/new`
@@ -110,6 +124,22 @@ committed before the next begins — don't skip ahead without the user's go-ahea
   `.vercel.app` URL (the site wasn't public); it is now `preview`-only, so
   production is public and branch previews still require a Vercel login. Node
   is pinned by `engines.node` (22.x), not the project setting.
+- **Deploying production.** Production should be built from `main`. On
+  2026-11-22 a local `vercel --prod` run from a folder still checked out on
+  `claude/hopeful-pascal-6bcggv` (commit `161baa9`) replaced the `main` build, which
+  silently removed the open-redirect fix and PRs #8-#12 from production. It was
+  fixed by deploying `main` (`b7dfbe0`) through the Git integration. Prefer
+  merging to `main` (Vercel deploys it); if deploying by hand, check
+  `git branch --show-current` first. `app_release` in `error_events` shows which
+  commit an error came from, which is how this was spotted.
+  `161baa9` ("manual itinerary editing, empty-itinerary trips…") is still unmerged.
+- **Applied migrations beyond the earlier sections:** `add_shift_trip_dates`
+  (2026-11-21) and `cap_ai_quota_limits` (2026-11-22), both on `ai-travel-planner`,
+  each verified from the catalog afterwards (signature, `search_path=public`,
+  execute for `authenticated` only, not `anon`/`PUBLIC`) with no new security
+  advisor findings. `shift_trip_dates` had already been created in the live
+  database by hand, byte-identical to the file, but was missing from the
+  migration history; applying the migration recorded it.
 
 ## Non-obvious things learned in Phase 1
 
@@ -1450,8 +1480,9 @@ page (`trip-actions-menu.tsx`) plus an Archived section on `/trips`.
   flash a 404 before the redirect to `/trips`); it revalidates `/trips` and `/dashboard`.
   The export routes (`/trips/:id/export`, `/pdf`) go through `getTripDetail`, which
   `notFound()`s when the row is gone, so they 404 after a delete — by reading, not by
-  request. A trip stuck in `generating` (e.g. a crashed generation) can't be deleted,
-  archived or duplicated; nothing resets it.
+  request. A trip stuck in `generating` (e.g. a crashed generation) used to be
+  impossible to delete, archive or duplicate; since PR #8 a `generating` row older
+  than 5 minutes is treated as a draft and recovered (see the milestones section).
   **Verified:** unit tests for the refusal rule and wording (mutation-checked: making
   the rule never refuse fails the test); `tsc`/lint/build; the dialog rendered in
   isolation in headless Chrome via a temporary probe page (since deleted) at 1280px and
@@ -1463,8 +1494,8 @@ page (`trip-actions-menu.tsx`) plus an Archived section on `/trips`.
   redirect to `/trips`, the trip really gone, the child rows gone), the pending state,
   and whether `revalidatePath` in the action re-renders the deleted trip page before
   the redirect (reasoned about, not observed).
-- **Not built:** editing a trip's dates/destination, and importing an exported file
-  back. None were in the phase's one-line spec.
+- **Not built:** editing a trip's destination or length, and importing an exported
+  file back. Shifting dates (same length) and editing the budget were added in PR #11.
 
 ## Dependency refresh (Nov 2026)
 
@@ -1505,7 +1536,7 @@ Brought the project current after a long gap. `npm audit --omit=dev` went from
   content model, a render smoke test of the PDF document, and `resolveChatOperations`/`assignItemRefIds` in
   the AI layer, which is where "the model may pick but never state a fact" is
   actually enforced. No network, no database, no env vars needed.
-- Added in the Nov 2026 refresh (79 tests), grown to 245 with the PDF work, the usage limits, error monitoring, trip deletion, the "N left today" hint and the site-metadata helpers, ~3s.
+- Added in the Nov 2026 refresh (79 tests), grown to 245 with the PDF work, the usage limits, error monitoring, trip deletion, the "N left today" hint and the site-metadata helpers, and to 506 with PRs #8-#12 (redaction, weather warnings, costs, scheduling, feasibility, replanning, date/budget rules, provider config, plans, attribution), ~5s. Database functions are tested separately against a throwaway local Postgres (see the milestones section), not in CI.
   The three most load-bearing rules were mutation-checked (each deliberately
   broken once, each caught by the intended test, then reverted). It does **not**
   cover server actions, anything needing Supabase, or any component — those
@@ -2012,8 +2043,8 @@ elsewhere, which is how Next ships CSS.
   larger/brighter label. Design call.
 - Four font files (207 kB) are downloaded on every page including `/login`, where one is
   used; the fonts are another branch's area, as is the flaky Google Fonts build.
-- Landing copy says the Free plan is "3 AI itineraries per month" while the enforced limit is
-  5 trips per 24 h per user (`usage-limits.ts`); worth reconciling.
+- ~~Landing copy says the Free plan is "3 AI itineraries per month"~~ — fixed in PR #12:
+  the pricing section now derives Free from the enforced limits (`lib/billing/plans.ts`).
 - Landing footer content spans 1152 px while the navbar content is inset by a further 24 px
   gutter each side, so they do not align at wide widths (pre-existing).
 - Not checked: screen-reader output (no AT run, only the accessibility tree via DOM), any page
@@ -2035,7 +2066,7 @@ writes, no deploy).
   and checks that the key is absent from thrown errors and from `serialiseError`
   output for a 401, a network failure and a missing key. Mutation-checked: renaming
   the parameter fails the pin test.
-- **Open gap, not fixed:** because both OpenTripMap and Gemini keys travel in the URL,
+- **Gap found here, fixed in PR #8** (`core/http.ts` redacts key-bearing query params and known secret values from every error it builds). Original note: because both OpenTripMap and Gemini keys travel in the URL,
   a provider error body that *echoed the request URL* would be copied verbatim into
   the `IntegrationError` message by `fetchJson` (`extractErrorMessage`), and from
   there into logs and `error_events`. Neither provider's real error bodies do this
@@ -2055,9 +2086,136 @@ writes, no deploy).
   session two Gemini calls timed out at 60 s while an identical request a minute
   later took ~3 s via both curl and Node: Google-side latency, as noted under
   Infrastructure.
-- **Two output-grounding gaps found in Gemini's text.** (1) Model-written `warnings`
+- **Two output-grounding gaps found in Gemini's text** — (1) fixed in PR #8 (weather warnings now come from the forecast); (2) still open. (1) Model-written `warnings`
   said "Heavy rain is expected on November 24th and 25th" while Open-Meteo gave Nov 25
   a 10% precipitation chance (condition "Rain" from the weather code). Nothing checks
   warnings against the forecast. (2) Activity `estimatedCost` is the model's own
   number and is not verified against anything (Arco da Rua Augusta came back at
   EUR 15, several times the usual ticket price); it feeds the activities budget line.
+
+## Reliability and product milestones (Nov 2026)
+
+Five PRs after the live provider verification above, each developed on its own
+branch, gated by lint/`tsc`/Vitest/build, and merged by the user. What each
+added, and what is and isn't verified.
+
+### PR #8 (`claude/busy-hawking-occast`) — fixes found by the audit
+- **Key redaction** (`core/http.ts`): every error `fetchJson` builds has key-bearing
+  query params (`apikey`, `key`, `token`, `access_token`, …, raw or percent-encoded)
+  and the request's exact secret values (URL params and auth headers, `Bearer` /
+  `Client-ID` stripped) removed, including from wrapped causes and stacks.
+- **Weather warnings come from the forecast** (`lib/ai/providers/weather-warnings.ts`):
+  model-written warnings that mention weather are dropped and replaced by ones built
+  from `weatherByDate` (rain/snow/storms at >= 50%, wind >= 40 km/h, never "heavy").
+  Root cause: Open-Meteo's daily `weather_code` is the day's *worst* code, so a 10%
+  day reads "Rain"; the prompt now carries the precipitation chance too.
+- **Costs stay in sync after chat edits** (`lib/trips/itinerary-costs.ts`,
+  `services/itinerary-cost-sync.ts`): `daily_cost` and the planned budget lines are
+  re-derived with the same pure rules generation uses. The "activities" line is an
+  allocation (30% of what's left after hotel and transport), not a sum of activity
+  costs, so with a trip budget set it doesn't move when activities do.
+- **Stuck `generating` trips recover** (`services/generation-state.ts`,
+  `generation-recovery.ts`): a `generating` row older than 2 x the 150 s
+  `maxDuration` is shown and treated as a draft (compare-and-set on status and
+  `updated_at`); `regenerateTripAction` + a "Generate itinerary" button regenerate a draft.
+- **Chat moves/adds keep times consistent** (`lib/trips/activity-schedule.ts`): the
+  start time fits the target slot (asked-for time, else its own, else after the
+  slot's last stop, else the slot default) and the day is re-sequenced by slot and time.
+- **Auth open redirect closed** (`lib/auth/safe-redirect.ts`): `/auth/callback`'s
+  `next` and `/login`'s `redirectTo` accept only same-site paths (one leading `/`, no
+  `\`, `@`, whitespace, control chars or `://`, same origin after resolution, also
+  after percent-decoding). `?error=auth-callback-failed` shows a message; only known
+  codes map to text.
+- **No fake opening hours**: generation stores `null`; old rows holding the three
+  meal-window guesses are labelled "Typical meal hours" on the page and dropped from
+  the JSON export (`services/restaurant-hours.ts`).
+
+### PR #9 (`feat/route-feasibility`) — route ordering and day feasibility
+`lib/trips/feasibility.ts`, pure and deterministic, no routing provider: legs are
+straight-line distance x 1.3 street factor; walk (4.5 km/h, 5 min floor) up to
+1.5 km, else the trip's transport (public 18 km/h + 10 min, taxi/car 25 km/h + 5 min).
+`analyzeDay` flags **tight** (a stop starts before the last ends, or a gap shorter
+than travel) and **busy** (> 12 km on foot, > 10 h, > 5 stops, or a route >= 1.4x and
+>= 1 km longer than its best order); missing locations/times are reported, never
+guessed. Generation gives the model each candidate's coordinates, orders stops by
+distance within each slot (exact search up to 7 stops, nearest-next + 2-opt beyond),
+starts from the real stay (city centre for an example stay), and re-times so each
+stop leaves room to travel — the slot's original start times stay with their
+positions. The mock's random distances were replaced by computed ones. The trip page
+shows each day's pace, problems in the notice style, a leg per activity, and links to
+tight/busy days; computed at render, never stored. Chat edits resync stored legs.
+
+### PR #10 (`feat/adaptive-replanning`) — one-click replans
+"Optimize pace" (on Tight/Busy days) and "Adapt for weather" (beside a real, severe
+forecast, same rule as the warnings) call `proposeReplanAction`, which runs the pure
+`lib/trips/replan.ts` — **no model call, no AI quota, no external request** — and saves
+the result as an assistant chat message (`provider_id = 'replan:day-N'`; a newer one
+supersedes the day's pending one) that opens in the chat panel for the usual
+Apply/Discard. Pace: re-space the day; else move one stop (latest first) to the
+lightest other day that stays comfortable; last resort, remove one. Weather: move
+clearly outdoor categories (`natural`, `gardens_and_parks`, `beaches`, `view_points`,
+`urban_environment`, `bridges`, `sport`) to days with a known, non-severe forecast,
+preferring a swap with a clearly indoor stop (`museums`, `theatres_and_entertainments`,
+`religion`, `shops`); ambiguous categories never move. **Invariant:** every candidate
+is applied to an in-memory copy with the apply action's own placement rule and kept
+only if the target day improves and no day gains a tight/busy problem; at most 6
+operations, else "No safe change found". Move/remove operations may carry the
+activity's expected day/slot/time; apply skips any that changed since (older and
+model proposals carry none and behave as before). The chat panel learns of a new
+proposal through a page-level browser event (`replan-events.ts`).
+
+### PR #11 (`feat/trip-date-budget-edit`) — change dates, edit budget
+- **Change dates** calls `shift_trip_dates(p_trip_id, p_new_start)`
+  (migration `20261121090000`), `SECURITY INVOKER`, all-or-nothing: trip start/end,
+  each day's date, hotel check-in/out and transport times move by the same offset;
+  stored weather is deleted (the page fetches a live forecast for the new dates);
+  pending replans are retired; **expenses keep their dates**. Refuses generating or
+  undated trips, the same start, more than 1 day in the past (UTC calendar) or more
+  than 2 years ahead. `services/trip-edit.ts` mirrors the rules in the same words (a
+  test checks against the migration file) so the dialog can refuse early.
+- **Edit budget**: an amount > 0 up to 10,000,000 or empty (no budget), currency
+  unchanged, refused while generating; then `syncItineraryCosts` re-derives the plan.
+- Both are in the trip's "..." menu next to Rename, hidden while generating.
+
+### PR #12 (`feat/commercial-readiness`) — providers, quota ceilings, plans, credits
+- **`src/lib/config/providers.ts`** reads every provider setting once, free and
+  keyless by default: `OPEN_METEO_API_KEY` (-> `customer-api.open-meteo.com` +
+  `&apikey=`), `OPEN_METEO_BASE_URL`, `GEOCODING_BASE_URL` / `GEOCODING_API_KEY` (`?key=`)
+  / `GEOCODING_CONTACT` (in the User-Agent), `OPENTRIPMAP_BASE_URL`,
+  `FRANKFURTER_BASE_URL`, `NEXT_PUBLIC_MAP_STYLE_URL` / `NEXT_PUBLIC_MAP_ATTRIBUTION`,
+  `GEMINI_MODEL` / `GEMINI_FALLBACK_MODEL`. Unusable values fall back to the defaults.
+  The 1 req/s throttle applies only to `nominatim.openstreetmap.org`. All documented
+  in `.env.example`.
+- **Quota hole closed** (migration `20261122090000_cap_ai_quota_limits`, applied).
+  `consume_ai_quota` took its limits from the caller and signed-in users can call it
+  directly, so one account could pass a huge per-user limit, confirm its slots and
+  exhaust the site-wide allowance for everyone. It now uses `least(requested,
+  ceiling)`: 20 trips / 100 chat messages per user, 1,000 / 2,000 site-wide, per 24 h.
+  `AI_LIMIT_CEILINGS` in `usage-limits.ts` must equal those (a test reads the file);
+  `AI_LIMIT_*` settings are clamped to them.
+- **Pricing** (`lib/billing/plans.ts`): Free lists the enforced limits and real
+  features; Explorer/Team are "Coming soon" with no price, features or checkout.
+- **Attribution**: the map footer credits OpenStreetMap (linked to /copyright) plus
+  the tile provider; the trip page ends with "Planned with AI. Check opening hours,
+  prices and bookings before you travel." and linked data sources — Open-Meteo.com
+  (CC BY 4.0) when there's a real forecast, OpenTripMap + OSM (ODbL) when real places
+  are used (`usesRealPlaces`: a real stay or a non-example category), Unsplash when
+  there's a photo. The Privacy page still says Gemini runs on Google's free tier.
+
+### Testing database functions locally
+Both new migrations were exercised against a throwaway local Postgres 16 (installed
+in the build container) with every migration applied and Supabase stand-ins (`anon`,
+`authenticated`, `service_role` roles; `auth.users`; `auth.uid()` reading
+`request.jwt.claim.sub`), then SQL scenarios per role and mutation checks (each rule
+broken once in a copy of the migration). Gotchas: `initdb`/`pg_ctl` must run as the
+`postgres` user, which can't read the session scratchpad, so the cluster lives in
+`/var/tmp/<name>` and is deleted afterwards; changing `/tmp/claude-0`'s permissions
+doesn't stick (they were reset within a minute, crashing the server). No live
+database writes were made for testing.
+
+### Not verified (all five PRs)
+None of the UI has been clicked through in a browser with a signed-in user: the
+pace/feasibility lines, the replan buttons and chat hand-off, Apply with stale
+operations, Change dates / Edit budget, the pricing section, the trip-page credits,
+the sign-in redirect. `gemini-3.8-flash` and the fallback model have not been called
+successfully yet (only a 503 has been observed).
