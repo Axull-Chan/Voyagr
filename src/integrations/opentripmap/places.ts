@@ -1,6 +1,7 @@
 import { CACHE_TTL, integrationCache } from "@/integrations/core/cache"
 import { IntegrationError } from "@/integrations/core/errors"
 import { buildUrl, fetchJson } from "@/integrations/core/http"
+import { openTripMapBaseUrl } from "@/lib/config/providers"
 import type { Interest } from "@/lib/trips/trip-domain"
 
 /**
@@ -18,7 +19,7 @@ import type { Interest } from "@/lib/trips/trip-domain"
  */
 
 const PROVIDER = "opentripmap"
-const BASE_URL = "https://api.opentripmap.com/0.1/en/places"
+// OPENTRIPMAP_BASE_URL can point at a mirror or proxy; see lib/config/providers.
 
 /** Verified against the live API; every entry returns 200. */
 export const OTM_KINDS = {
@@ -164,7 +165,7 @@ export async function searchPlaces(
   const key = `otm:radius:${latitude.toFixed(3)}:${longitude.toFixed(3)}:${radiusM}:${kindList}:${limit}:${minRating}`
 
   return integrationCache.getOrSet(key, CACHE_TTL.places, async () => {
-    const url = buildUrl(`${BASE_URL}/radius`, {
+    const url = buildUrl(`${openTripMapBaseUrl()}/radius`, {
       lat: latitude,
       lon: longitude,
       radius: radiusM,
@@ -234,7 +235,7 @@ export async function fetchPlaceDetail(
   const key = `otm:xid:${xid}`
 
   return integrationCache.getOrSet(key, CACHE_TTL.places, async () => {
-    const url = buildUrl(`${BASE_URL}/xid/${encodeURIComponent(xid)}`, { apikey })
+    const url = buildUrl(`${openTripMapBaseUrl()}/xid/${encodeURIComponent(xid)}`, { apikey })
 
     let data: DetailResponse
     try {

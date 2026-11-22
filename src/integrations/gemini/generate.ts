@@ -1,5 +1,6 @@
 import { IntegrationError } from "@/integrations/core/errors"
 import { buildUrl, fetchJson } from "@/integrations/core/http"
+import { geminiModels } from "@/lib/config/providers"
 
 /**
  * Gemini's `generateContent`, constrained to schema-controlled JSON output.
@@ -19,7 +20,8 @@ import { buildUrl, fetchJson } from "@/integrations/core/http"
  */
 
 const PROVIDER = "gemini"
-const DEFAULT_MODEL = "gemini-3.6-flash"
+// Model ids come from geminiModels(): GEMINI_MODEL, else the stable GA default,
+// plus an optional GEMINI_FALLBACK_MODEL.
 
 function requireApiKey(): string {
   const key = process.env.GEMINI_API_KEY
@@ -56,13 +58,43 @@ export async function createStructuredResponse<T>(
   request: StructuredRequest
 ): Promise<{ data: T; usage: { inputTokens: number; outputTokens: number } }> {
   const apiKey = requireApiKey()
-  const model = process.env.GEMINI_MODEL || DEFAULT_MODEL
+  const { primary, fallback } = geminiModels()
+
+  // With a fallback, each model gets one attempt (two 60 s attempts still fit
+  // the pages' 150 s limit); without one, the primary keeps its usual retry.
+  const call = (model: string, retries: number) =>
+    requestModel(model, apiKey, request, retries)
+  let body: GenerateContentBody
+  if (!fallback) {
+    body = await call(primary, 1)
+  } else {
+    try {
+      body = await call(primary, 0)
+    } catch (error) {
+      // Only a busy or unreachable model is worth trying another for: a timeout,
+      // a 5xx (e.g. 503 "high demand") or a network fault. A bad request, a bad
+      // key or a rate limit would fail the same way on the fallback.
+      if (!(error instanceof IntegrationError) || error.kind !== "unavailable") throw error
+      body = await call(fallback, 0)
+    }
+  }
+
+  return parseGenerateContent<T>(body)
+}
+
+/** One generateContent request against `model`. */
+async function requestModel(
+  model: string,
+  apiKey: string,
+  request: StructuredRequest,
+  retries: number
+): Promise<GenerateContentBody> {
   const url = buildUrl(
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
     { key: apiKey }
   )
 
-  const body = await fetchJson<GenerateContentBody>(PROVIDER, url, {
+  return fetchJson<GenerateContentBody>(PROVIDER, url, {
     method: "POST",
     body: {
       systemInstruction: { parts: [{ text: request.system }] },
@@ -74,10 +106,14 @@ export async function createStructuredResponse<T>(
       },
     },
     timeoutMs: request.timeoutMs ?? 60_000,
-    retries: 1,
+    retries,
     signal: request.signal,
   })
+}
 
+function parseGenerateContent<T>(
+  body: GenerateContentBody
+): { data: T; usage: { inputTokens: number; outputTokens: number } } {
   if (body.promptFeedback?.blockReason) {
     // Gemini's own safety filters, not a transport failure — retrying
     // wouldn't change a blocked prompt's outcome.

@@ -1,6 +1,7 @@
 import { CACHE_TTL, integrationCache } from "@/integrations/core/cache"
 import { IntegrationError } from "@/integrations/core/errors"
 import { buildUrl, fetchJson } from "@/integrations/core/http"
+import { geocodingConfig } from "@/lib/config/providers"
 
 /**
  * Nominatim geocoding — https://nominatim.org/release-docs/latest/api/Search/
@@ -20,13 +21,12 @@ import { buildUrl, fetchJson } from "@/integrations/core/http"
  */
 
 const PROVIDER = "nominatim"
-const ENDPOINT = "https://nominatim.openstreetmap.org/search"
+// Endpoint, key, User-Agent and throttle come from geocodingConfig(): the
+// public OpenStreetMap server by default, any Nominatim-compatible service if set.
 
 /** Required by the usage policy; a generic agent gets blocked. */
-const USER_AGENT = "Voyagr/0.1 (AI travel planner; portfolio project)"
 
 /** The policy's hard limit. */
-const MIN_REQUEST_INTERVAL_MS = 1_100
 
 /** Credit that must appear wherever these coordinates are shown. */
 export const OSM_ATTRIBUTION = "© OpenStreetMap contributors"
@@ -140,8 +140,10 @@ let requestChain: Promise<unknown> = Promise.resolve()
 function schedule<T>(task: () => Promise<T>): Promise<T> {
   const run = requestChain.then(async () => {
     const result = await task()
-    // Hold the chain open for the interval so the *next* caller waits.
-    await new Promise((resolve) => setTimeout(resolve, MIN_REQUEST_INTERVAL_MS))
+    // Hold the chain open for the interval so the *next* caller waits. Only the
+    // public server's policy needs this; a hosted service sets its own limits.
+    const { minIntervalMs } = geocodingConfig()
+    if (minIntervalMs > 0) await new Promise((resolve) => setTimeout(resolve, minIntervalMs))
     return result
   })
   // Keep the chain alive even if this task threw, or one failure would
@@ -168,7 +170,8 @@ export async function geocodePlace(
 
   return integrationCache.getOrSet(key, CACHE_TTL.geocode, () =>
     schedule(async () => {
-      const url = buildUrl(ENDPOINT, {
+      const { searchUrl, apiKey, userAgent } = geocodingConfig()
+      const url = buildUrl(searchUrl, {
         q: trimmed,
         format: "jsonv2",
         // Several candidates, then ranked below — asking for one lets a
@@ -178,11 +181,13 @@ export async function geocodePlace(
         // Without this Nominatim answers in the local language, so "Kyoto"
         // comes back as "京都市" and lands in the UI untranslated.
         "accept-language": "en",
+        // Hosted Nominatim services take their key as `key`; absent for the public server.
+        key: apiKey,
       })
 
       const results = await fetchJson<NominatimPlace[]>(PROVIDER, url, {
         signal,
-        headers: { "User-Agent": USER_AGENT },
+        headers: { "User-Agent": userAgent },
         // The public instance asks callers not to hammer it on failure.
         retries: 1,
       })

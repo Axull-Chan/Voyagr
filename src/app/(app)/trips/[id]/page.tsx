@@ -27,6 +27,8 @@ import { TripChat } from "@/features/trips/components/detail/trip-chat"
 import { getAiQuotaHint } from "@/features/trips/services/ai-quota"
 import { TripActionsMenu } from "@/features/trips/components/detail/trip-actions-menu"
 import { GenerateItineraryButton } from "@/features/trips/components/detail/generate-itinerary-button"
+import { TripSources } from "@/features/trips/components/detail/trip-sources"
+import { dataSourceGroups, usesRealPlaces } from "@/lib/attribution"
 import {
   FEASIBILITY_STATUS_LABEL,
   analyzeDay,
@@ -424,6 +426,24 @@ export default async function TripDetailPage({ params }: TripDetailPageProps) {
             <PackingSection tripId={trip.id} items={packing} />
           </RevealItem>
         </div>
+
+        <RevealItem>
+          <TripSources
+            showAiNotice={days.length > 0}
+            groups={dataSourceGroups({
+              // Only a real forecast is Open-Meteo's (live, or stored from it).
+              weather: days.some((day) => {
+                const f = forecastFor(day)
+                return f?.provenance === "live" || f?.provenance === "planning-real"
+              }),
+              places: usesRealPlaces(
+                days.flatMap((day) => day.activities),
+                hotels
+              ),
+              photo: Boolean(trip.cover_image_url),
+            })}
+          />
+        </RevealItem>
       </Reveal>
 
       <TripChat

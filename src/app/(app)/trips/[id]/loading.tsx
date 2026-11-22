@@ -79,6 +79,12 @@ export default function TripDetailLoading() {
           </div>
         </div>
       </div>
+
+      {/* The AI notice and data-sources credit at the foot of the page. */}
+      <div className="mt-14 space-y-1.5 border-t border-border pt-5 sm:mt-16">
+        <Skeleton className="h-3 w-full max-w-md" />
+        <Skeleton className="h-3 w-full max-w-lg" />
+      </div>
     </div>
   )
 }

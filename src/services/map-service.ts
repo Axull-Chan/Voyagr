@@ -1,5 +1,6 @@
 import { geocodePlace, OSM_ATTRIBUTION } from "@/integrations/nominatim/geocoding"
 import { attempt, live, unavailable, type ServiceResult } from "@/services/service-result"
+import { mapStyleConfig, type Credit } from "@/lib/config/providers"
 
 /**
  * Map and geocoding concerns for the app.
@@ -9,14 +10,23 @@ import { attempt, live, unavailable, type ServiceResult } from "@/services/servi
  * community-run with no SLA — touches one file and no UI.
  */
 
-/** OpenFreeMap's Liberty style: no key, no account, MapLibre-compatible. */
-export const MAP_STYLE_URL = "https://tiles.openfreemap.org/styles/liberty"
+// The NEXT_PUBLIC_ values are written out so Next.js inlines them into the
+// browser bundle; reading `process.env` generically would leave them undefined.
+const mapStyle = mapStyleConfig({
+  NEXT_PUBLIC_MAP_STYLE_URL: process.env.NEXT_PUBLIC_MAP_STYLE_URL,
+  NEXT_PUBLIC_MAP_ATTRIBUTION: process.env.NEXT_PUBLIC_MAP_ATTRIBUTION,
+})
+
+/** OpenFreeMap's Liberty style by default (no key, no account), or NEXT_PUBLIC_MAP_STYLE_URL. */
+export const MAP_STYLE_URL = mapStyle.styleUrl
 
 /**
- * Required credit for both the tiles and the geocoding, since both derive
- * from OpenStreetMap. Rendered by the map component and anywhere coordinates
- * are shown.
+ * The credit line under the map: OpenStreetMap (ODbL; the tiles, the geocoding
+ * and the places all derive from it) plus the tile provider, each linked.
  */
+export const MAP_CREDITS: Credit[] = mapStyle.credits
+
+/** Plain-text OpenStreetMap credit, for places that can't render links. */
 export const MAP_ATTRIBUTION = OSM_ATTRIBUTION
 
 export interface Coordinates {

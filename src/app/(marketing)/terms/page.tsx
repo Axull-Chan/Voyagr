@@ -26,9 +26,9 @@ export default function TermsPage() {
           can do: you describe a trip, it drafts an itinerary, a budget and
           a packing list, and you can edit them. It is a demonstration
           built by one person, not a commercial service. It may change,
-          break or disappear at any time. The pricing tiers on the landing
-          page are illustrative: the app has no payment system and nothing is
-          ever charged.
+          break or disappear at any time. Voyagr is free: the paid plans on
+          the landing page are marked as coming soon, the app has no payment
+          system, and nothing is ever charged.
         </p>
       </LegalSection>
 

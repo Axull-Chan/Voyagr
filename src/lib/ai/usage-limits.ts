@@ -32,6 +32,19 @@ export const DEFAULT_AI_LIMITS: Record<AiUsageKind, AiLimits> = {
   chat_message: { perUser: 30, global: 500 },
 }
 
+/**
+ * Hard ceilings, enforced inside `consume_ai_quota` itself (migration
+ * 20261122090000_cap_ai_quota_limits.sql). The function takes its limits from
+ * the caller, and any signed-in user can call it directly, so without these one
+ * account could pass a huge per-user limit and drain the site-wide pool for
+ * everyone. Settings can lower the limits but never raise them past these; the
+ * values here and in the migration must stay equal (a test checks the file).
+ */
+export const AI_LIMIT_CEILINGS: Record<AiUsageKind, AiLimits> = {
+  trip_generation: { perUser: 20, global: 1_000 },
+  chat_message: { perUser: 100, global: 2_000 },
+}
+
 export const AI_LIMIT_ENV: Record<AiUsageKind, { perUser: string; global: string }> = {
   trip_generation: {
     perUser: "AI_LIMIT_TRIPS_PER_USER",
@@ -50,11 +63,17 @@ function parseLimit(
   name: string,
   raw: string | undefined,
   fallback: number,
+  ceiling: number,
   warn: (message: string) => void
 ): number {
   if (raw === undefined || raw.trim() === "") return fallback
   const n = Number(raw)
-  if (Number.isInteger(n) && n >= 1 && n <= MAX_LIMIT) return n
+  if (Number.isInteger(n) && n >= 1 && n <= MAX_LIMIT) {
+    if (n <= ceiling) return n
+    // The database caps it anyway; say so rather than show a limit nobody gets.
+    warn(`[ai limits] ${name}=${n} is above the database ceiling; using ${ceiling}.`)
+    return ceiling
+  }
   // An unusable value falls back to the (restrictive) default rather than to
   // "no limit" — a typo must never turn protection off.
   warn(
@@ -69,10 +88,11 @@ export function getAiLimits(
   warn: (message: string) => void = console.warn
 ): AiLimits {
   const defaults = DEFAULT_AI_LIMITS[kind]
+  const ceilings = AI_LIMIT_CEILINGS[kind]
   const names = AI_LIMIT_ENV[kind]
   return {
-    perUser: parseLimit(names.perUser, env[names.perUser], defaults.perUser, warn),
-    global: parseLimit(names.global, env[names.global], defaults.global, warn),
+    perUser: parseLimit(names.perUser, env[names.perUser], defaults.perUser, ceilings.perUser, warn),
+    global: parseLimit(names.global, env[names.global], defaults.global, ceilings.global, warn),
   }
 }
 
