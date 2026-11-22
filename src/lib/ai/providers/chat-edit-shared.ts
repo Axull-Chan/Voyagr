@@ -1,13 +1,18 @@
 import type { Candidates } from "@/lib/ai/providers/venue-grounded"
 import type {
+  ChatBudgetFacts,
   ChatEditRequest,
+  ChatForecast,
   ChatItineraryActivity,
+  ChatItineraryDay,
   ChatItineraryRestaurant,
   ChatItinerarySnapshot,
   ChatOperation,
   SourcedVenue,
 } from "@/lib/ai/types"
 import { MEAL_TYPES, TIME_SLOTS } from "@/lib/trips/trip-domain"
+import { legModeLabel, type LegMode } from "@/lib/trips/feasibility"
+import { MAX_FORECAST_OFFSET_DAYS } from "@/integrations/openmeteo/weather"
 
 /**
  * Shared between every "real model, grounded in real venues" provider that
@@ -101,6 +106,60 @@ function venueLines(byId: Map<string, SourcedVenue>): string {
     .join("\n")
 }
 
+const money = (amount: number, currency: string) =>
+  `${currency} ${amount.toLocaleString("en-GB", { maximumFractionDigits: 2 })}`
+
+/** One line of weather a model may repeat — or, without a real forecast, a
+ * plain "none available" with no numbers at all. */
+export function forecastLine(forecast: ChatForecast): string {
+  if (forecast.kind === "none") return "forecast: none available"
+  const parts = [forecast.condition]
+  if (forecast.lowC !== null && forecast.highC !== null) {
+    parts.push(`${Math.round(forecast.lowC)}–${Math.round(forecast.highC)}°C`)
+  } else if (forecast.highC !== null) {
+    parts.push(`high ${Math.round(forecast.highC)}°C`)
+  }
+  if (forecast.precipitationChance !== null) parts.push(`${forecast.precipitationChance}% chance of rain`)
+  if (forecast.windKph !== null) parts.push(`wind ${Math.round(forecast.windKph)} km/h`)
+  if (forecast.severe) parts.push("SEVERE")
+  const origin = forecast.origin === "live" ? "live" : "from when the trip was planned"
+  return `forecast (${origin}): ${parts.join(", ")}`
+}
+
+const PACE_LABEL: Record<ChatItineraryDay["pace"], string> = {
+  comfortable: "Comfortable",
+  tight: "Tight",
+  busy: "Busy",
+  unknown: "not checked",
+}
+
+function dayHeading(day: ChatItineraryDay, currency: string): string {
+  const parts = [
+    `Day ${day.dayNumber}${day.date ? ` (${day.date})` : ""}`,
+    forecastLine(day.forecast),
+    `pace: ${PACE_LABEL[day.pace]}${day.paceProblems.length > 0 ? ` (${day.paceProblems.join("; ")})` : ""}`,
+  ]
+  if (day.dailyCost !== null) parts.push(`activities est. ${money(day.dailyCost, currency)}`)
+  return `${parts.join(" · ")}\n  Summary: ${day.summary ?? "(no summary)"}`
+}
+
+function activityLine(a: ChatItineraryActivity, ref: string | undefined, currency: string): string {
+  const when = `${a.timeSlot ?? "unscheduled"}${a.startTime ? ` ${a.startTime.slice(0, 5)}` : ""}`
+  const details = [
+    a.durationMinutes !== null ? `${a.durationMinutes} min` : null,
+    a.estimatedCost !== null ? `est. ${money(a.estimatedCost, currency)}` : null,
+  ].filter(Boolean)
+  const lines = [
+    `  - id: ${ref} | ${when}${details.length > 0 ? `, ${details.join(", ")}` : ""} | "${a.title}"${a.locationName ? ` at ${a.locationName}` : ""}${a.category ? ` [${a.category}]` : ""}`,
+  ]
+  if (a.legFromPrevious) {
+    const how = legModeLabel(a.legFromPrevious.mode as LegMode)
+    lines.push(`      getting there: est. ${a.legFromPrevious.km} km, ~${a.legFromPrevious.minutes} min ${how}`)
+  }
+  if (a.description) lines.push(`      about: ${a.description}`)
+  return lines.join("\n")
+}
+
 function itineraryLines(snapshot: ChatItinerarySnapshot, itemRefs: ItemRefs): string {
   const activityRefById = new Map(
     [...itemRefs.activitiesByRef.entries()].map(([ref, a]) => [a.id, ref])
@@ -114,21 +173,72 @@ function itineraryLines(snapshot: ChatItinerarySnapshot, itemRefs: ItemRefs): st
       const activities = snapshot.activities.filter((a) => a.dayNumber === day.dayNumber)
       const restaurants = snapshot.restaurants.filter((r) => r.dayNumber === day.dayNumber)
       const activityLines = activities
-        .map(
-          (a) =>
-            `  - id: ${activityRefById.get(a.id)} | ${a.timeSlot ?? "unscheduled"}${a.startTime ? ` ${a.startTime.slice(0, 5)}` : ""} | "${a.title}"${a.locationName ? ` at ${a.locationName}` : ""}`
-        )
+        .map((a) => activityLine(a, activityRefById.get(a.id), snapshot.currency))
         .join("\n")
       const restaurantLines = restaurants
-        .map((r) => `  - id: ${restaurantRefById.get(r.id)} | ${r.mealType ?? "meal"} | "${r.name}"`)
+        .map(
+          (r) =>
+            `  - id: ${restaurantRefById.get(r.id)} | ${r.mealType ?? "meal"} | "${r.name}"${r.cuisine ? ` (${r.cuisine})` : ""} | hours: ${r.hours ?? "unknown"}`
+        )
         .join("\n")
       return [
-        `Day ${day.dayNumber}${day.date ? ` (${day.date})` : ""}: ${day.summary ?? "(no summary)"}`,
+        dayHeading(day, snapshot.currency),
         activities.length > 0 ? activityLines : "  (no activities)",
         restaurants.length > 0 ? restaurantLines : "  (no restaurants)",
       ].join("\n")
     })
     .join("\n\n")
+}
+
+/** The Budget section's figures, worded so a model can repeat but not recompute them. */
+export function budgetLines(budget: ChatBudgetFacts, currency: string): string {
+  const lines = [
+    `Budget (${currency}): ${budget.total !== null ? `trip budget ${money(budget.total, currency)}` : "no trip budget set"} · planned ${money(budget.plannedTotal, currency)} · spent ${money(budget.spent, currency)} · remaining ${budget.remaining !== null ? money(budget.remaining, currency) : "n/a"}`,
+  ]
+  if (budget.unconvertedExpenseCount > 0) {
+    const n = budget.unconvertedExpenseCount
+    lines.push(
+      `  ${n} ${n === 1 ? "expense" : "expenses"} logged in another currency ${n === 1 ? "is" : "are"} NOT included in "spent" or "remaining" (the Budget section on the page converts ${n === 1 ? "it" : "them"}).`
+    )
+  }
+  if (budget.plannedByCategory.length > 0) {
+    lines.push(
+      `  Planned by category: ${budget.plannedByCategory.map((c) => `${c.category} ${money(c.amount, currency)}`).join(", ")}`
+    )
+  }
+  lines.push(`  Sum of activity cost estimates: est. ${money(budget.itineraryCost, currency)}`)
+  return lines.join("\n")
+}
+
+/** Trip-level facts: who, when, how, the stay, transport and packing. */
+export function tripFactLines(snapshot: ChatItinerarySnapshot): string {
+  const { trip } = snapshot
+  const lines = [
+    `Trip: "${trip.title}" · ${trip.startDate && trip.endDate ? `${trip.startDate} to ${trip.endDate}` : "no dates set"} · ${snapshot.days.length} days · status ${trip.status}`,
+    `Travellers: ${trip.travelers} · Style: ${trip.travelStyle ?? "not set"} · Interests: ${trip.interests.length > 0 ? trip.interests.join(", ") : "none given"} · Accommodation preference: ${trip.accommodation ?? "not set"} · Getting around: ${trip.transportation ?? "not set"}${trip.startingCity ? ` · Starting from: ${trip.startingCity}` : ""}`,
+  ]
+  if (trip.notes) lines.push(`Traveller's own notes (their words, not checked facts): "${trip.notes}"`)
+
+  if (snapshot.stays.length === 0) {
+    lines.push("Stay: none on the trip")
+  } else {
+    for (const stay of snapshot.stays) {
+      const details = [
+        stay.nights !== null ? `${stay.nights} nights` : null,
+        stay.pricePerNight !== null ? `est. ${money(stay.pricePerNight, snapshot.currency)}/night` : null,
+      ].filter(Boolean)
+      lines.push(
+        `Stay: ${stay.name}${stay.isExample ? " (an EXAMPLE stay for budgeting, not a real listing)" : ""}${details.length > 0 ? ` · ${details.join(" · ")}` : ""}`
+      )
+    }
+  }
+
+  for (const leg of snapshot.transport) {
+    lines.push(`Transport: ${leg.mode} from ${leg.from} to ${leg.to}${leg.departAt ? `, departs ${leg.departAt}` : ""}`)
+  }
+  lines.push(budgetLines(snapshot.budget, snapshot.currency))
+  lines.push(`Packing list: ${snapshot.packing.checked} of ${snapshot.packing.total} items packed`)
+  return lines.join("\n")
 }
 
 function historyLines(history: ChatEditRequest["history"]): string {
@@ -140,15 +250,44 @@ function historyLines(history: ChatEditRequest["history"]): string {
 }
 
 export const CHAT_EDIT_SYSTEM_PROMPT = [
-  "You are Voyagr's trip assistant. A traveller is asking you to change an itinerary that already exists.",
+  "You are Voyagr's trip assistant. A traveller is asking about, or asking you to change, an itinerary that already exists.",
   "You must never invent a place. If you propose adding an activity or a restaurant, it must reference a venue by its exact id from the candidate list you are given — never a name, never a place not in that list.",
   "If the candidate list for what they're asking about is empty, or nothing in it fits, propose no add operation and say so honestly in your reply rather than inventing one.",
   "You have no real price or rating data for restaurants or activities — never claim one option is cheaper, better-rated, or more authentic than another as a fact. You may say it's a different option.",
   "To move an activity, set toDayNumber and toTimeSlot (morning before 12:00, afternoon 12:00-17:00, evening from 17:00); set startTime only when the traveller asked for a specific time, and make it fall inside that slot. Leave startTime null otherwise - the app picks a time that fits the slot.",
   "Propose at most a few operations for one message — this is a small, reviewable edit, not a rewrite of the trip.",
-  "If the message isn't a request to change anything (a question, small talk, unclear), reply conversationally and propose zero operations.",
+  "If the message isn't a request to change anything (a question, small talk, unclear), answer it from the trip facts you are given and propose zero operations.",
   "Write short, warm, specific replies — a sentence or two, not a report.",
 ].join(" ")
+
+/**
+ * Rules for answering questions about the trip. The facts block is the whole
+ * truth the assistant has; anything not in it is unknown, and is said to be.
+ */
+export const CHAT_GROUNDING_RULES = [
+  "Answer questions about the trip ONLY from the trip facts and itinerary below. If something isn't there, say you don't have it — never estimate, assume or fill it in from general knowledge.",
+  `Weather: use only a day's forecast line. 'forecast (live)' is today's forecast; 'from when the trip was planned' is an older reading — say so. If a day says 'forecast: none available', say there is no forecast for that day yet (forecasts cover roughly the next ${MAX_FORECAST_OFFSET_DAYS} days) and never describe typical or likely weather instead.`,
+  "Money: repeat the budget figures exactly as written, in the trip currency. Say 'est.' for estimates. If some expenses are NOT included, say so whenever you quote spent or remaining. Never add, convert or recompute totals yourself.",
+  "Never state opening hours, ticket prices, ratings, booking rules, neighbourhoods or distances that aren't written below. Restaurant hours marked 'typical meal hours' are not that restaurant's real hours; 'unknown' means unknown.",
+  "A stay marked EXAMPLE is a placeholder for budgeting, not a real hotel. The traveller's own notes are their words, not facts you have checked.",
+].join(" ")
+
+/**
+ * What Voyagr can do, so the assistant points to the right control instead of
+ * pretending. Built from the app's real limits, not typed-in numbers.
+ */
+export function chatCapabilityGuide(limits: ChatEditRequest["dailyLimits"]): string {
+  return [
+    "What you can do directly: propose adding, removing or moving an activity; adding or removing a restaurant; or rewording a day's summary. Nothing changes until the traveller presses Apply on your proposal (or Discard).",
+    "What needs the trip page's own controls — point the traveller to them, and never say you did it:",
+    "'Adapt for weather' appears beside a day with a severe real forecast and moves outdoor stops to drier days.",
+    "'Optimize pace' appears on a day marked Tight or Busy and re-spaces or moves stops.",
+    "In the trip's '…' menu: Change dates (moves the whole trip, same length; logged expenses keep their dates), Edit budget, Rename, Duplicate, Download PDF, Export as JSON, Archive, Delete.",
+    "Expenses are logged with 'Add expense' in the Budget section; packing items are added and ticked in the Packing section.",
+    "Nobody can change a trip's destination or number of days after it is created, and Voyagr does not book anything or check live prices or availability.",
+    `Daily limits per traveller: ${limits.messagesPerDay} assistant messages and ${limits.tripsPerDay} new AI trip plans in any 24 hours; each message to you uses one.`,
+  ].join(" ")
+}
 
 export function buildChatPrompt(
   request: ChatEditRequest,
@@ -161,6 +300,9 @@ export function buildChatPrompt(
 Destination: ${request.itinerary.destination}
 Trip currency: ${request.itinerary.currency}
 Day count: ${dayCount}
+
+Trip facts:
+${tripFactLines(request.itinerary)}
 
 Current itinerary:
 ${itineraryLines(request.itinerary, itemRefs)}
@@ -177,7 +319,12 @@ ${historyLines(request.history)}
 Traveller's new message: "${request.message}"
 `.trim()
 
-  return { system: CHAT_EDIT_SYSTEM_PROMPT, user }
+  const system = [
+    CHAT_EDIT_SYSTEM_PROMPT,
+    CHAT_GROUNDING_RULES,
+    chatCapabilityGuide(request.dailyLimits),
+  ].join("\n\n")
+  return { system, user }
 }
 
 // ---------------------------------------------------------------------------
