@@ -47,8 +47,8 @@ const snapshot: ChatItinerarySnapshot = {
   destination: "Lisbon",
   currency: "EUR",
   days: [
-    { dayNumber: 1, date: "2026-03-01", summary: "Arrive" },
-    { dayNumber: 2, date: "2026-03-02", summary: "Explore" },
+    { dayNumber: 1, date: "2026-03-01", summary: "Arrive", forecast: { kind: "none" }, dailyCost: null, pace: "unknown", paceProblems: [] },
+    { dayNumber: 2, date: "2026-03-02", summary: "Explore", forecast: { kind: "none" }, dailyCost: null, pace: "unknown", paceProblems: [] },
   ],
   activities: [
     {
@@ -61,6 +61,8 @@ const snapshot: ChatItinerarySnapshot = {
       durationMinutes: 120,
       estimatedCost: 0,
       category: "walks",
+      description: null,
+      legFromPrevious: null,
     },
     {
       id: "9b1f5c3e-2222-4a2b-8c3d-bbbbbbbbbbbb",
@@ -72,6 +74,8 @@ const snapshot: ChatItinerarySnapshot = {
       durationMinutes: null,
       estimatedCost: null,
       category: null,
+      description: null,
+      legFromPrevious: null,
     },
   ],
   restaurants: [
@@ -81,8 +85,34 @@ const snapshot: ChatItinerarySnapshot = {
       mealType: "dinner",
       name: "Old Tasca",
       cuisine: "Local",
+      hours: null,
     },
   ],
+  trip: {
+    title: "Lisbon",
+    startDate: "2026-03-01",
+    endDate: "2026-03-02",
+    status: "ready",
+    travelers: 2,
+    travelStyle: null,
+    interests: [],
+    accommodation: null,
+    transportation: null,
+    startingCity: null,
+    notes: null,
+  },
+  budget: {
+    total: null,
+    plannedTotal: 0,
+    plannedByCategory: [],
+    itineraryCost: 0,
+    spent: 0,
+    unconvertedExpenseCount: 0,
+    remaining: null,
+  },
+  stays: [],
+  transport: [],
+  packing: { checked: 0, total: 0 },
 }
 
 const itemRefs = assignItemRefIds(snapshot)

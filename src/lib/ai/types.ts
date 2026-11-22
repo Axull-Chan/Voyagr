@@ -254,6 +254,10 @@ export interface ChatItineraryActivity {
   durationMinutes: number | null
   estimatedCost: number | null
   category: string | null
+  description: string | null
+  /** Estimated leg into this stop (from the previous stop, or the stay), the
+   * same figure the trip page shows; null when a location is missing. */
+  legFromPrevious: { km: number; minutes: number; mode: string } | null
 }
 
 export interface ChatItineraryRestaurant {
@@ -262,12 +266,86 @@ export interface ChatItineraryRestaurant {
   mealType: MealType | null
   name: string
   cuisine: string | null
+  /** Display text, already labelled ("Typical meal hours …, not verified"); null = unknown. */
+  hours: string | null
 }
+
+/**
+ * A day's weather as the assistant may state it. Only a real Open-Meteo reading
+ * (live now, or stored from one at planning time) is a forecast; everything
+ * else — past the horizon, modelled example weather, a failed fetch — is
+ * `none`, so the model is never handed numbers it could mistake for a forecast.
+ */
+export type ChatForecast =
+  | {
+      kind: "forecast"
+      origin: "live" | "planning"
+      condition: string
+      highC: number | null
+      lowC: number | null
+      precipitationChance: number | null
+      windKph: number | null
+      /** Same rule as the warnings and the "Adapt for weather" button. */
+      severe: boolean
+    }
+  | { kind: "none" }
 
 export interface ChatItineraryDay {
   dayNumber: number
   date: string | null
   summary: string | null
+  forecast: ChatForecast
+  /** Stored estimate of the day's activity spend (trip currency). */
+  dailyCost: number | null
+  pace: "comfortable" | "tight" | "busy" | "unknown"
+  /** The same sentences the trip page shows for a tight or busy day. */
+  paceProblems: string[]
+}
+
+export interface ChatTripFacts {
+  title: string
+  startDate: string | null
+  endDate: string | null
+  status: string
+  travelers: number
+  travelStyle: string | null
+  interests: string[]
+  accommodation: string | null
+  transportation: string | null
+  startingCity: string | null
+  /** The traveller's own notes — their words, not checked facts. */
+  notes: string | null
+}
+
+/** The Budget section's figures, in the trip currency. */
+export interface ChatBudgetFacts {
+  /** The trip's own budget, when one is set. */
+  total: number | null
+  plannedTotal: number
+  plannedByCategory: { category: string; amount: number }[]
+  /** Sum of activity cost estimates. */
+  itineraryCost: number
+  /** Expenses logged in the trip currency only — nothing is converted here. */
+  spent: number
+  /** Expenses in another currency, left out of `spent`. */
+  unconvertedExpenseCount: number
+  /** (total ?? plannedTotal) - spent; null when there is no budget at all. */
+  remaining: number | null
+}
+
+export interface ChatStayFacts {
+  name: string
+  nights: number | null
+  pricePerNight: number | null
+  /** A placeholder for budgeting, not a real listing. */
+  isExample: boolean
+}
+
+export interface ChatTransportFacts {
+  mode: string
+  from: string
+  to: string
+  departAt: string | null
 }
 
 /** "Current itinerary state," handed to a provider as context. Built fresh on
@@ -280,6 +358,11 @@ export interface ChatItinerarySnapshot {
   days: ChatItineraryDay[]
   activities: ChatItineraryActivity[]
   restaurants: ChatItineraryRestaurant[]
+  trip: ChatTripFacts
+  budget: ChatBudgetFacts
+  stays: ChatStayFacts[]
+  transport: ChatTransportFacts[]
+  packing: { checked: number; total: number }
 }
 
 /**
@@ -359,11 +442,14 @@ export interface ChatEditRequest {
    * edit without new infrastructure in either integration. */
   history: { role: "user" | "assistant"; content: string }[]
   itinerary: ChatItinerarySnapshot
+  /** Per-traveller daily allowances, for the capability guide in the prompt. */
+  dailyLimits: { tripsPerDay: number; messagesPerDay: number }
   /** Fresh candidates near the destination, same shape generation uses.
-   * `weatherByDate` is always `{}` here — nothing about a single edit needs
-   * weather, and reusing `SourcedContext` rather than a parallel type is what
-   * lets `hasGroundingData`/`selectCandidates` work on it unmodified. Null
-   * when no coordinate on the trip could be used to source fresh venues. */
+   * `weatherByDate` is always `{}` here — the day-by-day forecast travels in
+   * `itinerary.days[].forecast` instead, and reusing `SourcedContext` rather
+   * than a parallel type is what lets `hasGroundingData`/`selectCandidates`
+   * work on it unmodified. Null when no coordinate on the trip could be used
+   * to source fresh venues. */
   sourced: SourcedContext | null
 }
 

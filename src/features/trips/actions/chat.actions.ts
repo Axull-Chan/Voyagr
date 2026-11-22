@@ -25,7 +25,7 @@ import {
   getAiQuotaHint,
   reserveAiQuota,
 } from "@/features/trips/services/ai-quota"
-import type { AiQuotaHint } from "@/lib/ai/usage-limits"
+import { getAiLimits, type AiQuotaHint } from "@/lib/ai/usage-limits"
 import {
   getTripChatContext,
   getTripChatHistory,
@@ -132,6 +132,7 @@ export async function sendChatMessageAction(
         attractions: places.data.attractions,
         restaurants: places.data.restaurants,
         hotels: places.data.hotels,
+        // The forecast travels per day in the snapshot (`days[].forecast`).
         weatherByDate: {},
       }
     }
@@ -146,6 +147,11 @@ export async function sendChatMessageAction(
     message,
     history,
     itinerary: context.snapshot,
+    // The same numbers the limiter enforces, for the assistant's capability guide.
+    dailyLimits: {
+      tripsPerDay: getAiLimits("trip_generation").perUser,
+      messagesPerDay: getAiLimits("chat_message").perUser,
+    },
     sourced,
   }
 
