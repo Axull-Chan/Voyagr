@@ -1,47 +1,81 @@
 import { Skeleton } from "@/components/ui/skeleton"
+import { cn } from "@/lib/utils"
 
 /**
- * Mirrors the dashboard's composition: header with action, the featured next
- * trip beside its overview rail, then the compact index. Updated in the same
- * commit as the layout it stands in for.
+ * Mirrors dashboard/page.tsx: header with a 44px New trip button; the hero
+ * (media half, details half with four fact rules and a 44px button) beside the
+ * 2×2 stats; the Start-a-trip rail; then a 3-column grid of trip cards.
+ * Changed in the same commit as the page, per DESIGN.md's loading-state rule.
  */
 export default function DashboardLoading() {
   return (
     <div className="pb-16">
-      <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
+      <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div className="space-y-2">
           <Skeleton className="h-8 w-56" />
           <Skeleton className="h-4 w-64" />
         </div>
-        <Skeleton className="h-8 w-28 rounded-lg" />
+        <Skeleton className="h-11 w-full rounded-lg sm:w-32" />
       </div>
 
-      {/* Featured next trip and its overview rail: stacked below lg, the
-          image beside the four figures from lg up — see dashboard/page.tsx. */}
       <div className="mb-10">
         <Skeleton className="mb-3 h-3 w-20" />
         <div className="grid gap-6 lg:grid-cols-[1fr_16rem] lg:items-start">
-          <Skeleton className="aspect-video w-full rounded-xl sm:aspect-auto sm:h-72" />
-          <div className="flex flex-wrap gap-x-10 gap-y-4 border-y border-border py-4 lg:flex-col lg:flex-nowrap lg:gap-y-5 lg:border-none lg:py-1">
+          <div className="bg-card grid overflow-hidden rounded-xl sm:grid-cols-2">
+            <Skeleton className="aspect-video rounded-none sm:aspect-auto sm:min-h-80" />
+            <div className="flex flex-col gap-4 p-6">
+              <div className="space-y-2">
+                <Skeleton className="h-7 w-3/4" />
+                <Skeleton className="h-4 w-1/2" />
+                <Skeleton className="h-3 w-2/5" />
+              </div>
+              <div className="divide-border border-border divide-y border-y">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="flex items-center justify-between py-2.5">
+                    <Skeleton className="h-3 w-16" />
+                    <Skeleton className="h-3 w-24" />
+                  </div>
+                ))}
+              </div>
+              <Skeleton className="mt-auto h-11 w-48 rounded-lg" />
+            </div>
+          </div>
+          <div className="grid grid-cols-2">
             {Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="space-y-1.5">
-                <Skeleton className="h-5 w-10" />
-                <Skeleton className="h-3 w-16" />
+              <div
+                key={i}
+                className={cn("border-border space-y-2 px-4 py-5", i % 2 === 0 && "border-r", i < 2 && "border-b")}
+              >
+                <Skeleton className="h-8 w-12" />
+                <Skeleton className="h-3 w-20" />
               </div>
             ))}
           </div>
         </div>
       </div>
 
+      <div className="mb-10">
+        <Skeleton className="mb-3 h-3 w-24" />
+        <div className="flex gap-2 overflow-hidden">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-8 w-32 shrink-0 rounded-lg" />
+          ))}
+        </div>
+      </div>
+
       <div>
-        <Skeleton className="mb-2 h-3 w-28" />
-        <div className="divide-y divide-border border-t border-border">
+        <div className="mb-3 flex items-baseline justify-between">
+          <Skeleton className="h-3 w-28" />
+          <Skeleton className="h-3 w-16" />
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {Array.from({ length: 3 }).map((_, i) => (
-            <div key={i} className="flex items-center gap-3 py-3">
-              <Skeleton className="size-12 shrink-0 rounded-sm" />
-              <div className="min-w-0 flex-1 space-y-1.5">
-                <Skeleton className="h-4 w-48 max-w-full" />
-                <Skeleton className="h-3 w-32 max-w-full" />
+            <div key={i} className="bg-card overflow-hidden rounded-xl">
+              <Skeleton className="aspect-4/3 rounded-none" />
+              <div className="space-y-2 p-4">
+                <Skeleton className="h-5 w-3/4" />
+                <Skeleton className="h-4 w-1/2" />
+                <Skeleton className="h-3 w-1/3" />
               </div>
             </div>
           ))}

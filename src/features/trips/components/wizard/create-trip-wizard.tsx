@@ -18,6 +18,7 @@ import {
   type CreateTripInput,
 } from "@/features/trips/schemas/trip.schemas"
 import { useWizardDraft } from "@/features/trips/hooks/use-wizard-draft"
+import { wizardStartValues, type TripPreset } from "@/lib/trips/trip-presets"
 import { WizardProgress } from "@/features/trips/components/wizard/wizard-progress"
 import {
   BudgetStep,
@@ -57,9 +58,12 @@ function defaultValues(): CreateTripInput {
  */
 export function CreateTripWizard({
   quotaHint = null,
+  preset = null,
 }: {
   /** "N trips left today", worked out by the page; null shows no caption. */
   quotaHint?: AiQuotaHint | null
+  /** A starter chosen on the dashboard (`?preset=`); replaces any saved draft. */
+  preset?: TripPreset["values"] | null
 }) {
   const router = useRouter()
   const prefersReducedMotion = useReducedMotion()
@@ -87,12 +91,22 @@ export function CreateTripWizard({
   const { control, formState, handleSubmit, reset, trigger, watch } = form
 
   // Restoring has to wait for the effect in useWizardDraft, so it happens here
-  // rather than through `defaultValues` — see that hook for why. Merged over
-  // the defaults because a draft saved mid-wizard is only ever partial.
+  // rather than through `defaultValues` — see that hook for why. A preset wins
+  // over a saved draft (see `wizardStartValues`): it's saved straight away so
+  // it replaces the draft, and `?preset=` is dropped from the URL so a reload
+  // keeps the traveller's later edits instead of re-applying the preset.
   useEffect(() => {
-    if (!isRestoring && restored) {
-      reset({ ...defaultValues(), ...restored }, { keepDefaultValues: true })
+    if (isRestoring) return
+    const start = wizardStartValues<CreateTripInput>(defaultValues(), restored, preset)
+    if (start.source === "defaults") return
+    reset(start.values, { keepDefaultValues: true })
+    if (start.source === "preset") {
+      saveDraft(start.values)
+      router.replace("/trips/new", { scroll: false })
     }
+    // `preset` comes from the URL once per visit; re-running on its identity
+    // would re-apply it over the traveller's edits.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isRestoring, restored, reset])
 
   useEffect(() => {

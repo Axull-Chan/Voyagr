@@ -1,8 +1,8 @@
 import Image from "next/image"
 import Link from "next/link"
-import { MapPin } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
+import { DestinationFallback } from "@/components/shared/destination-fallback"
 import {
   formatDateRange,
   type TripSummary,
@@ -46,12 +46,7 @@ export function TripRow({ trip }: { trip: TripSummary }) {
               className="object-cover"
             />
           ) : (
-            <span
-              aria-hidden="true"
-              className="flex h-full items-center justify-center"
-            >
-              <MapPin className="size-4 text-muted-foreground" />
-            </span>
+            <DestinationFallback destination={trip.destination} size="sm" />
           )}
         </div>
 

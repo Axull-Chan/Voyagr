@@ -1,8 +1,9 @@
 import Image from "next/image"
 import Link from "next/link"
-import { CalendarDays, MapPin } from "lucide-react"
+import { CalendarDays } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
+import { DestinationFallback } from "@/components/shared/destination-fallback"
 import { cn } from "@/lib/utils"
 import {
   countdownLabel,
@@ -46,7 +47,8 @@ export function formatDateRange(start: string | null, end: string | null) {
 /**
  * The image is real Unsplash cover art when the trip has one (same source
  * `TripHero` renders full-size) and a plain gradient otherwise — never a
- * stand-in photo. Credit stays plain text, not a link: the whole card is
+ * stand-in photo: the destination's name on a theme-toned gradient
+ * (`DestinationFallback`). Credit stays plain text, not a link: the whole card is
  * already an `<a>`, and a nested anchor is invalid HTML. The full, licence-
  * compliant linked credit lives one click away on the trip's own hero.
  */
@@ -108,12 +110,10 @@ export function TripCard({
             className="object-cover"
           />
         ) : (
-          <div
-            aria-hidden="true"
-            className="flex h-full items-center justify-center bg-muted"
-          >
-            <MapPin aria-hidden="true" className="size-6 text-primary/60" />
-          </div>
+          <DestinationFallback
+            destination={trip.destination}
+            size={featured ? "lg" : "md"}
+          />
         )}
 
         {/* The countdown is the point of a trip card — how soon is this? —
