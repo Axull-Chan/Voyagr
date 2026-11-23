@@ -6,6 +6,7 @@ import { Reveal, RevealItem } from "@/components/shared/reveal"
 import { createClient } from "@/lib/supabase/server"
 import { CreateTripWizard } from "@/features/trips/components/wizard/create-trip-wizard"
 import { getAiQuotaHint } from "@/features/trips/services/ai-quota"
+import { presetById } from "@/lib/trips/trip-presets"
 
 export const metadata: Metadata = {
   title: "New trip",
@@ -26,7 +27,15 @@ export const metadata: Metadata = {
  */
 export const maxDuration = 150
 
-export default async function NewTripPage() {
+export default async function NewTripPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ preset?: string | string[] }>
+}) {
+  // A dashboard starter (`?preset=lisbon-food`). Unknown ids are ignored and
+  // the wizard opens as usual.
+  const preset = presetById((await searchParams).preset)
+
   // "N trips left today". Never blocks or breaks the page: `getAiQuotaHint`
   // returns null on any failure, a slow database (1.5 s cap) or the free mock
   // provider, and the wizard simply shows no caption.
@@ -56,7 +65,7 @@ export default async function NewTripPage() {
       </RevealItem>
 
       <RevealItem>
-        <CreateTripWizard quotaHint={quotaHint} />
+        <CreateTripWizard quotaHint={quotaHint} preset={preset?.values ?? null} />
       </RevealItem>
     </Reveal>
   )

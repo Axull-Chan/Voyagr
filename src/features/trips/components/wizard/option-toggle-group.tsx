@@ -136,7 +136,7 @@ export function OptionToggleGroup<T extends string>(
               "group flex items-start gap-2.5 rounded-lg border px-3 py-2.5 text-left transition-all duration-100 ease-out motion-reduce:transition-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none active:scale-[0.98]",
               selected
                 ? "border-primary bg-accent"
-                : "border-input hover:border-foreground/25 hover:bg-muted/50"
+                : "border-border-interactive hover:border-foreground/40 hover:bg-muted/50"
             )}
           >
             <span
@@ -145,7 +145,7 @@ export function OptionToggleGroup<T extends string>(
                 "mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full border transition-colors",
                 selected
                   ? "border-primary bg-primary text-primary-foreground"
-                  : "border-input"
+                  : "border-border-interactive"
               )}
             >
               {selected ? <Check className="size-2.5" /> : null}
