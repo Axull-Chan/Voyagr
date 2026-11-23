@@ -46,6 +46,8 @@
     --color-tertiary-foreground: var(--tertiary-foreground);
     --color-tertiary-subtle: var(--tertiary-subtle);
     --color-tertiary-subtle-foreground: var(--tertiary-subtle-foreground);
+    --color-border-interactive: var(--border-interactive);
+    --color-sidebar-indicator: var(--sidebar-indicator);
     /* Shape scale — two bands, not a smooth ramp (DESIGN.md § Shapes).
        `sm`–`lg` is the *operable* band at 2px: buttons, inputs, menu items,
        tooltips, skeletons. `xl` and up is the *discrete object* band at 4px:
@@ -116,6 +118,13 @@
     --destructive: oklch(0.500 0.135 24.9);
     --border: oklch(0.781 0.011 81.8);
     --input: oklch(0.781 0.011 81.8);
+    /* The boundary of something you operate — input, select, textarea,
+       checkbox, an unselected wizard option. WCAG 1.4.11 asks 3:1 against
+       whatever it sits on; `--border` (1.85:1) is a divider and can't. #777068:
+       4.51 page · 4.69 popover/dialog · 3.16 card · 3.55 muted. `--input`
+       stays as the field's faint fill tint, which is why this is a separate
+       token rather than a darker `--input`. Asserted in contrast.test.ts. */
+    --border-interactive: oklch(0.55 0.015 75);
     --ring: oklch(0.399 0.048 205.5);
     /* Tertiary (Old Gold) — the trip-countdown badge, and nothing else
        (DESIGN.md: "tertiary has exactly one job"). Fixed regardless of
@@ -165,10 +174,13 @@
     --sidebar-accent-foreground: oklch(0.399 0.048 205.5);
     --sidebar-border: oklch(0.781 0.011 81.8);
     --sidebar-ring: oklch(0.399 0.048 205.5);
+    /* The 2px bar on the active nav item. The active fill alone is 1.15:1
+       against the sidebar — too faint to carry "you are here" by itself. */
+    --sidebar-indicator: oklch(0.399 0.048 205.5);
 }
 
 .dark {
-    /* Field Journal dark — leather cover + brass fittings under lamplight,
+    /* Espresso Command Center — Field Journal's dark theme (DESIGN.md). Leather cover + brass fittings under lamplight,
        not the light theme inverted (see DESIGN.md's "Dark mode" note under
        Colors). Card/popover/secondary/muted sit LIGHTER than the page here,
        not darker — elevation direction flips between themes on purpose. */
@@ -201,9 +213,15 @@
     --muted-foreground: oklch(0.750 0.020 234);
     --accent: oklch(0.300 0.045 205);
     --accent-foreground: oklch(0.750 0.055 205);
-    --destructive: oklch(0.700 0.130 27);
+    /* 0.72, not 0.70: at 0.70 the Delete item in a dropdown (popover
+       surface) measured 4.45:1, just under AA. #EB8278, 4.80:1 there. */
+    --destructive: oklch(0.720 0.130 27);
     --border: oklch(0.360 0.028 52);
     --input: oklch(0.360 0.028 52);
+    /* #948274: 5.15 page · 3.88 card · 3.43 popover/dialog · 4.33 muted.
+       Lighter than the #786A5C first proposed, which measured 2.40:1 on the
+       popover surface every dialog form sits on. */
+    --border-interactive: oklch(0.62 0.03 60);
     --ring: oklch(0.750 0.055 205);
     --notice: oklch(0.27 0.045 60);
     --notice-foreground: oklch(0.85 0.07 65);
@@ -221,11 +239,12 @@
     --sidebar-accent-foreground: oklch(0.750 0.055 205);
     --sidebar-border: oklch(0.360 0.028 52);
     --sidebar-ring: oklch(0.750 0.055 205);
+    --sidebar-indicator: oklch(0.750 0.055 205);
 }
 
 @layer base {
   * {
-    @apply border-border outline-ring/50;
+    @apply border-border outline-ring;
     }
   body {
     @apply bg-background text-foreground;

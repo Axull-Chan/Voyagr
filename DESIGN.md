@@ -14,15 +14,17 @@ colors:
   surface: "#F8F6F4"
   on-surface: "#1e2019"
   border: "#BBB7B0"
+  border-interactive: "#777068"
   error: "#A23D3A"
   surface-dark: "#1A0F08"
   on-surface-dark: "#EAE4D9"
   neutral-dark: "#38271D"
   border-dark: "#493930"
+  border-interactive-dark: "#948274"
   primary-strong-dark: "#85B9BF"
   primary-subtle-dark: "#0A3438"
   secondary-dark: "#A2B0B9"
-  error-dark: "#E47C72"
+  error-dark: "#EB8278"
   marker-hotel: "#A6567E"
   marker-restaurant: "#BF6F33"
   marker-activity: "#3D865A"
@@ -130,6 +132,12 @@ components:
     typography: "{typography.body-md}"
   divider:
     backgroundColor: "{colors.border}"
+    height: 1px
+  control-boundary:
+    backgroundColor: "{colors.border-interactive}"
+    height: 1px
+  control-boundary-dark:
+    backgroundColor: "{colors.border-interactive-dark}"
     height: 1px
   map-marker-destination:
     backgroundColor: "{colors.primary}"
@@ -351,7 +359,8 @@ The palette reads as travel hardware and travel paper, not as a brand kit. Every
 - **Neutral — Dust Grey (#d3d0cb):** worn paper. The fill for genuinely discrete objects.
 - **Surface (#F8F6F4):** the page itself. The half-step to Neutral is deliberate: a card is a different paper stock laid on the page, not a box floating above it.
 - **On-surface — Carbon Black (#1e2019):** ink. Carries a trace of warmth rather than sitting at true black.
-- **Border (#BBB7B0):** a hairline step — for dividing, never for enclosing.
+- **Border (#BBB7B0):** a hairline step — for dividing, never for enclosing. At 1.85:1 on the page it is deliberately too faint to mark something you operate.
+- **Border Interactive (#777068):** the boundary of a control — input, select, textarea, checkbox, an unselected wizard option. WCAG 1.4.11 asks 3:1 against whatever it sits on: 4.51 page, 4.69 dialog, 3.16 card, 3.55 muted. Never used as a divider.
 - **Error (#A23D3A):** brick-and-oxide red at the same restrained chroma as everything else. A mistake should look like a smudge of red ink, not a system alarm.
 
 Every neutral is warm-tinted (OKLCH hue ≈ 75–90); nothing has R = G = B, and neither pure `#FFFFFF` nor pure `#000000` appears anywhere.
@@ -369,23 +378,29 @@ Every neutral is warm-tinted (OKLCH hue ≈ 75–90); nothing has R = G = B, and
 | `surface` | `--background` | |
 | `on-surface` | `--foreground` | |
 | `neutral` | `--card`, `--popover`, `--secondary`, `--muted` | See the surface-collapse note in Elevation & Depth. |
-| `border` | `--border`, `--input` | |
+| `border` | `--border` | Dividers only. |
+| `border-interactive` | `--border-interactive` / `border-border-interactive` | Control boundaries. `--input` is the field's faint fill tint, not its border. |
 | `error` | `--destructive` | |
 | `tertiary` | `--tertiary` | Added for this system; only `Badge` consumes it. |
 
 Because `--primary` resolves to `primary-strong`, **`text-primary` is AA-safe and correct** — it is not the forbidden mid-tone. The rule "never use `primary` as a text color" refers to the raw hex #587b7f, which no CSS class exposes.
 
-### Dark mode: the same journal, its cover
+### Dark mode: Espresso Command Center
 
-Dark mode is a different material in the same object, not this palette inverted. The paper family sits at OKLCH hue ≈68–82 (pale straw); the leather family sits at hue ≈52 (warm umber) — two substances, not one substance with the lights off.
+The dark theme is named the **Espresso Command Center**: the same journal, its leather cover, read under lamplight. Dark mode is a different material in the same object, not this palette inverted. The paper family sits at OKLCH hue ≈68–82 (pale straw); the leather family sits at hue ≈52 (warm umber) — two substances, not one substance with the lights off.
 
 - **Surface Dark — leather (#1A0F08):** a near-black warm umber, not a desaturated grey and not the slate-navy that "dark mode" defaults to almost everywhere.
 - **On-surface Dark — lamplight ink (#EAE4D9):** warm parchment rather than white.
 - **Neutral Dark — tooled leather (#38271D):** the card fill, and the one token whose *relationship* to its page is inverted — see Elevation & Depth.
-- **Border Dark (#493930):** the hairline, at roughly the same perceptual step as light mode's.
+- **Border Dark (#493930):** the hairline, at roughly the same perceptual step as light mode's. Dividers only.
+- **Border Interactive Dark (#948274):** control boundaries — 5.15 page, 3.88 card, 3.43 dialog, 4.33 muted. (A darker `#786A5C` was considered and measured 2.40:1 on the dialog surface every form sits on.)
 - **Primary Strong Dark (#85B9BF):** lightened so it reads against near-black, with chroma held close to its light counterpart (0.055 vs 0.048) rather than pushed higher — a saturated accent gets *louder* against a dark ground, so dark mode's accent must never be more intense than light mode's.
 - **Primary Subtle Dark (#0A3438):** the active/selected lift, *lighter* than the page.
-- **Secondary Dark (#A2B0B9)** and **Error Dark (#E47C72):** lightened for a dark ground.
+- **Secondary Dark (#A2B0B9)** and **Error Dark (#EB8278):** lightened for a dark ground. Error Dark was #E47C72 until it measured 4.45:1 as the Delete item in a dropdown; #EB8278 is 4.80:1 there.
+
+### Verified contrast
+
+`src/lib/design/contrast.test.ts` reads every token out of `globals.css` and asserts, in both themes: **4.5:1** for every text/surface pair the components use (SC 1.4.3), and **3:1** for control borders, focus rings and the active-nav indicator against every surface they can sit on — page, card, popover, muted, sidebar (SC 1.4.11). A token edit that breaks a pair fails CI; the ratios quoted in this section are the ones it computes. The same test fails if a UI primitive draws a focus ring at partial opacity or borders a field with anything but `border-interactive`.
 
 **Tertiary, Tertiary Subtle, and base Primary are unchanged in dark mode.** Brass fittings are made for lamplight. The countdown badges and map markers use identical values in both themes.
 
@@ -454,7 +469,8 @@ Rules that hold across all three:
 
 - **Nothing in Tiers 1–3 disappears on mobile.** The hero, the day plan and the map are the product. Reference material may collapse, condense, or move below; the narrative may not.
 - **Stack, don't shrink.** A row that would squeeze becomes `flex-col` at the breakpoint rather than `flex-wrap` — wrapping permits shrinking, and a tight-but-not-overflowing row is a bug a scroll-width check cannot see.
-- **A destructive or secondary action that becomes cramped becomes a Sheet on mobile**, never a smaller tap target. Minimum 44px touch targets throughout.
+- **A destructive or secondary action that becomes cramped becomes a Sheet on mobile**, never a smaller tap target.
+- **Touch targets: 44×44px (WCAG 2.2 AAA, SC 2.5.5).** Default and large controls — `Button` `default`/`lg`/`icon`/`icon-lg`, `Input`, `Select` — are 44px on every pointer. Compact controls (`Button` `sm`/`xs`/`icon-sm`/`icon-xs`, dropdown items, sidebar items) stay compact on a mouse and lift to 44px on touch screens (`pointer-coarse:`), so dense desktop rows aren't doubled in height; on a mouse they stay above the 24px AA floor. Inline links inside text are exempt, as WCAG allows.
 - Verify at 375 / 390 / 768 / 1024 / 1280 / 1440 with real data, not empty states — count- and length-driven layout bugs only appear with content.
 
 ## Elevation & Depth
@@ -490,7 +506,7 @@ Depth comes from three devices, in this order of preference:
 | Between a section and the next | ✅ 1px top rule |
 | Around a card | ❌ The tonal step already separates it |
 | Around a section | ❌ Space and a rule do this |
-| Around an input or control | ✅ It marks an editable region |
+| Around an input or control | ✅ It marks an editable region — `border-interactive` (3:1), never `border` |
 | Around an empty state | ❌ |
 
 **A shadow exists only on something genuinely floating above the page** — Dialog, Sheet, dropdown menus. Never on a card, never on hover, never to imply importance. If something needs to feel separated, reach for the tonal step or a rule.
@@ -517,7 +533,7 @@ Radius is small and hierarchical, not uniform:
 
 Format: *Tier* — surface — type — interaction — **never**.
 
-**Button.** *Tier 6.* `primary-strong` fill with `surface` text (primary) or `neutral` fill with `primary-strong` text (secondary). `label-caps`. 2px radius. Press: `scale-0.97`, `duration-100 ease-out`, disabled by `motion-reduce`. Focus: visible ring, always. **Never** a third fill variant to express a third importance level, a serif label, or a gradient.
+**Button.** *Tier 6.* `primary-strong` fill with `surface` text (primary) or `neutral` fill with `primary-strong` text (secondary). `label-caps`. 2px radius. Press: `scale-0.97`, `duration-100 ease-out`, disabled by `motion-reduce`. 44px tall by default. Focus: a full-opacity 2px `ring` with a 2px page-coloured offset, always — the offset because the primary fill *is* the ring colour. **Never** a third fill variant to express a third importance level, a serif label, or a gradient.
 
 **Card.** *Tier 3–4.* `neutral` fill, 4px radius, **no border, no shadow**. Reserved for genuinely discrete, comparable objects. **Never** wrap a single item, a section, or a group of unrelated fields in one.
 
@@ -539,9 +555,11 @@ Format: *Tier* — surface — type — interaction — **never**.
 
 **Dialog.** *Tier above everything.* `popover` ground, 14px radius, shadow permitted, scrim behind. Entrance/exit on `dialogSpring`. **Never** restyle its radius from the shared scale or change its physics for visual reasons.
 
+**Input / Select / Textarea / Checkbox.** *Tier 6.* Transparent over the faint `--input` tint, `border-interactive` boundary, 2px radius, 44px tall, `body-md`. Focus: border and a 2px ring in `ring`, both at full opacity — a half-opacity ring measured under 3:1. Errors carry a written message, never colour alone.
+
 **Sheet.** *Same tier as Dialog.* Bottom sheet on mobile with a visible drag handle and drag-to-dismiss; side panel for the sidebar under 768px. `sheetSpring`. **Never** use a Sheet for non-modal content, and never remove the handle — it is the affordance that makes the gesture discoverable.
 
-**Sidebar.** *Tier 6.* `--sidebar` ground, which must be a genuinely different tone from the page — a border alone is not material identity. Active item uses `primary-subtle` ground with `primary-strong` text. Collapses to icons on desktop, becomes a Sheet below 768px, and closes itself on navigation. **Never** let it compete with content for attention.
+**Sidebar.** *Tier 6.* `--sidebar` ground, which must be a genuinely different tone from the page — a border alone is not material identity. Active item uses `primary-subtle` ground with `primary-strong` text **and a 2px `primary-strong` bar on its leading edge** (`--sidebar-indicator`): the fill alone is 1.15:1 light / 1.40:1 dark against the sidebar, too faint to say "you are here" by itself. Collapses to icons on desktop, becomes a Sheet below 768px, and closes itself on navigation. **Never** let it compete with content for attention.
 
 **Header.** *Tier 6.* Sticky, 56px, page-ground with a blur and a gradient tail so content dissolves rather than clipping as it scrolls under. Holds only the sidebar trigger, theme toggle and user menu. **Never** add page titles or primary actions to it — those belong in the page.
 
@@ -667,12 +685,12 @@ Fraunces is loaded and wired, and four fluid `@utility` levels resolve to it. **
 | Press | scale 0.97, `duration-100 ease-out` | Exactly that, with `motion-reduce` | ✅ |
 | Hover | Tone shift | `hover:bg-primary/80` | ✅ |
 | Disabled | — | `disabled:opacity-50 disabled:pointer-events-none` | ✅ |
-| Focus | Visible ring | `focus-visible:ring-3 ring-ring/50` | ✅ |
+| Focus | Visible ring, 3:1 | `focus-visible:ring-2 ring-ring ring-offset-2` (full opacity; the old `ring-ring/50` measured 2.47:1 light / 2.98:1 dark) | ✅ |
 | Invalid | — | `aria-invalid:` border + ring | ✅ |
 
 Sizes: `xs`/`sm`/`default`/`lg`/`icon`/`icon-xs`/`icon-sm`/`icon-lg` — richer than the spec describes, and fine as a *set*.
 
-⚠️ **Control proportions are dashboard-scaled, not product-scaled.** `Button` default and `Input` are both `h-8` (32px), with `Input` at `md:text-sm`. These are shadcn's compact-admin defaults. They sit below the 44px minimum touch target this document's own Responsive section mandates, and they read as dense tooling rather than as a calm travel product. The spec asks for inputs at full `body-md`; the implementation is 14px in a 32px box.
+✅ **Control proportions (resolved Nov 2026).** `Button` default/`icon`, `Input` and `Select` are 44px (`h-11`) on every pointer; compact sizes, dropdown items and sidebar items lift to 44px on touch. Inputs are `body-md` at every breakpoint.
 
 ### Numbers — audit of "every price, date, time and distance in mono"
 
@@ -776,7 +794,7 @@ Genuine ambiguities in this document, surfaced by the audit. **These are unresol
 
 4. **Are wizard option toggles "cards"?** The card rule says cards are for "a trip in a grid of trips," yet the wizard's selectable options are bordered boxes in a grid. They are *controls*, and a border marks a selectable region legitimately. The rule needs an explicit carve-out for selection controls, or the wizard needs a different treatment.
 
-5. **What are the actual control heights?** The spec asks for inputs at full `body-md` and a 44px minimum touch target, but never states a control height. The implementation is 32px. A number is needed, and whether it differs between pointer and touch.
+5. ~~**What are the actual control heights?**~~ **Resolved (Nov 2026):** 44px for default controls on every pointer; compact controls 44px on touch only. See Responsive behaviour.
 
 6. **What does "spacious" vs "tight" mean numerically?** Density is called the primary hierarchy device, but no per-tier spacing values exist, so "Tier 3 is spacious" is unenforceable and will drift. Needs concrete values from the `spacing` scale per tier.
 
