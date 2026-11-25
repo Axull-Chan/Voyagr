@@ -2,6 +2,8 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 
 import type { GeneratedItinerary } from "@/lib/ai"
 import type { Database, TablesInsert } from "@/types/database.types"
+import { BOOKED_STAY_SOURCE, generatedStayIsPrimary } from "@/lib/bookings/booking-guards"
+import { syncItineraryCosts } from "@/features/trips/services/itinerary-cost-sync"
 
 type Client = SupabaseClient<Database>
 
@@ -32,9 +34,22 @@ export async function persistItinerary(
   //
   // Deleting the days is enough to take activities, restaurants and weather
   // with them — all three cascade from trip_days.
+  //
+  // A booked stay is the one exception: it stands for a reservation the hotel
+  // holds, so it survives regeneration (the database refuses to delete it
+  // anyway — see the hotel_bookings migration). The new plan's stays are added
+  // beside it, never as the primary one.
+  const { data: bookedStays, error: bookedError } = await supabase
+    .from("hotels")
+    .select("id")
+    .eq("trip_id", tripId)
+    .eq("source", BOOKED_STAY_SOURCE)
+  if (bookedError) throw bookedError
+  const hasBookedStay = (bookedStays ?? []).length > 0
+
   const cleanup = await Promise.all([
     supabase.from("trip_days").delete().eq("trip_id", tripId),
-    supabase.from("hotels").delete().eq("trip_id", tripId),
+    supabase.from("hotels").delete().eq("trip_id", tripId).neq("source", BOOKED_STAY_SOURCE),
     supabase.from("transportation").delete().eq("trip_id", tripId),
     supabase.from("budget_breakdown").delete().eq("trip_id", tripId),
     supabase.from("packing_lists").delete().eq("trip_id", tripId),
@@ -138,7 +153,7 @@ export async function persistItinerary(
     amenities: hotel.amenities,
     lat: hotel.lat,
     lng: hotel.lng,
-    is_primary: hotel.isPrimary,
+    is_primary: generatedStayIsPrimary(hotel.isPrimary, hasBookedStay),
     // Whether a real listing backs this name, so the page can keep saying so
     // long after the creation notice has gone.
     source: hotel.source,
@@ -204,4 +219,10 @@ export async function persistItinerary(
   for (const result of results) {
     if (result?.error) throw result.error
   }
+
+  // The generated budget lines priced the generated stay. With a booked stay
+  // kept as primary, re-derive them so the hotels line is what was booked.
+  // Best effort, like every other caller: a failure leaves figures that the
+  // next edit resyncs, never a failed generation.
+  if (hasBookedStay) await syncItineraryCosts(supabase, tripId)
 }
