@@ -18,6 +18,7 @@
  *  - OPENTRIPMAP_BASE_URL, FRANKFURTER_BASE_URL
  *  - NEXT_PUBLIC_MAP_STYLE_URL, NEXT_PUBLIC_MAP_ATTRIBUTION (browser-side map)
  *  - GEMINI_MODEL, GEMINI_FALLBACK_MODEL
+ *  - LITEAPI_API_KEY, BOOKING_MODE (hotel booking; sandbox only for now)
  */
 
 export type Env = Record<string, string | undefined>
@@ -204,4 +205,41 @@ export function geminiModels(env: Env = process.env): GeminiModels {
   const primary = valid("GEMINI_MODEL") ?? DEFAULT_GEMINI_MODEL
   const fallback = valid("GEMINI_FALLBACK_MODEL")
   return { primary, fallback: fallback && fallback !== primary ? fallback : null }
+}
+
+// ---------------------------------------------------------------------------
+// Hotel booking — LiteAPI (Nuitee Connect)
+// ---------------------------------------------------------------------------
+
+/** Hotel data and rate search. */
+export const LITEAPI_DATA_BASE = "https://api.liteapi.travel/v3.0"
+/** Prebook, book, booking lookup and cancel. */
+export const LITEAPI_BOOK_BASE = "https://book.liteapi.travel/v3.0"
+/** LiteAPI sandbox keys start with this; production keys don't. */
+export const LITEAPI_SANDBOX_KEY_PREFIX = "sand_"
+
+export type BookingMode = "sandbox"
+
+export type BookingConfig =
+  | { enabled: true; mode: BookingMode; apiKey: string; dataBase: string; bookBase: string }
+  | { enabled: false; reason: string }
+
+/**
+ * Whether hotel booking can run, and against what. Sandbox is the only mode
+ * this build allows: `BOOKING_MODE=live` is refused outright rather than
+ * quietly falling back, and the key must look like a sandbox key, so a
+ * production key pasted into the wrong variable can never place a real,
+ * charged booking. Going live is a deliberate code change, not a setting.
+ */
+export function bookingConfig(env: Env = process.env): BookingConfig {
+  const mode = setting(env, "BOOKING_MODE") ?? "sandbox"
+  if (mode !== "sandbox") {
+    return { enabled: false, reason: `BOOKING_MODE=${mode} is not supported; only sandbox booking is enabled.` }
+  }
+  const apiKey = setting(env, "LITEAPI_API_KEY")
+  if (!apiKey) return { enabled: false, reason: "LITEAPI_API_KEY is not set." }
+  if (!apiKey.startsWith(LITEAPI_SANDBOX_KEY_PREFIX)) {
+    return { enabled: false, reason: "LITEAPI_API_KEY is not a sandbox key (expected the sand_ prefix)." }
+  }
+  return { enabled: true, mode: "sandbox", apiKey, dataBase: LITEAPI_DATA_BASE, bookBase: LITEAPI_BOOK_BASE }
 }

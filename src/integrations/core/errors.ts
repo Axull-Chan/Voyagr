@@ -22,18 +22,25 @@ export class IntegrationError extends Error {
   readonly kind: IntegrationErrorKind
   readonly provider: string
   readonly status?: number
+  /**
+   * The provider's own error code from the body (`error.code`), when it sends
+   * one. Some providers ask you to match on it rather than on the HTTP status
+   * (LiteAPI returns the same code under several statuses).
+   */
+  readonly providerCode?: string
 
   constructor(
     provider: string,
     kind: IntegrationErrorKind,
     message: string,
-    options?: { status?: number; cause?: unknown }
+    options?: { status?: number; cause?: unknown; providerCode?: string }
   ) {
     super(message, { cause: options?.cause })
     this.name = "IntegrationError"
     this.provider = provider
     this.kind = kind
     this.status = options?.status
+    this.providerCode = options?.providerCode
   }
 
   /** Only transient classes are worth a second attempt. */

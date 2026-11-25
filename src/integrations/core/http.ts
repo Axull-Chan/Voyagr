@@ -17,7 +17,7 @@ export interface RequestOptions {
   /** Lets a caller cancel, e.g. when a React `cache()` scope is torn down. */
   signal?: AbortSignal
   /** GET unless a body is supplied, in which case POST. */
-  method?: "GET" | "POST"
+  method?: "GET" | "POST" | "PUT"
   /** JSON-serialised and sent with `content-type: application/json`. */
   body?: unknown
 }
@@ -91,11 +91,10 @@ export async function fetchJson<T>(
         // Best-effort: most JSON APIs (OpenAI included) put an actionable
         // message in the error body, and "responded 400" alone gives nobody
         // enough to debug a bad schema or a typo'd model name.
-        const detail = await response
-          .json()
-          .then((json: unknown) => extractErrorMessage(json))
-          .then((message) => (message === null ? null : scrub(message)))
-          .catch(() => null)
+        const errorBody = await response.json().catch(() => null as unknown)
+        const message = extractErrorMessage(errorBody)
+        const detail = message === null ? null : scrub(message)
+        const providerCode = extractErrorCode(errorBody)
 
         const error = new IntegrationError(
           provider,
@@ -103,7 +102,7 @@ export async function fetchJson<T>(
           detail
             ? `${provider} responded ${response.status}: ${detail}`
             : `${provider} responded ${response.status}`,
-          { status: response.status }
+          { status: response.status, ...(providerCode ? { providerCode } : {}) }
         )
         if (!error.isRetryable || attempt === retries) throw error
         lastError = error
@@ -178,6 +177,15 @@ function extractErrorMessage(json: unknown): string | null {
   }
 
   return typeof record.message === "string" ? record.message : null
+}
+
+/** `error.code` from a `{ error: { code } }` body, as a string, or null. */
+export function extractErrorCode(json: unknown): string | null {
+  if (typeof json !== "object" || json === null) return null
+  const nested = (json as Record<string, unknown>).error
+  if (typeof nested !== "object" || nested === null) return null
+  const code = (nested as Record<string, unknown>).code
+  return typeof code === "number" || typeof code === "string" ? String(code) : null
 }
 
 /** Builds a URL with undefined/null params dropped rather than stringified. */
