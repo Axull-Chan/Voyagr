@@ -20,6 +20,7 @@ import {
 } from "@/features/trips/services/trip-edit"
 import { syncItineraryCosts } from "@/features/trips/services/itinerary-cost-sync"
 import { deleteBlockedReason } from "@/features/trips/services/trip-delete"
+import { bookingBlockReason, type BookingBlockedAction } from "@/lib/bookings/booking-guards"
 import { recoverStaleGeneration } from "@/features/trips/services/generation-recovery"
 
 export type TripManagementResult = { ok: true } | { ok: false; error: string }
@@ -50,6 +51,25 @@ function revalidateTripViews(tripId: string) {
   revalidatePath(`/trips/${tripId}`)
   revalidatePath("/trips")
   revalidatePath("/dashboard")
+}
+
+/**
+ * Why a hotel booking forbids `action` on this trip, or null. Asked before the
+ * write so the answer is immediate and in plain words; the database refuses
+ * the same thing regardless (migration 20261125090000_add_hotel_bookings.sql).
+ * A failed read returns null and leaves the refusal to the database.
+ */
+async function activeBookingBlock(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  tripId: string,
+  action: BookingBlockedAction
+): Promise<string | null> {
+  const { data, error } = await supabase
+    .from("hotel_bookings")
+    .select("status, check_out")
+    .eq("trip_id", tripId)
+  if (error) return null
+  return bookingBlockReason(action, data ?? [], isoToday())
 }
 
 export async function renameTripAction(
@@ -259,7 +279,7 @@ export async function deleteTripAction(
   }
   if (!trip) return { ok: false, error: "That trip no longer exists." }
 
-  const blocked = deleteBlockedReason(trip.status)
+  const blocked = deleteBlockedReason(trip.status) ?? (await activeBookingBlock(supabase, tripId, "deleteTrip"))
   if (blocked) return { ok: false, error: blocked }
 
   const { data: deleted, error } = await supabase
@@ -272,6 +292,8 @@ export async function deleteTripAction(
     .maybeSingle()
 
   if (error) {
+    // The database's own booking guard (trips_no_delete_with_active_booking).
+    if (error.code === "55000") return { ok: false, error: error.message }
     await reportServerError(error, { context: "action:deleteTrip" })
     return { ok: false, error: "We couldn't delete that trip. Please try again." }
   }
@@ -324,7 +346,7 @@ export async function shiftTripDatesAction(
     { status: trip.status, startDate: trip.start_date, endDate: trip.end_date },
     startDate,
     isoToday()
-  )
+  ) ?? (await activeBookingBlock(supabase, tripId, "shiftDates"))
   if (blocked) return { ok: false, error: blocked }
 
   const { error } = await supabase.rpc("shift_trip_dates", {

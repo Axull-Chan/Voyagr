@@ -283,6 +283,153 @@ export type Database = {
           },
         ]
       }
+      hotel_bookings: {
+        Row: {
+          address: string | null
+          adults: number
+          board_type: string | null
+          booked_at: string | null
+          booking_id: string | null
+          cancellation_policy: Json | null
+          cancelled_at: string | null
+          check_in: string
+          check_out: string
+          children: number
+          confirmation_code: string | null
+          created_at: string
+          currency: string
+          failure_code: string | null
+          failure_message: string | null
+          final_total: number | null
+          guest_email: string | null
+          guest_first_name: string | null
+          guest_last_name: string | null
+          hotel_id: string | null
+          hotel_name: string
+          id: string
+          idempotency_key: string
+          lat: number | null
+          lng: number | null
+          mode: string
+          payment_timing: string
+          prebook_expires_at: string | null
+          prebook_id: string | null
+          prebook_total: number | null
+          price_change_accepted_at: string | null
+          provider: string
+          provider_hotel_id: string
+          quoted_total: number
+          rate_id: string | null
+          refundable_until: string | null
+          room_name: string | null
+          status: string
+          trip_id: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          address?: string | null
+          adults: number
+          board_type?: string | null
+          booked_at?: string | null
+          booking_id?: string | null
+          cancellation_policy?: Json | null
+          cancelled_at?: string | null
+          check_in: string
+          check_out: string
+          children?: number
+          confirmation_code?: string | null
+          created_at?: string
+          currency: string
+          failure_code?: string | null
+          failure_message?: string | null
+          final_total?: number | null
+          guest_email?: string | null
+          guest_first_name?: string | null
+          guest_last_name?: string | null
+          hotel_id?: string | null
+          hotel_name: string
+          id?: string
+          idempotency_key?: string
+          lat?: number | null
+          lng?: number | null
+          mode: string
+          payment_timing?: string
+          prebook_expires_at?: string | null
+          prebook_id?: string | null
+          prebook_total?: number | null
+          price_change_accepted_at?: string | null
+          provider: string
+          provider_hotel_id: string
+          quoted_total: number
+          rate_id?: string | null
+          refundable_until?: string | null
+          room_name?: string | null
+          status?: string
+          trip_id?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          address?: string | null
+          adults?: number
+          board_type?: string | null
+          booked_at?: string | null
+          booking_id?: string | null
+          cancellation_policy?: Json | null
+          cancelled_at?: string | null
+          check_in?: string
+          check_out?: string
+          children?: number
+          confirmation_code?: string | null
+          created_at?: string
+          currency?: string
+          failure_code?: string | null
+          failure_message?: string | null
+          final_total?: number | null
+          guest_email?: string | null
+          guest_first_name?: string | null
+          guest_last_name?: string | null
+          hotel_id?: string | null
+          hotel_name?: string
+          id?: string
+          idempotency_key?: string
+          lat?: number | null
+          lng?: number | null
+          mode?: string
+          payment_timing?: string
+          prebook_expires_at?: string | null
+          prebook_id?: string | null
+          prebook_total?: number | null
+          price_change_accepted_at?: string | null
+          provider?: string
+          provider_hotel_id?: string
+          quoted_total?: number
+          rate_id?: string | null
+          refundable_until?: string | null
+          room_name?: string | null
+          status?: string
+          trip_id?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hotel_bookings_hotel_id_fkey"
+            columns: ["hotel_id"]
+            isOneToOne: false
+            referencedRelation: "hotels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hotel_bookings_trip_id_fkey"
+            columns: ["trip_id"]
+            isOneToOne: false
+            referencedRelation: "trips"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       hotels: {
         Row: {
           address: string | null
@@ -804,6 +951,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      hotel_booking_is_active: {
+        Args: { p_status: string; p_check_out: string }
+        Returns: boolean
+      }
       confirm_ai_quota: {
         Args: { p_usage_id: number }
         Returns: boolean
