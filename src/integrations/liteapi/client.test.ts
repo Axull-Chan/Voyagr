@@ -216,20 +216,39 @@ describe("book", () => {
 })
 
 describe("lookups and cancel", () => {
-  it("finds a booking by our tag, ignoring one that carries a different reference", async () => {
+  it("finds a booking by its exact reference within a booking-date window (the API requires one)", async () => {
     fetchMock.mockResolvedValueOnce(
       json({
+        // The list's real shape (sandbox, Nov 2026): snake_case, price as a string,
+        // policies as a JSON string — not the single-booking shape.
+        count: 2,
         data: [
-          { bookingId: "OTHER", clientReference: "someone-else", status: "CONFIRMED", price: 1, currency: "EUR" },
-          { bookingId: "BK1", clientReference: "ref-1", status: "CONFIRMED", price: 438, currency: "EUR" },
+          { booking_Id: "OTHER", client_reference: "someone-else", status: "CONFIRMED", retail_rate: "1.00", currency: "EUR" },
+          {
+            booking_Id: "BK1",
+            id: 5569090,
+            client_reference: "ref-1",
+            status: "CONFIRMED",
+            retail_rate: "239.71",
+            currency: "EUR",
+            sandbox: 1,
+            hotel_confirmation_code: "test",
+            checkin: "2027-01-12",
+            checkout: "2027-01-14",
+            customTags: { [VOYAGR_REF_TAG]: "ref-1" },
+            cancelPolicies: JSON.stringify(rfnPolicies),
+          },
         ],
       })
     )
-    const found = await findBookingByReference(cfg, "ref-1")
-    expect(call().url.searchParams.get("customTags")).toBe(`${VOYAGR_REF_TAG}:ref-1`)
-    expect(found?.bookingId).toBe("BK1")
-    fetchMock.mockResolvedValueOnce(json({ data: [] }))
-    await expect(findBookingByReference(cfg, "ref-2")).resolves.toBeNull()
+    const found = await findBookingByReference(cfg, "ref-1", new Date("2026-11-28T10:00:00Z"))
+    expect(call().url.searchParams.get("bookingStartDate")).toBe("2026-11-27")
+    expect(call().url.searchParams.get("bookingEndDate")).toBe("2026-11-30")
+    expect(found).toMatchObject({ bookingId: "BK1", total: 239.71, sandbox: true, hotelConfirmationCode: "test" })
+    expect(found?.cancellation.freeUntil).toBe("2026-12-05T12:00:00Z")
+    // A booking without our reference (even with none at all) is never taken as ours.
+    fetchMock.mockResolvedValueOnce(json({ data: [{ booking_Id: "X", status: "CONFIRMED", retail_rate: "1", currency: "EUR" }] }))
+    await expect(findBookingByReference(cfg, "ref-2", new Date())).resolves.toBeNull()
   })
 
   it("cancels with PUT on the booking and reports the refund", async () => {

@@ -2294,7 +2294,44 @@ live is a deliberate code change, not a setting.
 - Server actions (`booking.actions.ts`): search (nothing stored), select room, prebook,
   accept price change, book, resolve pending, cancel, discard. Every status change is a
   compare-and-set on the current status, so a double click can't book twice.
-- **Not yet built:** Phase 3 UI (search/checkout pages; those pages must set
-  `maxDuration = 150` like the trip page, since prebook/book can take ~2 minutes) and
-  Phase 4 trip sync (booked stay row, budget line, linked pay-now expense, map popup,
-  chat snapshot, PDF/JSON export).
+- **Live sandbox check (2026-11-28)** through the real client, with the key as a
+  network secret for both hosts: search (10 Lisbon hotels) -> prebook -> book
+  (`ACC_CREDIT_CARD`, CONFIRMED, booking `UYyW8JbNH`) -> repeat book with the same
+  reference (`4005`, as classified) -> get booking -> cancel (`CANCELLED`, fee 0, full
+  refund). Every response had `sandbox: true`/`1`. Recorded responses matched the
+  parsers except **two undocumented differences, both fixed and pinned by tests built
+  from the real shapes**: (1) `GET /bookings` refuses a request with no date range
+  (`4000`), so the lookup sends `bookingStartDate`/`bookingEndDate` around the row's
+  `created_at`; (2) list entries use a different shape from `GET /bookings/{id}`
+  (`booking_Id`, `client_reference`, `retail_rate` as a string, `cancelPolicies` as a
+  JSON string) — `parseListedBooking`. Also seen: `offerRetailRate` is an object, not a
+  list (parser accepts both); `offerId` ~1,100 characters; the data `sandbox` flag is
+  `1`; cancel spells `CANCELLED` (docs: `CANCELED`); `customTags` read back null from
+  book/get but are stored (visible in the list); no phone was needed. The lookup was
+  re-run live afterwards and found the booking; a made-up reference found nothing.
+  **Node's own `fetch` ignores the proxy here** (`ENOTFOUND`): run live scripts with
+  `NODE_USE_ENV_PROXY=1` and a placeholder `LITEAPI_API_KEY=sand_...` (the proxy
+  injects the real key).
+
+**Phase 3 — search, room choice and checkout UI** (`src/app/(app)/trips/[id]/stays/`,
+`src/features/bookings/components/`):
+- `/trips/[id]/stays`: search form (dates and adults prefilled from the trip, children's
+  ages, guest nationality — needed by the rates, remembered in localStorage only), then
+  hotel cards (photo or destination fallback, official stars, cheapest total, cancellation)
+  whose room options open as rows; "Choose" creates the booking row and opens checkout.
+  Nothing is stored while searching. Hotel photos are plain `<img>` (provider CDN,
+  `static.cupid.travel` seen live), not `next/image`, so a search doesn't spend the
+  image-optimiser quota. Guest review scores are deliberately not shown.
+- `/trips/[id]/stays/[bookingId]`: one page that follows the stored status (check price ->
+  accept a changed price -> guest form -> book -> confirming / booked / not booked), and
+  calls `router.refresh()` after every action so the screen is always the database's state.
+  Both pages set `maxDuration = 150` and have matching `loading.tsx` skeletons.
+- **All wording is in `booking-view.ts`** (pure, tested): never "free" for a non-refundable
+  rate, never "failed" for an unknown outcome, never "est." for a paid price.
+- Stays panel (`trip-aside.tsx`): bookings first (Booked label + confirmation + exact
+  price; "Continue checkout"; "Confirming"), then plan stays with their existing est./example
+  labels, and "Find a hotel" when booking is on and the trip has dates.
+- A booked stay does **not** yet change the trip's stay row, budget, expense, map or chat
+  snapshot (Phase 4); the confirmation screen says so.
+- **Not yet built:** Phase 4 trip sync (booked stay row, budget line, linked pay-now
+  expense, map popup, chat snapshot, PDF/JSON export).

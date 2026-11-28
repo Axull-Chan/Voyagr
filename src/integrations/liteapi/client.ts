@@ -11,7 +11,7 @@ import type { BookingConfig } from "@/lib/config/providers"
  *  - book.liteapi.travel/v3.0  POST /rates/prebook           re-check price, get prebookId
  *                              POST /rates/book              book (clientReference = idempotency key)
  *                              GET  /bookings/{id}           one booking
- *                              GET  /bookings/?customTags=   find a booking by our own tag
+ *                              GET  /bookings/?bookingStartDate=&bookingEndDate=   find ours by clientReference
  *                              PUT  /bookings/{id}           cancel
  *  - Auth: `X-API-Key` header (redacted from every error by core/http.ts).
  *  - Match on `error.code`, not the HTTP status; rates can answer HTTP 200
@@ -264,6 +264,43 @@ export function parseBookingRecord(raw: unknown, sandboxFlag: unknown = undefine
   }
 }
 
+/**
+ * One entry of `GET /bookings` — a DIFFERENT shape from `GET /bookings/{id}`,
+ * checked live (sandbox, Nov 2026) and not in the docs: snake_case keys
+ * (`booking_Id`, `client_reference`, `hotel_confirmation_code`), the price as a
+ * string in `retail_rate`, and `cancelPolicies` as a JSON *string*.
+ */
+export function parseListedBooking(raw: unknown): BookingRecord {
+  const d = obj(raw)
+  const bookingId = str(d?.booking_Id) ?? str(d?.bookingId)
+  const status = str(d?.status)
+  const total = num(d?.retail_rate) ?? (typeof d?.retail_rate === "string" ? Number(d.retail_rate) : null) ?? num(d?.price)
+  const currency = str(d?.currency)
+  if (!d || !bookingId || !status || total === null || !Number.isFinite(total) || !currency) {
+    throw invalid("a listed booking without id, status, price or currency")
+  }
+  let policies: unknown = d.cancelPolicies ?? d.cancellationPolicies
+  if (typeof policies === "string") {
+    try {
+      policies = JSON.parse(policies)
+    } catch {
+      policies = null
+    }
+  }
+  return {
+    bookingId,
+    status,
+    clientReference: str(d.client_reference) ?? str(d.clientReference),
+    hotelConfirmationCode: str(d.hotel_confirmation_code) ?? str(d.hotelConfirmationCode),
+    total,
+    currency,
+    checkin: str(d.checkin),
+    checkout: str(d.checkout),
+    sandbox: bool(d.sandbox),
+    cancellation: parseCancellation(policies),
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Calls
 // ---------------------------------------------------------------------------
@@ -363,23 +400,43 @@ export async function getBooking(cfg: EnabledBookingConfig, bookingId: string): 
   return parseBookingRecord(root?.data, obj(root?.data)?.sandbox ?? root?.sandbox)
 }
 
+/** YYYY-MM-DD, UTC, `days` from `from`. */
+function isoDay(from: Date, days: number): string {
+  return new Date(from.getTime() + days * 86_400_000).toISOString().slice(0, 10)
+}
+
 /**
  * The booking made with our idempotency key, or null when the provider has
  * none. This is how a book whose response was lost gets resolved.
+ *
+ * Checked live (sandbox, Nov 2026), which differs from the docs: `GET /bookings`
+ * REFUSES a request without a date range (4000, "at least one pair of dates is
+ * required"), and a booking's `customTags` read back as null, so the tag can't be
+ * relied on to find it. So this asks for bookings *made* in a window around when
+ * our row was created and matches `clientReference` exactly, which every booking
+ * echoes (as `client_reference` in this list — see `parseListedBooking`). The
+ * VOYAGR_REF tag is stored too (visible in this list), and kept as a label.
  */
-export async function findBookingByReference(cfg: EnabledBookingConfig, clientReference: string): Promise<BookingRecord | null> {
-  const url = buildUrl(`${cfg.bookBase}/bookings/`, { customTags: `${VOYAGR_REF_TAG}:${clientReference}` })
+export async function findBookingByReference(
+  cfg: EnabledBookingConfig,
+  clientReference: string,
+  createdAround: Date
+): Promise<BookingRecord | null> {
+  const url = buildUrl(`${cfg.bookBase}/bookings/`, {
+    bookingStartDate: isoDay(createdAround, -1),
+    bookingEndDate: isoDay(createdAround, 2),
+  })
   const body = await fetchJson<unknown>(PROVIDER, url, { headers: headers(cfg), timeoutMs: LOOKUP_TIMEOUT_MS })
   const matches = arr(obj(body)?.data)
     .map((b) => {
       try {
-        return parseBookingRecord(b)
+        return parseListedBooking(b)
       } catch {
         return null
       }
     })
-    // Belt and braces: only a booking that carries our exact reference counts.
-    .filter((b): b is BookingRecord => b !== null && (b.clientReference === null || b.clientReference === clientReference))
+    // Only a booking that carries our exact reference counts.
+    .filter((b): b is BookingRecord => b !== null && b.clientReference === clientReference)
   return matches[0] ?? null
 }
 

@@ -417,7 +417,7 @@ async function resolveOwnPending(cfg: EnabledBookingConfig, userId: string, book
   const from = row.status as "pending_confirmation" | "booking"
   let found: BookingRecord | null
   try {
-    found = await findBookingByReference(cfg, row.idempotency_key)
+    found = await findBookingByReference(cfg, row.idempotency_key, new Date(row.created_at))
   } catch (error) {
     await reportServerError(error, { context: "action:resolveBooking", severity: "warning" })
     return { ok: true, status: from, message: "We're still confirming this booking with the hotel. Check back shortly." }
