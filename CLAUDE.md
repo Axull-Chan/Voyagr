@@ -140,6 +140,13 @@ committed before the next begins — don't skip ahead without the user's go-ahea
   advisor findings. `shift_trip_dates` had already been created in the live
   database by hand, byte-identical to the file, but was missing from the
   migration history; applying the migration recorded it.
+  Since then: `add_hotel_bookings` (2026-11-25, version `20261125045114`) and
+  `revoke_hotel_bookings_extra_grants` (2026-11-25) — see "Hotel booking" below.
+  Before applying the first, the live `duplicate_trip` was found to differ from the
+  repo **only in comments** (stripped when first applied; the 139 code lines hash
+  identically), so restating it changed nothing but the intended booking rule.
+  `SUPABASE_SERVICE_ROLE_KEY` is a Vercel *sensitive* variable (production +
+  preview, added by the user 2026-11-25); it is used only for `hotel_bookings` writes.
 
 ## Non-obvious things learned in Phase 1
 
@@ -2219,3 +2226,112 @@ pace/feasibility lines, the replan buttons and chat hand-off, Apply with stale
 operations, Change dates / Edit budget, the pricing section, the trip-page credits,
 the sign-in redirect. `gemini-3.8-flash` and the fallback model have not been called
 successfully yet (only a 503 has been observed).
+
+## Hotel booking (in progress, Nov 2026)
+
+In-app hotel search, prebook and booking through **LiteAPI (Nuitee Connect)**, built
+in phases on `feat/hotel-booking-flow`. **Sandbox only**: `bookingConfig()`
+(`src/lib/config/providers.ts`) refuses `BOOKING_MODE=live` and any `LITEAPI_API_KEY`
+not starting with `sand_`, so a production key can't place a charged booking; going
+live is a deliberate code change, not a setting.
+
+**Phase 1 — data model and guards** (migration `20261125090000_add_hotel_bookings.sql`):
+- `hotel_bookings` is separate from `hotels`. `hotels` is plan data (regenerate
+  deletes it, duplicate copies it, Change dates moves it); a reservation can't follow
+  any of that. A booking links to the stay it fills (`hotel_id`) and outlives its trip
+  (`trip_id` set null on delete).
+- **Writes are server-only.** Signed-in users can only SELECT their own rows (no
+  insert/update/delete policy; REFERENCES/TRIGGER revoked too). All writes use the
+  service-role client (`src/lib/supabase/service.ts`), always scoped to the session
+  user's id.
+- **A trigger enforces the state machine for every writer**, the service role included:
+  `room_selected -> prebooked -> booking -> booked | pending_confirmation | failed`,
+  `booked -> cancelled`, failed/cancelled final; fixed owner/key/mode/provider; a held
+  booking's hotel, dates, booking id and price can't change. Detaching from a deleted
+  trip or stay is allowed in any state, alone. `src/lib/bookings/booking-state.ts`
+  mirrors the transitions and a test reads the migration so they can't drift.
+- **"Active"** = `booking`, `pending_confirmation` or `booked` with check-out not
+  passed. While active: the trip can't be deleted, the booked stay row can't be
+  deleted, `shift_trip_dates` refuses, and `duplicate_trip` doesn't copy the booked
+  stay. Regenerating spares booked stays and never makes a generated stay primary over
+  one. Messages are shared (`booking-guards.ts`) and pinned against the migration.
+- Tested on a throwaway local Postgres (38 role-based scenarios, 6 SQL + 6 TS mutation
+  checks); the scenarios found a real bug (a trip with a *cancelled* booking couldn't be
+  deleted, because detaching counted as changing a final booking).
+
+**Phase 2 — provider client and server actions** (`src/integrations/liteapi/client.ts`,
+`src/features/bookings/`):
+- **Verified against the provider docs, not memory** (docs.nuitee.com, Nov 2026).
+  `docs.liteapi.travel` now redirects there; the WebFetch tool couldn't resolve it, but
+  `curl` from the container could. Hosts: `api.liteapi.travel/v3.0` (search + rates in
+  one `POST /hotels/rates` by latitude/longitude/radius with `includeHotelData`) and
+  `book.liteapi.travel/v3.0` (`POST /rates/prebook`, `POST /rates/book`,
+  `GET /bookings/{id}`, `GET /bookings/?customTags=`, `PUT /bookings/{id}` = cancel).
+  Auth: `X-API-Key` (already redacted from every error by `core/http.ts`).
+- **Match on `error.code`, not the HTTP status** (provider's rule; rates can return
+  HTTP 200 with `2001` = no availability). `fetchJson` now keeps it as
+  `IntegrationError.providerCode`, and accepts `PUT`.
+- **Prebook and book never retry automatically** and get a 125 s timeout (provider:
+  "up to about 2 minutes"); a retried book could meet our own first attempt.
+- **Idempotency:** each row's `idempotency_key` is sent as `clientReference` (a repeat
+  is refused with `4005`) *and* as a `VOYAGR_REF` custom tag, because `GET /bookings`
+  can filter by tag but not by `clientReference`. A lost or timed-out book becomes
+  `pending_confirmation` and is resolved by that lookup — never recorded as failed
+  (`book-outcome.ts`: only clearly-refused codes like 2001/2013/400x fail a booking;
+  2014 "incomplete", 5000, timeouts, 5xx and unreadable bodies are "unknown").
+- **Prebook** reads the provider's three checks (`priceDifferencePercent`,
+  `cancellationChanged`, `boardChanged`); any price difference (to the cent, either
+  direction) must be accepted before Book. No expiry is returned, so
+  `prebook_expires_at` stays null.
+- **Payment:** sandbox uses `ACC_CREDIT_CARD`, which the provider documents as
+  simulating payment with nothing charged. Live mode would use the provider's hosted
+  payment SDK so Voyagr never handles card numbers. A book response carries
+  `sandbox: true|false`; a `false` in sandbox mode is reported as an error.
+- Cancellation terms follow the provider's guidance: `RFN` is refundable, 0-amount
+  policies are ignored, free until the earliest charging policy; `NRFN` is never "free".
+- `holder.phone` is listed as required but described as "if available"; it's sent only
+  when given and not stored.
+- Server actions (`booking.actions.ts`): search (nothing stored), select room, prebook,
+  accept price change, book, resolve pending, cancel, discard. Every status change is a
+  compare-and-set on the current status, so a double click can't book twice.
+- **Live sandbox check (2026-11-28)** through the real client, with the key as a
+  network secret for both hosts: search (10 Lisbon hotels) -> prebook -> book
+  (`ACC_CREDIT_CARD`, CONFIRMED, booking `UYyW8JbNH`) -> repeat book with the same
+  reference (`4005`, as classified) -> get booking -> cancel (`CANCELLED`, fee 0, full
+  refund). Every response had `sandbox: true`/`1`. Recorded responses matched the
+  parsers except **two undocumented differences, both fixed and pinned by tests built
+  from the real shapes**: (1) `GET /bookings` refuses a request with no date range
+  (`4000`), so the lookup sends `bookingStartDate`/`bookingEndDate` around the row's
+  `created_at`; (2) list entries use a different shape from `GET /bookings/{id}`
+  (`booking_Id`, `client_reference`, `retail_rate` as a string, `cancelPolicies` as a
+  JSON string) — `parseListedBooking`. Also seen: `offerRetailRate` is an object, not a
+  list (parser accepts both); `offerId` ~1,100 characters; the data `sandbox` flag is
+  `1`; cancel spells `CANCELLED` (docs: `CANCELED`); `customTags` read back null from
+  book/get but are stored (visible in the list); no phone was needed. The lookup was
+  re-run live afterwards and found the booking; a made-up reference found nothing.
+  **Node's own `fetch` ignores the proxy here** (`ENOTFOUND`): run live scripts with
+  `NODE_USE_ENV_PROXY=1` and a placeholder `LITEAPI_API_KEY=sand_...` (the proxy
+  injects the real key).
+
+**Phase 3 — search, room choice and checkout UI** (`src/app/(app)/trips/[id]/stays/`,
+`src/features/bookings/components/`):
+- `/trips/[id]/stays`: search form (dates and adults prefilled from the trip, children's
+  ages, guest nationality — needed by the rates, remembered in localStorage only), then
+  hotel cards (photo or destination fallback, official stars, cheapest total, cancellation)
+  whose room options open as rows; "Choose" creates the booking row and opens checkout.
+  Nothing is stored while searching. Hotel photos are plain `<img>` (provider CDN,
+  `static.cupid.travel` seen live), not `next/image`, so a search doesn't spend the
+  image-optimiser quota. Guest review scores are deliberately not shown.
+- `/trips/[id]/stays/[bookingId]`: one page that follows the stored status (check price ->
+  accept a changed price -> guest form -> book -> confirming / booked / not booked), and
+  calls `router.refresh()` after every action so the screen is always the database's state.
+  Both pages set `maxDuration = 150` and have matching `loading.tsx` skeletons.
+- **All wording is in `booking-view.ts`** (pure, tested): never "free" for a non-refundable
+  rate, never "failed" for an unknown outcome, never "est." for a paid price.
+- Stays panel (`trip-aside.tsx`): bookings first (Booked label + confirmation + exact
+  price; "Continue checkout"; "Confirming"), then plan stays with their existing est./example
+  labels, and "Find a hotel" when booking is on and the trip has dates.
+- A booked stay does **not** yet change the trip's stay row, budget, expense, map or chat
+  snapshot (Phase 4); the confirmation screen says so.
+- **Not yet built:** Phase 4 trip sync (booked stay row, budget line, linked pay-now
+  expense, map popup, chat snapshot, PDF/JSON export).

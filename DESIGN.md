@@ -547,6 +547,18 @@ Format: *Tier* — surface — type — interaction — **never**.
 
 **Hotel / Restaurant / Activity entries.** *Tier 5* (hotel, restaurant in the aside) or *Tier 3* (activity in the timeline). Rows separated by space, name in `body-sm` 600, everything else `caption`. Numbers in `data-sm`. **Provenance is part of the design**: an example stay, a modelled price and a real listing must be visually distinguishable, using `--notice` for approximations. **Never** render a fabricated rating, and never let a modelled number look like a measured one.
 
+**Stays: three kinds that must never be confused.** A **booking** (a reservation the hotel holds) shows a square-cornered "Booked" label in `primary-strong` with a 1px border, its confirmation code in `data-sm`, and the exact price paid — **never "est."**. A **real listing** from the plan shows a modelled nightly price marked "est.". An **example stay** keeps its italic `--notice` line, "An example stay for budgeting — not a real listing". Bookings are listed first. **Never** give a booking a pill (pills are the countdown's alone), and never show an example or estimate without its label.
+
+**Hotel result card.** *Tier 3.* Card surface (hotels in a search are comparable objects), photo on top at 4:3 or the destination fallback, `headline-sm` name truncated to one line, official stars as small icons with an `aria-label`, and the cheapest total in `data-md` ("from €239.71 total · 2 nights"). The cancellation line sits under the price in `caption`. Room options open in place as divided rows. **Never** show a guest review score: the app doesn't republish ratings it can't verify (official stars are a classification, not a review).
+
+**Room option row.** *Tier 5.* Page-ground row inside the card, divided by 1px rules: room name, meal plan, cancellation in `caption`, total in `data-md`, and a compact "Choose" button (44px on touch).
+
+**Checkout.** *Tier 3.* One page following the booking's stored status, beside a summary rail (`1fr / 20rem` from `lg`, stacked below). Inputs follow the Input spec (44px, `border-interactive`, visible labels, written errors tied by `aria-describedby`). The cancellation terms sit directly above the Book button, never behind a link. While prebook or book runs (up to ~2 minutes) the button says what it is doing and is disabled. A booking whose outcome is unknown reads "Confirming" with a "Check status" action — **never** "failed".
+
+**Price-change notice.** *Tier 5.* `--notice` surface with `notice-border`, one sentence in the direction of the change ("The price went up from €412 to €438 since you chose this room."), and the new amount on the only button that continues. **Never** book a changed price without that explicit acceptance, up or down.
+
+**Sandbox notice.** *Tier 5.* `--notice` line at the top of every booking screen while booking runs in test mode: "Test mode. Bookings are simulated and nothing is charged." Not dismissible.
+
 **Weather.** *Tier 5.* A compact inline chip on the day header, `muted` ground, condition in `body-sm`, every number in `data-sm`. Four provenance states, not two — live, real-but-stale, modelled, unavailable — with the modelled case carrying `--notice`. **Never** collapse those states into one label, and never show a zero where a null exists.
 
 **Map.** *Tier 4.* One large quiet object, 4px radius, full width of its column. Markers are 12px circles in the four dedicated marker colors, fixed hex in both themes — a pin must stay findable against uncontrollable tile colors. Popups take `--popover` and must set both ground and text. **Never** give the map a shadow, and never reuse `tertiary` for a marker.

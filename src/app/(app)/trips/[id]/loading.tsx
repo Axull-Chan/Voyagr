@@ -48,6 +48,8 @@ export default function TripDetailLoading() {
             <Skeleton className="h-5 w-32" />
             <Skeleton className="h-4 w-full" />
             <Skeleton className="h-3 w-2/3" />
+            {/* The Stays panel's "Find a hotel" button (when booking is on). */}
+            <Skeleton className="mt-4 h-8 w-full rounded-lg" />
           </div>
         </div>
       </div>

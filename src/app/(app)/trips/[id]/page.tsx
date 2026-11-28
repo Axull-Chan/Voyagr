@@ -25,6 +25,9 @@ import { BudgetSection } from "@/features/trips/components/detail/budget-section
 import { PackingSection } from "@/features/trips/components/detail/packing-section"
 import { TripChat } from "@/features/trips/components/detail/trip-chat"
 import { getAiQuotaHint } from "@/features/trips/services/ai-quota"
+import { getTripBookings } from "@/features/bookings/queries/bookings"
+import { showInStaysPanel } from "@/features/bookings/services/booking-view"
+import { bookingConfig } from "@/lib/config/providers"
 import { TripActionsMenu } from "@/features/trips/components/detail/trip-actions-menu"
 import { GenerateItineraryButton } from "@/features/trips/components/detail/generate-itinerary-button"
 import { TripSources } from "@/features/trips/components/detail/trip-sources"
@@ -73,7 +76,10 @@ export default async function TripDetailPage({ params }: TripDetailPageProps) {
   const [
     { trip, days, hotels, transportation, budget, expenses, packing },
     chatHistory,
-  ] = await Promise.all([getTripDetail(id), getTripChatHistory(id)])
+    bookings,
+  ] = await Promise.all([getTripDetail(id), getTripChatHistory(id), getTripBookings(id)])
+  // Booking needs the feature on and dates to book against.
+  const canBook = bookingConfig().enabled && Boolean(trip.start_date && trip.end_date) && trip.status !== "generating"
 
   // The traveller's own currency, for converting a foreign budget back.
   const supabase = await createClient()
@@ -246,6 +252,8 @@ export default async function TripDetailPage({ params }: TripDetailPageProps) {
   }
 
   const hasAsideContent =
+    canBook ||
+    bookings.some((b) => showInStaysPanel(b.status)) ||
     hotels.length > 0 ||
     transportation.length > 0 ||
     Boolean(trip.additional_notes)
@@ -382,7 +390,13 @@ export default async function TripDetailPage({ params }: TripDetailPageProps) {
                     gives it its own tier (a parallel structural layer, not a
                     second content card) without a new token or any blur. */}
                   <div className="divide-border/60 border-border/60 bg-muted/40 divide-y rounded-xl border">
-                    <StaysPanel hotels={hotels} currency={trip.currency} />
+                    <StaysPanel
+                      hotels={hotels}
+                      currency={trip.currency}
+                      tripId={trip.id}
+                      bookings={bookings}
+                      canBook={canBook}
+                    />
                     <TransportPanel
                       legs={transportation}
                       currency={trip.currency}
